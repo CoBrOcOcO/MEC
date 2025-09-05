@@ -1,0 +1,245 @@
+﻿@page "/git/repositories"
+@using MECWeb.Services
+@using MECWeb.Models.Gitea
+@inject GiteaService GiteaService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Git Repositories - MEC</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    
+    @* Header with Actions *@
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+            <MudStack Spacing="1">
+                <MudText Typo="Typo.h4" Color="Color.Primary">
+                    <MudIcon Icon="@Icons.Material.Filled.Storage" Class="mr-2" />
+                    Git Repositories
+                </MudText>
+                <MudText Typo="Typo.body1" Color="Color.Secondary">
+                    Alle verfügbaren Gitea-Repositories verwalten
+                </MudText>
+            </MudStack>
+            
+            <MudStack Row="true" Spacing="2">
+                <MudButton Variant="Variant.Outlined"
+                           StartIcon="@Icons.Material.Filled.Refresh"
+                           OnClick="LoadRepositories"
+                           Disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    }
+                    Aktualisieren
+                </MudButton>
+                
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           Href="/git/create-repository">
+                    Neues Repository
+                </MudButton>
+            </MudStack>
+        </MudStack>
+    </MudPaper>
+
+    @* Loading State *@
+    @if (isLoading && (repositories == null || !repositories.Any()))
+    {
+        <MudStack AlignItems="AlignItems.Center" Class="mt-8">
+            <MudProgressCircular Size="Size.Large" Indeterminate="true" />
+            <MudText Typo="Typo.body1">Repositories werden geladen...</MudText>
+        </MudStack>
+    }
+    @* No Repositories State *@
+    else if (repositories == null || !repositories.Any())
+    {
+        <MudPaper Class="pa-8" Elevation="1">
+            <MudStack AlignItems="AlignItems.Center" Spacing="4">
+                <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Style="font-size: 4rem;" Color="Color.Secondary" />
+                <MudText Typo="Typo.h6">Keine Repositories gefunden</MudText>
+                <MudText Typo="Typo.body1" Align="Align.Center" Color="Color.Secondary">
+                    Es sind noch keine Git-Repositories verfügbar. Erstellen Sie Ihr erstes Repository.
+                </MudText>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           Href="/git/create-repository"
+                           Size="Size.Large">
+                    Erstes Repository erstellen
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+    @* Repositories Grid *@
+    else
+    {
+        <MudGrid Spacing="4">
+            @foreach (var repo in repositories)
+            {
+                <MudItem xs="12" sm="6" md="4" lg="3">
+                    <MudPaper Class="pa-4 repo-card" Elevation="2" Style="height: 100%; cursor: pointer;"
+                              @onclick="@(() => NavigateToRepository(repo))">
+                        
+                        @* Repository Header *@
+                        <MudStack Spacing="2" Style="height: 100%;">
+                            
+                            @* Repository Icon & Name *@
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudAvatar Color="@GetRepoColor(repo)" Size="Size.Medium">
+                                    <MudIcon Icon="@GetRepoIcon(repo)" />
+                                </MudAvatar>
+                                <MudStack Spacing="0" Style="flex: 1; min-width: 0;">
+                                    <MudText Typo="Typo.subtitle1" Style="font-weight: 600; word-break: break-word;">
+                                        @repo.Name
+                                    </MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        👤 @repo.Owner?.Login
+                                    </MudText>
+                                </MudStack>
+                            </MudStack>
+
+                            @* Description *@
+                            <MudText Typo="Typo.body2" 
+                                     Color="Color.Secondary" 
+                                     Style="flex: 1; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
+                                @(string.IsNullOrEmpty(repo.Description) ? "Keine Beschreibung verfügbar" : repo.Description)
+                            </MudText>
+
+                            @* Repository Stats *@
+                            <MudDivider />
+                            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Style="margin-top: auto;">
+                                <MudStack Row="true" Spacing="3">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                        <MudIcon Icon="@Icons.Material.Filled.Star" Size="Size.Small" Color="Color.Warning" />
+                                        <MudText Typo="Typo.caption">@repo.Stars_Count</MudText>
+                                    </MudStack>
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                        <MudIcon Icon="@Icons.Material.Filled.Storage" Size="Size.Small" Color="Color.Info" />
+                                        <MudText Typo="Typo.caption">@FormatFileSize(repo.Size)</MudText>
+                                    </MudStack>
+                                </MudStack>
+                                
+                                @* Repository Status *@
+                                <MudChip T="string" Size="Size.Small"
+                                         Color="@(repo.Private ? Color.Error : Color.Success)"
+                                         Icon="@(repo.Private ? Icons.Material.Filled.Lock : Icons.Material.Filled.Public)">
+                                    @(repo.Private ? "Privat" : "Öffentlich")
+                                </MudChip>
+                            </MudStack>
+
+                            @* Last Update *@
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Align="Align.Center">
+                                Aktualisiert: @repo.Updated_At.ToString("dd.MM.yyyy")
+                            </MudText>
+
+                        </MudStack>
+                    </MudPaper>
+                </MudItem>
+            }
+        </MudGrid>
+
+        @* Statistics Footer *@
+        <MudPaper Class="pa-4 mt-6" Elevation="1">
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                <MudText Typo="Typo.body1" Color="Color.Primary">
+                    📊 <strong>@repositories.Count</strong> Repositories gefunden
+                </MudText>
+                <MudStack Row="true" Spacing="4">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        🔒 @repositories.Count(r => r.Private) Privat
+                    </MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        🌍 @repositories.Count(r => !r.Private) Öffentlich
+                    </MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        💾 @FormatFileSize(repositories.Sum(r => r.Size)) Gesamt
+                    </MudText>
+                </MudStack>
+            </MudStack>
+        </MudPaper>
+    }
+
+</MudContainer>
+
+@code {
+    private List<Repository>? repositories;
+    private bool isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRepositories();
+    }
+
+    private async Task LoadRepositories()
+    {
+        isLoading = true;
+        try
+        {
+            repositories = await GiteaService.GetUserRepositoriesAsync();
+            
+            if (repositories != null)
+            {
+                Snackbar.Add($"✅ {repositories.Count} Repositories geladen", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("❌ Fehler beim Laden der Repositories", Severity.Error);
+                repositories = new List<Repository>();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"❌ Fehler: {ex.Message}", Severity.Error);
+            repositories = new List<Repository>();
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void NavigateToRepository(Repository repo)
+    {
+        Navigation.NavigateTo($"/git/repository/{repo.Owner?.Login}/{repo.Name}");
+    }
+
+    private Color GetRepoColor(Repository repo)
+    {
+        if (repo.Name.StartsWith("S-")) return Color.Primary;   // Schaeffler-Projekte
+        if (repo.Private) return Color.Error;                   // Private Repos
+        if (repo.Fork) return Color.Info;                       // Forks
+        return Color.Secondary;                                 // Standard
+    }
+
+    private string GetRepoIcon(Repository repo)
+    {
+        if (repo.Name.StartsWith("S-")) return Icons.Material.Filled.Engineering;  // Schaeffler-Projekte
+        if (repo.Fork) return Icons.Material.Filled.CallSplit;                     // Fork
+        if (repo.Template) return Icons.Material.Filled.ContentCopy;               // Template
+        return Icons.Material.Filled.Folder;                                       // Standard
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024:F1} KB";
+        if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024 * 1024):F1} MB";
+        return $"{bytes / (1024 * 1024 * 1024):F1} GB";
+    }
+}
+
+<style>
+    .repo-card {
+        transition: all 0.3s ease;
+        border: 1px solid var(--mud-palette-lines-default);
+    }
+
+    .repo-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 32px rgba(0, 137, 61, 0.15);
+        border-color: var(--mud-palette-primary);
+    }
+</style>

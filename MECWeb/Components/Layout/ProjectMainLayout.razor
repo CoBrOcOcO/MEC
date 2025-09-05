@@ -1,0 +1,209 @@
+﻿@using System.Collections
+@using MECWeb.DbModels.Project
+@using MECWeb.DbModels.User
+
+@layout AppLayout
+@inherits LayoutComponentBase
+@inject NavigationManager Navigation
+@inject AppCardService AppCardService
+@inject ISnackbar Snackbar
+@inject ApplicationDbContext DbContext
+@* @inject UserProfileService UserProfileService *@
+
+<MudDrawer id="navproject-drawer" @bind-Open="NavOpen" ClipMode="DrawerClipMode.Always" Elevation="2" Variant="DrawerVariant.Persistent">
+    <MudStack Class="pa-2">
+        <MudStack Spacing="0">
+            <MudText Align="Align.Center" Typo="Typo.overline">Projekt:</MudText>
+            <MudText Align="Align.Center" Typo="Typo.subtitle2">@project?.ProjectNumber</MudText>
+            <MudText Align="Align.Center" Typo="Typo.subtitle2">@project?.Name</MudText>
+        </MudStack>
+    </MudStack>
+
+    <MudDivider Class="mt-2 mb-2 pa-0 flex-grow-0"></MudDivider>
+
+    <MudNavMenu Class="pl-2 pr-2" Rounded="true" Margin="Margin.None" Color="Color.Primary" Dense=true>
+
+        <MudNavLink Href="@projectHomePath" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.ViewModule">Übersicht</MudNavLink>
+
+        @foreach (var category in navItems.Keys)
+        {
+            <MudNavGroup Title="@category" Expanded="false">
+                @foreach (var item in navItems[category])
+                {
+                    <MudNavLink Href="@item.Href" Match="NavLinkMatch.Prefix" Icon="@item.Icon">@item.HeaderText</MudNavLink>
+                }
+            </MudNavGroup>
+        }
+
+    </MudNavMenu>
+
+    <MudSpacer></MudSpacer>
+
+    <MudDrawerContainer Class="ml-2 mr-2 mb-2 mt-6">
+
+        <MudButton Variant="Variant.Text" Size=Size.Small Color="Color.Primary" StartIcon="@Icons.Material.Filled.ArrowBack" FullWidth="true" Href="/projects"></MudButton>
+
+    </MudDrawerContainer>
+
+</MudDrawer>
+
+<MudMainContent>
+    <MudAppBar Fixed="false" Elevation="2" Dense=true Style="z-index:1000;">
+        <MudText Typo="Typo.subtitle1">@subHeaderText</MudText>
+        <MudSpacer></MudSpacer>
+        <MudToggleIconButton Toggled="isFavorite"
+                             ToggledChanged="OnFavoriteChanged"
+                             Icon="@Icons.Material.Filled.Star"
+                             Color="@Color.Default"
+                             ToggledIcon="@Icons.Material.Filled.Star"
+                             ToggledColor="@Color.Tertiary"
+                             Size="Size.Small" />
+
+    </MudAppBar>
+    <div class="pa-4">
+
+        @*         <CascadingValue Value="ProjectId"> *@
+        @Body
+        @* </CascadingValue> *@
+    </div>
+
+</MudMainContent>
+
+
+@code {
+
+    [CascadingParameter]
+    public bool NavOpen { get; set; }
+
+    private Dictionary<string, List<AppCardViewModel>> navItems = new Dictionary<string, List<AppCardViewModel>>();
+
+    private string projectHomePath = string.Empty;
+
+    private string subHeaderText { get; set; } = string.Empty;
+
+    private DbProject? project;
+
+    private bool isFavorite = false;
+
+    public string ProjectId
+    {
+        get
+        {
+            var path = Navigation.ToBaseRelativePath(Navigation.Uri);
+            if (string.IsNullOrWhiteSpace(path)) return string.Empty;
+            var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length > 1 ? parts[1] : string.Empty;
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        this.projectHomePath = $"/project/{ProjectId}";
+
+        try
+        {
+            navItems = AppCardService.GetAppCardsCategorized(new Guid(ProjectId));
+        }
+        catch
+        {
+            navItems.Clear();
+        }
+
+        try
+        {
+            project = DbContext.Project.Find(new Guid(ProjectId));
+            if (project == null)
+            {
+                Snackbar.Add($"Projekt konnte nicht gerladen werden!", Severity.Error);
+                Navigation.NavigateTo("/projects", false);
+            }
+        }
+        catch
+        {
+            Snackbar.Add($"Projekt konnte nicht gerladen werden!", Severity.Error);
+            Navigation.NavigateTo("/projects", false);
+        }
+
+        try
+        {
+            // var favorite = DbContext.UserProjectFavorite
+            //     .FirstOrDefault(fav => fav.DbUserId == UserProfileService.User.UId && fav.DbProjectId == new Guid(ProjectId));
+
+            // if (favorite != null)
+            // {
+            //     isFavorite = true;
+            // }
+            // else
+            // {
+            //     isFavorite = false;
+            // }
+        }
+        catch
+        {
+            isFavorite = false;
+        }
+
+        SetSubHeaderText();
+
+        Navigation.LocationChanged += (sender, args) =>
+        {
+            SetSubHeaderText();
+            StateHasChanged(); // Trigger re-render when navigation changes
+        };
+    }
+
+    private void SetSubHeaderText()
+    {
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri);
+        try
+        {
+            if (AppCardService.GetAppCards(new Guid(ProjectId)).Find(x => x.Href.Equals(path)) is AppCardViewModel appCard)
+            {
+                subHeaderText = appCard.HeaderText;
+            }
+            else
+            {
+                subHeaderText = "Übersicht";
+            }
+        }
+        catch
+        {
+            subHeaderText = "Übersicht";
+        }
+    }
+
+    public void OnFavoriteChanged(bool toggled)
+    {
+        // try
+        // {
+        //     if (toggled)
+        //     {
+        //         // Add to favorites
+        //         var favorite = new DbUserProjectFavorite
+        //             {
+        //                 DbUserId = UserProfileService.User.UId,
+        //                 DbProjectId = new Guid(ProjectId)
+        //             };
+        //         DbContext.UserProjectFavorite.Add(favorite);
+        //         DbContext.SaveChanges();
+        //         isFavorite = true;
+        //     }
+        //     else
+        //     {
+        //         // Remove from favorites
+        //         var favorite = DbContext.UserProjectFavorite
+        //             .FirstOrDefault(fav => fav.DbUserId == UserProfileService.User.UId && fav.DbProjectId == new Guid(ProjectId));
+        //         if (favorite != null)
+        //         {
+        //             DbContext.UserProjectFavorite.Remove(favorite);
+        //             DbContext.SaveChanges();
+        //             isFavorite = false;
+        //         }
+        //     }
+        // }
+        // catch (Exception ex)
+        // {
+        //     Snackbar.Add($"Fehler beim Aktualisieren der Favoriten: {ex.Message}", Severity.Error);
+        // }
+    }
+}

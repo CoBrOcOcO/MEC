@@ -1,0 +1,194 @@
+﻿@using MECWeb.DbModels.Project
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject ISnackbar Snackbar
+
+<EditForm Model="@project" OnValidSubmit="OnValidSubmit">
+    <DataAnnotationsValidator />
+    <MudDialog Class="pl-4 pr-4" Style="width: 500px;">
+        <TitleContent>
+            <MudText Typo="Typo.h6" Class="mr-8">Neues Projekt anlegen</MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudStack Row AlignItems="AlignItems.Center">
+                <MudText Typo="Typo.subtitle1" Style="margin-right: -10px; min-width: 35px;">S-</MudText>
+                <MudTextField Label="Projektnummer" Typo="Typo.subtitle1" ShrinkLabel="true"
+                              @bind-Value="NumericPartOfProjectNumber"
+                              For="@(() => project.ProjectNumber)"
+                              Validation="@(new Func<string, Task<IEnumerable<string>>>(ValidateProjectNumberAsync))"
+                              Immediate="true"
+                              Variant="Variant.Outlined"
+                              Required="true"
+                              RequiredError="Projektnummer ist erforderlich"
+                              T="string" />
+            </MudStack>
+            <MudTextField Label="Name" Typo="Typo.subtitle1" ShrinkLabel="true" Class="mt-4"
+                          @bind-Value="project.Name"
+                          For="@(() => project.Name)"
+                          Required="true"
+                          RequiredError="Name ist erforderlich"
+                          Variant="Variant.Outlined"
+                          T="string" />
+            <MudTextField Label="Beschreibung" Lines="3" Typo="Typo.subtitle1" ShrinkLabel="true" Class="mt-4"
+                          @bind-Value="project.Description"
+                          Variant="Variant.Outlined"
+                          T="string" />
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-3" ShowCloseIcon="true" CloseIconClicked="() => errorMessage = string.Empty">
+                    @errorMessage
+                </MudAlert>
+            }
+        </DialogContent>
+        <DialogActions>
+            <MudButton OnClick="Cancel">Abbrechen</MudButton>
+            <MudButton ButtonType="ButtonType.Submit"
+                       Color="Color.Primary"
+                       Disabled="@(isSubmitting)"
+                       Loading="@isSubmitting">
+                Erstellen
+            </MudButton>
+        </DialogActions>
+    </MudDialog>
+</EditForm>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    private DbProject project = new();
+    private string numericPartOfProjectNumber = string.Empty;
+    private string errorMessage = string.Empty;
+    private bool isSubmitting = false;
+
+    // Property with setter to automatically update project.ProjectNumber
+    private string NumericPartOfProjectNumber
+    {
+        get => numericPartOfProjectNumber;
+        set
+        {
+            numericPartOfProjectNumber = value;
+            // Update the project number immediately for validation
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                project.ProjectNumber = string.Empty;
+            }
+            else
+            {
+                project.ProjectNumber = $"S-{value}";
+            }
+            StateHasChanged();
+        }
+    }
+
+    private async Task<IEnumerable<string>> ValidateProjectNumberAsync(string number)
+    {
+        var errors = new List<string>();
+
+        // Required validation
+        if (string.IsNullOrWhiteSpace(number))
+        {
+            return errors; // Let Required attribute handle empty validation
+        }
+
+        // Numeric validation
+        if (!int.TryParse(number, out _))
+        {
+            errors.Add("Projektnummer darf nur Zahlen enthalten.");
+            return errors;
+        }
+
+        // Uniqueness validation
+        var fullNumber = $"S-{number}";
+        bool exists = await DbContext.Project.AnyAsync(p => p.ProjectNumber == fullNumber);
+        if (exists)
+        {
+            errors.Add($"Projektnummer {fullNumber} existiert bereits.");
+        }
+
+        return errors;
+    }
+
+    private async Task Submit()
+    {
+        isSubmitting = true;
+        errorMessage = string.Empty;
+
+        try
+        {
+            // Project number is already set via the property setter
+            project.ProjectNumber = $"S-{numericPartOfProjectNumber}";
+
+            // Set creation and modification dates
+            project.CreationDate = DateTime.UtcNow;
+            project.LastChange = DateTime.UtcNow;
+
+            // Add project
+            DbContext.Project.Add(project);
+            await DbContext.SaveChangesAsync();
+
+            Snackbar.Add($"Projekt {project.Name} wurde erfolgreich erstellt!", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(project));
+        }
+        catch (DbUpdateException ex)
+        {
+            // Specific error handling for database update problems
+            if (ex.InnerException?.Message.Contains("IX_Project_ProjectNumber") == true)
+            {
+                errorMessage = $"Projektnummer {project.ProjectNumber} existiert bereits in der Datenbank.";
+            }
+            else
+            {
+                errorMessage = $"Datenbankfehler: {ex.Message}";
+            }
+
+            Console.WriteLine($"DbUpdateException beim Erstellen des Projekts: {ex}");
+        }
+        catch (Exception ex)
+        {
+            // General error handling
+            errorMessage = $"Fehler beim Erstellen des Projekts: {ex.Message}";
+            Console.WriteLine($"Exception beim Erstellen des Projekts: {ex}");
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task OnValidSubmit(EditContext context)
+    {
+        // Additional validation for numeric part
+        if (string.IsNullOrWhiteSpace(numericPartOfProjectNumber))
+        {
+            errorMessage = "Projektnummer ist erforderlich.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(project.Name))
+        {
+            errorMessage = "Name ist erforderlich.";
+            return;
+        }
+
+        if (!int.TryParse(numericPartOfProjectNumber, out _))
+        {
+            errorMessage = "Projektnummer darf nur Zahlen enthalten.";
+            return;
+        }
+
+        // Check for duplicate project number
+        var fullNumber = $"S-{numericPartOfProjectNumber}";
+        bool exists = await DbContext.Project.AnyAsync(p => p.ProjectNumber == fullNumber);
+        if (exists)
+        {
+            errorMessage = $"Projektnummer {fullNumber} existiert bereits.";
+            return;
+        }
+
+        await Submit();
+    }
+}

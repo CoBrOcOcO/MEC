@@ -1,0 +1,476 @@
+﻿@using MECWeb.DbModels.Project
+@using Microsoft.AspNetCore.Components.Forms
+
+@layout ProjectMainLayout
+@page "/project/{Id:guid}/translate"
+
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudContainer MaxWidth="MaxWidth.Medium" Style="margin-top: 30px;">
+    <MudStack Spacing="2">
+        <!-- Header -->
+        <MudStack Class="mb-4">
+            <MudText Typo="Typo.h4" Align="Align.Center">
+                Projekt Übersetzer
+            </MudText>
+            <MudText Typo="Typo.h6" Align="Align.Center" Color="Color.Secondary">
+                Automatisierte Übersetzung von Projektdateien
+            </MudText>
+        </MudStack>
+
+        <MudPaper Elevation="2" Class="pa-4">
+            <MudStepper @ref="stepper"
+                        NonLinear="false"
+                        ShowResetButton="true"
+                        OnPreviewInteraction="OnPreviewInteraction"
+                        StepErrorIcon="@Icons.Material.Filled.Warning"
+                        ErrorStepColor="Color.Error"
+                        HeaderSize="Size.Large">
+
+                <!-- Step 1: Project Type Selection -->
+                <MudStep Title="Schritt 1"
+                         SecondaryText="Projektart wählen"
+                         HasError="@(!GetStep1Complete())">
+                    <MudStack Spacing="3">
+                        <MudText Typo="Typo.h6">Wählen Sie den Projekttyp:</MudText>
+                        <MudRadioGroup T="string" @bind-Value="selectedProjectType">
+                            <MudStack Spacing="2">
+                                <MudRadio Value="@("TIA")" Color="Color.Primary">
+                                    <MudText>TIA Portal Projekt</MudText>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                        Exportierte TIA Projekttext Excel-Datei
+                                    </MudText>
+                                </MudRadio>
+                                <MudRadio Value="@("STEP7")" Color="Color.Primary">
+                                    <MudText>STEP7 (WinCC) Projekt</MudText>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                        Exportierte STEP7 (WinCC) Excel-Datei
+                                    </MudText>
+                                </MudRadio>
+                                <MudRadio Value="@("CUSTOM")" Color="Color.Primary">
+                                    <MudText>Benutzerdefiniert (Excel)</MudText>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                        Benutzerdefinierte Excel-Datei
+                                    </MudText>
+                                </MudRadio>
+                                <MudRadio Value="@("EPLAN")" Color="Color.Primary">
+                                    <MudText>EPlan Projekt</MudText>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                        Exportierte EPlan-Datei
+                                    </MudText>
+                                </MudRadio>
+                            </MudStack>
+                        </MudRadioGroup>
+                    </MudStack>
+                </MudStep>
+
+                <!-- Step 2: File Upload -->
+                <MudStep Title="Schritt 2"
+                         SecondaryText="Datei Upload"
+                         HasError="@(!GetStep2Complete())">
+
+                    <MudStack Spacing="3">
+                        <MudText Typo="Typo.h6">Projektdatei hochladen:</MudText>
+                        <MudFileUpload T="IReadOnlyList<IBrowserFile>"
+                                       @ref="fileUpload"
+                                       OnFilesChanged="OnInputFileChanged"
+                                       AppendMultipleFiles="false"
+                                       Accept=".xlsx,.xls"
+                                       MaxAllowedFiles="1"
+                                       Hidden="false"
+                                       InputClass="absolute mud-width-full mud-height-full overflow-hidden z-10"
+                                       InputStyle="opacity:0"
+                                       @ondrop="ClearDragClass"
+                                       @ondragenter="SetDragClass"
+                                       @ondragleave="ClearDragClass"
+                                       @ondragend="ClearDragClass">
+                            <ActivatorContent>
+                                <MudPaper Height="120px"
+                                          Outlined="true"
+                                          Class="@(dragClass + " d-flex align-center justify-center flex-column")">
+                                    >
+                                    @if (uploadedFiles.Any())
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
+                                                 Color="Color.Success"
+                                                 Size="Size.Large" />
+                                        <MudText Typo="Typo.subtitle1" Color="Color.Success">
+                                            @uploadedFiles.First()
+                                        </MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.CloudUpload"
+                                                 Color="Color.Secondary"
+                                                 Size="Size.Large" />
+                                        <MudText Typo="Typo.subtitle2" Color="Color.Secondary">
+                                            Datei hier ablegen oder klicken
+                                        </MudText>
+                                    }
+                                </MudPaper>
+                            </ActivatorContent>
+                        </MudFileUpload>
+                    </MudStack>
+                </MudStep>
+
+                <!-- Step 3: Translation Settings -->
+                <MudStep Title="Schritt 3"
+                         SecondaryText="Übersetzungseinstellungen"
+                         HasError="@(!GetStep3Complete())">
+
+                    <MudStack Spacing="3">
+                        <MudText Typo="Typo.h6">Übersetzungsoptionen:</MudText>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudSwitch @bind-Value="preserveOriginal"
+                                       Color="Color.Primary"
+                                       Label="Original beibehalten" />
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                Originaltext in separater Spalte behalten
+                            </MudText>
+                        </MudStack>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudSwitch @bind-Value="useGlossary"
+                                       Color="Color.Primary"
+                                       Label="Glossar verwenden" />
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                Technische Begriffe aus Glossar verwenden
+                            </MudText>
+                        </MudStack>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudSwitch @bind-Value="autoDetectLanguage"
+                                       Color="Color.Primary"
+                                       Label="Sprache automatisch erkennen" />
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                Quellsprache automatisch erkennen
+                            </MudText>
+                        </MudStack>
+                    </MudStack>
+                </MudStep>
+
+                <!-- Step 4: Dictionary Selection -->
+                <MudStep Title="Schritt 4"
+                         SecondaryText="Wörterbücher auswählen"
+                         HasError="@(!GetStep4Complete())">
+
+                    <MudStack Spacing="3">
+                        <MudText Typo="Typo.h6">Verfügbare Wörterbücher:</MudText>
+                        <MudGrid>
+                            @foreach (var dictionary in availableDictionaries)
+                            {
+                                <MudItem xs="12" md="6">
+                                    <MudCard>
+                                        <MudCardContent>
+                                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                                <MudCheckBox @bind-Value="dictionary.IsSelected"
+                                                             Color="Color.Primary" />
+                                                <MudStack Spacing="1">
+                                                    <MudText Typo="Typo.subtitle1">
+                                                        @dictionary.Name
+                                                    </MudText>
+                                                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                                        @dictionary.Description
+                                                    </MudText>
+                                                </MudStack>
+                                            </MudStack>
+                                        </MudCardContent>
+                                    </MudCard>
+                                </MudItem>
+                            }
+                        </MudGrid>
+                    </MudStack>
+                </MudStep>
+
+                <!-- Step 5: Target Languages -->
+                <MudStep Title="Schritt 5"
+                         SecondaryText="Zielsprachen auswählen"
+                         HasError="@(!GetStep5Complete())">
+                    <MudStack Spacing="3">
+                        <MudText Typo="Typo.h6">Zielsprachen auswählen:</MudText>
+                        <MudGrid>
+                            @foreach (var language in availableLanguages)
+                            {
+                                var currentLanguage = language;
+                                <MudItem xs="12" sm="6" md="4">
+                                    <MudCard Class="cursor-pointer">
+                                        <MudCardContent>
+                                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                                <MudCheckBox @bind-Value="currentLanguage.IsSelected"
+                                                             Color="Color.Primary" />
+                                                <MudStack Spacing="1">
+                                                    <MudText Typo="Typo.subtitle2">
+                                                        @currentLanguage.Name
+                                                    </MudText>
+                                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                        @currentLanguage.Code
+                                                    </MudText>
+                                                </MudStack>
+                                            </MudStack>
+                                        </MudCardContent>
+                                    </MudCard>
+                                </MudItem>
+                            }
+                        </MudGrid>
+                    </MudStack>
+                </MudStep>
+
+                <!-- Step 6: Translation Process -->
+                <MudStep Title="Schritt 6"
+                         SecondaryText="Übersetzen"
+                         HasError="@(!GetStep6Complete())">
+                    <MudStack Spacing="3" AlignItems="AlignItems.Center">
+                        @if (!translationInProgress && !translationCompleted)
+                        {
+                            <MudText Typo="Typo.h6">Bereit zum Übersetzen</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
+                                Klicken Sie auf "Übersetzung starten", um den Prozess zu beginnen.
+                            </MudText>
+                            <MudButton Color="Color.Success"
+                                       Variant="Variant.Filled"
+                                       Size="Size.Large"
+                                       StartIcon="@Icons.Material.Filled.Translate"
+                                       OnClick="StartTranslation">
+                                Übersetzung starten
+                            </MudButton>
+                        }
+                        else if (translationInProgress)
+                        {
+                            <MudText Typo="Typo.h6">Übersetzung läuft...</MudText>
+                            <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                @translationStatus
+                            </MudText>
+                        }
+                        else if (translationCompleted)
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle"
+                                     Color="Color.Success"
+                                     Size="Size.Large" />
+                            <MudText Typo="Typo.h6" Color="Color.Success">
+                                Übersetzung abgeschlossen!
+                            </MudText>
+                            <MudButton Color="Color.Primary"
+                                       Variant="Variant.Filled"
+                                       StartIcon="@Icons.Material.Filled.Download"
+                                       OnClick="DownloadResult">
+                                Ergebnis herunterladen
+                            </MudButton>
+                        }
+                    </MudStack>
+                </MudStep>
+
+            </MudStepper>
+        </MudPaper>
+
+        <!-- Back Button -->
+        <MudButton Variant="Variant.Text"
+                   Size="Size.Small"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                   FullWidth="true"
+                   Href="@($"/project/{Id}")">
+            Zurück zum Projekt
+        </MudButton>
+    </MudStack>
+</MudContainer>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private MudStepper? stepper;
+    private MudFileUpload<IReadOnlyList<IBrowserFile>>? fileUpload;
+
+    // Step completion states - using methods to avoid CS0649 warnings
+    private bool GetStep1Complete() => !string.IsNullOrEmpty(selectedProjectType);
+    private bool GetStep2Complete() => uploadedFiles.Any();
+    private bool GetStep3Complete() => true; // Settings are optional
+    private bool GetStep4Complete() => availableDictionaries.Any(d => d.IsSelected);
+    private bool GetStep5Complete() => availableLanguages.Any(l => l.IsSelected);
+    private bool GetStep6Complete() => translationCompleted;
+
+    // Step 1: Project Type
+    private string selectedProjectType = string.Empty;
+
+    // Step 2: File Upload
+    private const string DefaultDragClass = "relative rounded-lg border-2 border-dashed pa-4 mud-width-full mud-height-full transition-colors";
+    private string dragClass = DefaultDragClass;
+    private readonly List<string> uploadedFiles = new();
+
+    // Step 3: Translation Settings
+    private bool preserveOriginal = true;
+    private bool useGlossary = true;
+    private bool autoDetectLanguage = true;
+
+    // Step 4: Dictionaries
+    private List<DictionaryItem> availableDictionaries = new();
+
+    // Step 5: Languages
+    private List<LanguageItem> availableLanguages = new();
+
+    // Step 6: Translation
+    private bool translationInProgress = false;
+    private bool translationCompleted = false;
+    private string translationStatus = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        InitializeData();
+    }
+
+    private void InitializeData()
+    {
+        // Initialize available dictionaries
+        availableDictionaries = new List<DictionaryItem>
+        {
+            new DictionaryItem { Name = "Technische Begriffe", Description = "Automation und Steuerungstechnik", IsSelected = true },
+            new DictionaryItem { Name = "Maschinenbau", Description = "Mechanische Komponenten", IsSelected = false },
+            new DictionaryItem { Name = "Elektrotechnik", Description = "Elektrische Komponenten", IsSelected = true },
+            new DictionaryItem { Name = "HMI Begriffe", Description = "Human-Machine Interface", IsSelected = false }
+        };
+
+        // Initialize available languages
+        availableLanguages = new List<LanguageItem>
+        {
+            new LanguageItem { Name = "English", Code = "EN", IsSelected = true },
+            new LanguageItem { Name = "Français", Code = "FR", IsSelected = false },
+            new LanguageItem { Name = "Español", Code = "ES", IsSelected = false },
+            new LanguageItem { Name = "Italiano", Code = "IT", IsSelected = false },
+            new LanguageItem { Name = "Polski", Code = "PL", IsSelected = false },
+            new LanguageItem { Name = "Nederlands", Code = "NL", IsSelected = false }
+        };
+    }
+
+    private async Task OnPreviewInteraction(StepperInteractionEventArgs args)
+    {
+        if (args.Action == StepAction.Complete)
+        {
+            await ControlStepCompletion(args);
+        }
+        else if (args.Action == StepAction.Activate)
+        {
+            await ControlStepNavigation(args);
+        }
+    }
+
+    private async Task ControlStepCompletion(StepperInteractionEventArgs args)
+    {
+        switch (args.StepIndex)
+        {
+            case 0:
+                if (string.IsNullOrEmpty(selectedProjectType))
+                {
+                    await DialogService.ShowMessageBox("Fehler", "Bitte wählen Sie einen Projekttyp aus.");
+                    args.Cancel = true;
+                }
+                break;
+            case 1:
+                if (!uploadedFiles.Any())
+                {
+                    await DialogService.ShowMessageBox("Fehler", "Bitte laden Sie eine Projektdatei hoch.");
+                    args.Cancel = true;
+                }
+                break;
+            case 3:
+                if (!availableDictionaries.Any(d => d.IsSelected))
+                {
+                    await DialogService.ShowMessageBox("Fehler", "Bitte wählen Sie mindestens ein Wörterbuch aus.");
+                    args.Cancel = true;
+                }
+                break;
+            case 4:
+                if (!availableLanguages.Any(l => l.IsSelected))
+                {
+                    await DialogService.ShowMessageBox("Fehler", "Bitte wählen Sie mindestens eine Zielsprache aus.");
+                    args.Cancel = true;
+                }
+                break;
+        }
+    }
+
+    private async Task ControlStepNavigation(StepperInteractionEventArgs args)
+    {
+        // Allow navigation to any step if previous steps are complete
+        for (int i = 0; i < args.StepIndex; i++)
+        {
+            bool stepComplete = i switch
+            {
+                0 => GetStep1Complete(),
+                1 => GetStep2Complete(),
+                2 => GetStep3Complete(),
+                3 => GetStep4Complete(),
+                4 => GetStep5Complete(),
+                _ => true
+            };
+
+            if (!stepComplete)
+            {
+                await DialogService.ShowMessageBox("Fehler", $"Bitte schließen Sie zuerst Schritt {i + 1} ab.");
+                args.Cancel = true;
+                return;
+            }
+        }
+    }
+
+    // File Upload Methods
+    private void OnInputFileChanged(InputFileChangeEventArgs e)
+    {
+        ClearDragClass();
+        uploadedFiles.Clear();
+
+        var file = e.File;
+        if (file != null)
+        {
+            uploadedFiles.Add(file.Name);
+        }
+
+        StateHasChanged();
+    }
+
+    private void SetDragClass() => dragClass = $"{DefaultDragClass} mud-border-primary";
+    private void ClearDragClass() => dragClass = DefaultDragClass;
+
+    // Translation Process
+    private async Task StartTranslation()
+    {
+        translationInProgress = true;
+        translationStatus = "Datei wird verarbeitet...";
+        StateHasChanged();
+
+        // Simulate translation process
+        await Task.Delay(2000);
+        translationStatus = "Übersetzung läuft...";
+        StateHasChanged();
+
+        await Task.Delay(3000);
+        translationStatus = "Datei wird erstellt...";
+        StateHasChanged();
+
+        await Task.Delay(1000);
+        translationInProgress = false;
+        translationCompleted = true;
+        StateHasChanged();
+
+        Snackbar.Add("Übersetzung erfolgreich abgeschlossen!", Severity.Success);
+    }
+
+    private void DownloadResult()
+    {
+        // TODO: Implement actual download
+        Snackbar.Add("Download gestartet...", Severity.Info);
+    }
+
+    // Helper Classes
+    public class DictionaryItem
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public bool IsSelected { get; set; }
+    }
+
+    public class LanguageItem
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Code { get; set; } = string.Empty;
+        public bool IsSelected { get; set; }
+    }
+}

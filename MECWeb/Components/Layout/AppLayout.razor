@@ -1,0 +1,227 @@
+﻿@using System.Web
+@using System.Globalization
+@inject NavigationManager NavigationManager
+@* @inject AuthService AuthService *@
+@* @inject UserProfileService UserProfileService *@
+
+@inject IStringLocalizer<AppLayout> Localizer
+@inject LanguageNotifier LanguageNotifier
+@implements IDisposable
+
+@inherits LayoutComponentBase
+
+@* Required *@
+<MudThemeProvider />
+<MudPopoverProvider />
+
+@* Needed for dialogs *@
+<MudDialogProvider FullWidth="false"
+                   MaxWidth="MaxWidth.Medium"
+                   CloseButton="true"
+                   BackdropClick="false"
+                   NoHeader="false"
+                   Position="DialogPosition.Center"
+                   CloseOnEscapeKey="true" />
+
+@* Needed for snackbars *@
+<MudSnackbarProvider />
+
+<PageTitle>MEC - Machine Engineering Center</PageTitle>
+
+<MudThemeProvider Theme="@_theme" IsDarkMode="_isDarkMode" />
+<MudLayout>
+    <MudAppBar Elevation="2">
+        <MudIconButton Icon="@_navMenueIcon" Edge="Edge.Start" OnClick="NavToggle" />
+        <MudText Typo="Typo.h5" Class="ml-3">Machine Engineering Center</MudText>
+        @* @Localizer["String1"] sdf *@
+        <MudSpacer />
+
+        <MudMenu Dense Icon="@Icons.Material.Filled.Language">
+            <MudMenuItem OnClick="@(() => LanguageToggle(CultureInfo.CreateSpecificCulture("de")))">
+                <ChildContent>
+                    <span class="d-flex align-center">
+                        <img src="assets/contries/de.png" alt="de" height="12" width="18" class="mr-2" />
+                        <MudText Typo="Typo.body2">Deutsch</MudText>
+                    </span>
+                </ChildContent>
+            </MudMenuItem>
+            <MudMenuItem OnClick="@(() => LanguageToggle(CultureInfo.CreateSpecificCulture("en")))">
+                <ChildContent>
+                    <span class="d-flex align-center">
+                        <img src="assets/contries/us.png" alt="us" height="12" width="18" class="mr-2" />
+                        <MudText Typo="Typo.body2">Englisch</MudText>
+                    </span>
+                </ChildContent>
+            </MudMenuItem>
+        </MudMenu>
+
+        <MudMenu Dense Icon="@Icons.Material.Filled.AccountCircle">
+            <div class="ma-4 d-flex flex-column gap-4 align-center">
+                <MudAvatar Size="Size.Large">
+                    <MudIcon Icon="@Icons.Material.Filled.AccountCircle" Size="Size.Large" />
+                    @* @if (UserProfileService.User.UserPhoto == null)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.AccountCircle" Size="Size.Large" />
+                    }
+                    else
+                    {
+                        <MudImage Src="@UserProfileService.User.UserPhoto" />
+                    } *@
+                </MudAvatar>
+                @* <MudText Typo="Typo.body2">@UserProfileService.User.DisplayName</MudText>
+                <MudText Typo="Typo.body2">@UserProfileService.User.EMail</MudText> *@
+            </div>
+
+            <MudDivider />
+
+            <MudMenuItem OnClick="Logout"
+                         Icon="@Icons.Material.Filled.Logout"
+                         IconColor="Color.Primary"
+                         Label="Logout" />
+        </MudMenu>
+
+        <MudToggleIconButton @bind-Toggled="_isDarkMode"
+                             Icon="@Icons.Material.Filled.LightMode"
+                             ToggledIcon="@Icons.Material.Filled.DarkMode" />
+
+        <MudImage Src="assets/Schaeffler_green_rgb_150px.png" Alt="Schaeffler" Style="margin-left: 20px;" />
+    </MudAppBar>
+
+    @* <MudDrawer id="nav-drawer" @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
+        <NavMenu />
+    </MudDrawer>
+    <MudMainContent Class="pt-18 pa-4">
+        @Body
+    </MudMainContent> *@
+
+    <CascadingValue Value="NavOpen">
+        @Body
+    </CascadingValue>
+</MudLayout>
+
+@* ✅ GITEA JAVASCRIPT INTEGRATION - NEU HINZUGEFÜGT *@
+<script src="js/download.js"></script>
+
+@code {
+    public bool NavOpen { get; set; } = true;
+
+    private string _navMenueIcon = Icons.Material.Filled.MenuOpen;
+    private bool _isDarkMode = false;
+    private MudTheme? _theme = null;
+
+    protected override void OnInitialized()
+    {
+        _theme = new()
+        {
+            PaletteLight = _lightPalette,
+            PaletteDark = _darkPalette,
+            LayoutProperties = new LayoutProperties(),
+            Typography = _typography,
+        };
+
+        LanguageNotifier.SubscribeLanguageChange(this);
+
+        // When authentication services are ready, uncomment and make this method async:
+        // InitializeAuthenticationAsync();
+    }
+
+    // Uncomment and use this method when authentication services are ready
+    // private async Task InitializeAuthenticationAsync()
+    // {
+    //     await AuthService.InitializeAsync();
+    //     await UserProfileService.LoadUserProfileAsync();
+    // }
+
+    public void Dispose() => LanguageNotifier.UnsubscribeLanguageChange(this);
+
+    private void NavToggle()
+    {
+        NavOpen = !NavOpen;
+        if (NavOpen)
+        {
+            _navMenueIcon = Icons.Material.Filled.MenuOpen;
+        }
+        else
+        {
+            _navMenueIcon = Icons.Material.Filled.Menu;
+        }
+    }
+
+    private void DarkModeToggle()
+    {
+        _isDarkMode = !_isDarkMode;
+    }
+
+    private void LanguageToggle(CultureInfo culture)
+    {
+        var uri = new Uri(NavigationManager.Uri);
+        var cultureEscaped = Uri.EscapeDataString(culture.Name);
+        var urlParameters = HttpUtility.ParseQueryString(uri.Query);
+        urlParameters["language"] = cultureEscaped;
+        string urlWithoutQuery = uri.GetComponents(UriComponents.Path, UriFormat.Unescaped);
+        NavigationManager.NavigateTo($"{urlWithoutQuery}?{urlParameters.ToString()}");
+        LanguageNotifier.CurrentCulture = CultureInfo.GetCultureInfo(cultureEscaped);
+    }
+
+    private void Logout()
+    {
+        NavigationManager.NavigateTo("MicrosoftIdentity/Account/SignOut", forceLoad: true);
+    }
+
+    private readonly PaletteLight _lightPalette = new()
+    {
+        White = "#ffffff",
+        Primary = "#00893d",
+        PrimaryContrastText = "#ffffff",
+        Secondary = "#005e46",
+        SecondaryContrastText = "#ffffff",
+        Tertiary = "#476e75",
+        TertiaryContrastText = "#ffffff",
+        Info = "#1c98b5",
+        InfoContrastText = "#ffffff",
+        Success = "#a1c861",
+        SuccessContrastText = "#ffffff",
+        Warning = "#e9b300",
+        WarningContrastText = "#ffffff",
+        Error = "#cb0b15",
+        ErrorContrastText = "#ffffff",
+        TextPrimary = "#343434",
+        TextSecondary = "#646464",
+        Background = "#f6f6f6",
+        BackgroundGray = "rgba(225,225,225,1)",
+        DrawerBackground = "#f6f6f6",
+        DrawerText = "#6f6f6f",
+        DrawerIcon = "#6f6f6f",
+        AppbarBackground = "#fbfbfb",
+        AppbarText = "#343434",
+    };
+
+    private readonly PaletteDark _darkPalette = new()
+    {
+        // ✅ GITEA: Dark theme palette erweitert für bessere Darstellung
+        Primary = "#00A86B",
+        Secondary = "#005e46",
+        Tertiary = "#476e75",
+        Info = "#1c98b5",
+        Success = "#a1c861",
+        Warning = "#e9b300",
+        Error = "#cb0b15",
+        TextPrimary = "#ffffff",
+        TextSecondary = "#b0b0b0",
+        Background = "#1a1a1a",
+        BackgroundGray = "#2a2a2a",
+        DrawerBackground = "#1f1f1f",
+        DrawerText = "#b0b0b0",
+        DrawerIcon = "#b0b0b0",
+        AppbarBackground = "#1f1f1f",
+        AppbarText = "#ffffff",
+    };
+
+    private readonly Typography _typography = new()
+    {
+        Default = new DefaultTypography()
+        {
+            FontFamily = new[] { "Noto Sans" },
+        }
+    };
+}

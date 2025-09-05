@@ -1,0 +1,445 @@
+﻿@page "/workflow/{WorkflowId:guid}/bv-software"
+@using MECWeb.DbModels.Workflow
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@layout MainLayout
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudStack Spacing="4">
+
+        <!-- Header -->
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                <MudStack Spacing="1">
+                    <MudText Typo="Typo.h5">BV Software-Konfiguration</MudText>
+                    @if (currentWorkflow != null)
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            @currentWorkflow.Name
+                        </MudText>
+                    }
+                </MudStack>
+                <!-- Status indicator -->
+                <MudChip T="string"
+                         Color="@(selectedSoftwareList.Any() ? Color.Success : Color.Default)"
+                         Size="Size.Small"
+                         Icon="@(selectedSoftwareList.Any() ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.RadioButtonUnchecked)">
+                    @(selectedSoftwareList.Any() ? "Konfiguriert" : "Nicht konfiguriert")
+                </MudChip>
+            </MudStack>
+        </MudPaper>
+
+        <!-- Fixed Software Selection at Top -->
+        <MudPaper Class="pa-4" Elevation="1">
+            <MudText Typo="Typo.h6" Class="mb-4">Software hinzufügen:</MudText>
+
+            <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <!-- Software Dropdown -->
+                <MudSelect T="string"
+                           @bind-Value="selectedSoftwareType"
+                           Placeholder="Software auswählen"
+                           Variant="Variant.Outlined"
+                           Style="width: 300px;">
+                    <MudSelectItem T="string" Value="@("")">Bitte auswählen</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("WIN10 LTSC")">WIN10 LTSC</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("WIN10 extern")">WIN10 extern</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("NC Dongle")">NC Dongle</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("NC 6.1")">NC 6.1</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("dt.")">dt.</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("engl.")">engl.</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("VNC Installation")">VNC Installation</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("Halcon Installation")">Halcon Installation</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("WIN-CC")">WIN-CC</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("SAC")">SAC</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("Sonstige Software")">Sonstige Software</MudSelectItem>
+                </MudSelect>
+
+                <!-- Version/Configuration Field (always visible when software selected) -->
+                @if (!string.IsNullOrEmpty(selectedSoftwareType))
+                {
+                    <MudTextField @bind-Value="selectedNote"
+                                  Label="Version / Konfiguration"
+                                  Variant="Variant.Outlined"
+                                  Style="width: 250px;"
+                                  Placeholder="@GetNotePlaceholder(selectedSoftwareType)" />
+                }
+
+                <!-- Add Button -->
+                <MudButton Color="Color.Success"
+                           Variant="Variant.Filled"
+                           Size="Size.Medium"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="AddSelectedSoftware"
+                           Disabled="@(string.IsNullOrEmpty(selectedSoftwareType))"
+                           Title="Software hinzufügen">
+                    Hinzufügen
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+
+        <!-- Selected Software List -->
+        <MudPaper Class="pa-4" Elevation="1"
+                  Style="@(selectedSoftwareList.Any() ? "background-color: #f8f9fa; border-left: 4px solid #4caf50;" : "")">
+            <MudText Typo="Typo.h6" Class="mb-4">
+                Ausgewählte Software:
+                @if (selectedSoftwareList.Any())
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" Class="ml-2" />
+                }
+            </MudText>
+
+            @if (selectedSoftwareList.Any())
+            {
+                <MudStack Spacing="2">
+                    @foreach (var software in selectedSoftwareList.Select((item, index) => new { item, index }))
+                    {
+                        <MudPaper Class="pa-3 mud-success-lighten-5" Elevation="1">
+                            <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                <!-- Software Info with Index -->
+                                <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                                    <MudAvatar Color="Color.Success" Size="Size.Small">
+                                        @(software.index + 1)
+                                    </MudAvatar>
+                                    <MudStack Spacing="1">
+                                        <MudText Typo="Typo.body1" Class="font-weight-bold" Color="Color.Success">
+                                            @software.item.SoftwareType
+                                        </MudText>
+                                        @if (!string.IsNullOrEmpty(software.item.Note))
+                                        {
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                @software.item.Note
+                                            </MudText>
+                                        }
+                                    </MudStack>
+                                </MudStack>
+
+                                <!-- Remove Button -->
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                               Color="Color.Error"
+                                               Size="Size.Small"
+                                               OnClick="() => RemoveSelectedSoftware(software.item)"
+                                               Title="Software entfernen" />
+                            </MudStack>
+                        </MudPaper>
+                    }
+                </MudStack>
+            }
+            else
+            {
+                <MudPaper Class="pa-4 mud-surface-lighten-2" Style="border: 2px dashed var(--mud-palette-lines-default);">
+                    <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                        <MudIcon Icon="@Icons.Material.Filled.Computer" Color="Color.Secondary" Size="Size.Large" />
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
+                            Noch keine Software ausgewählt
+                        </MudText>
+                    </MudStack>
+                </MudPaper>
+            }
+        </MudPaper>
+
+        <!-- Save Button -->
+        <MudStack Row Justify="Justify.Center" Spacing="3" Class="mt-4">
+            <MudButton Color="Color.Success"
+                       Variant="Variant.Filled"
+                       Size="Size.Large"
+                       StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="SaveChanges"
+                       Loading="@isSaving"
+                       Disabled="@(isSaving || !selectedSoftwareList.Any())">
+                BV Software-Konfiguration speichern
+            </MudButton>
+        </MudStack>
+
+        <!-- Back Button -->
+        <MudButton Variant="Variant.Text"
+                   Size="Size.Small"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                   FullWidth="true"
+                   OnClick="GoBack">
+            Zurück zur Formular Übersicht
+        </MudButton>
+    </MudStack>
+</MudContainer>
+
+@code {
+    [Parameter] public Guid WorkflowId { get; set; }
+
+    // Helper class for software entries
+    public class SoftwareItem
+    {
+        public string SoftwareType { get; set; } = "";
+        public string Note { get; set; } = "";
+    }
+
+    // Fixed selection fields at top
+    private string selectedSoftwareType = "";
+    private string selectedNote = "";
+
+    // List of selected software items
+    private List<SoftwareItem> selectedSoftwareList = new();
+
+    private bool isSaving = false;
+    private DbWorkflow? currentWorkflow;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadWorkflowData();
+    }
+
+    // Add selected software to list
+    private void AddSelectedSoftware()
+    {
+        if (string.IsNullOrEmpty(selectedSoftwareType) || selectedSoftwareType == "")
+        {
+            Snackbar.Add("Bitte wählen Sie eine Software aus!", Severity.Warning);
+            return;
+        }
+
+        // Check if software already exists in list
+        if (selectedSoftwareList.Any(s => s.SoftwareType == selectedSoftwareType))
+        {
+            Snackbar.Add("Diese Software wurde bereits hinzugefügt!", Severity.Warning);
+            return;
+        }
+
+        // Add to selected list
+        selectedSoftwareList.Add(new SoftwareItem
+        {
+            SoftwareType = selectedSoftwareType,
+            Note = selectedNote ?? ""
+        });
+
+        // Clear selection fields
+        selectedSoftwareType = "";
+        selectedNote = "";
+
+        Snackbar.Add("Software hinzugefügt!", Severity.Success);
+    }
+
+    // Remove software from selected list
+    private void RemoveSelectedSoftware(SoftwareItem item)
+    {
+        selectedSoftwareList.Remove(item);
+        Snackbar.Add("Software entfernt!", Severity.Info);
+    }
+
+    // Helper Methods for note fields - now all software gets a version field
+    private string GetNotePlaceholder(string softwareType)
+    {
+        return softwareType switch
+        {
+            "WIN10 LTSC" => "Version eingeben...",
+            "WIN10 extern" => "Version eingeben...",
+            "NC Dongle" => "Konfiguration eingeben...",
+            "NC 6.1" => "Version eingeben...",
+            "dt." => "Sprachpaket Details...",
+            "engl." => "Sprachpaket Details...",
+            "VNC Installation" => "Version eingeben...",
+            "Halcon Installation" => "Version eingeben...",
+            "WIN-CC" => "Version eingeben...",
+            "SAC" => "Konfiguration eingeben...",
+            "Sonstige Software" => "Name/Version/Beschreibung eingeben...",
+            _ => "Version/Konfiguration eingeben..."
+        };
+    }
+
+    private async Task LoadWorkflowData()
+    {
+        try
+        {
+            currentWorkflow = await DbContext.Workflow.FirstOrDefaultAsync(w => w.Id == WorkflowId);
+            if (currentWorkflow == null)
+            {
+                Snackbar.Add("BV Software Formular nicht gefunden!", Severity.Error);
+                return;
+            }
+
+            // Load existing software data
+            await LoadExistingSoftwareData();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Fehler beim Laden: {ex.Message}", Severity.Error);
+            Console.WriteLine($"LoadWorkflowData Error: {ex}");
+        }
+    }
+
+    private async Task LoadExistingSoftwareData()
+    {
+        try
+        {
+            // Search for existing software data in workflow description
+            await Task.Yield();
+
+            var existingData = currentWorkflow?.Description;
+
+            if (!string.IsNullOrEmpty(existingData) && existingData.Contains("BVSOFTWARE:"))
+            {
+                // Parse software data from combined string
+                var startIndex = existingData.IndexOf("BVSOFTWARE:") + 11;
+                var endIndex = existingData.IndexOf("ENDMEC:", startIndex);
+
+                string softwareData;
+                if (endIndex > startIndex)
+                {
+                    softwareData = existingData.Substring(startIndex, endIndex - startIndex);
+                }
+                else
+                {
+                    softwareData = existingData.Substring(startIndex);
+                }
+
+                ParseCombinedData(softwareData);
+
+                if (selectedSoftwareList.Any())
+                {
+                    Snackbar.Add("Existierende BV Software-Konfiguration geladen!", Severity.Info);
+                }
+            }
+            else
+            {
+                // No existing data - start with empty list
+                selectedSoftwareList = new List<SoftwareItem>();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Fehler beim Laden der Software-Daten: {ex.Message}", Severity.Warning);
+            selectedSoftwareList = new List<SoftwareItem>();
+        }
+    }
+
+    private void ParseCombinedData(string combinedData)
+    {
+        if (string.IsNullOrEmpty(combinedData))
+        {
+            selectedSoftwareList = new List<SoftwareItem>();
+            return;
+        }
+
+        // Format: softwaretype1|note1;softwaretype2|note2;...
+        selectedSoftwareList.Clear();
+        var entries = combinedData.Split(';');
+
+        foreach (var entry in entries)
+        {
+            if (!string.IsNullOrEmpty(entry))
+            {
+                var parts = entry.Split('|');
+                var softwareType = parts.Length > 0 ? parts[0].Replace("PIPE", "|").Replace("SEMICOLON", ";") : "";
+                var note = parts.Length > 1 ? parts[1].Replace("PIPE", "|").Replace("SEMICOLON", ";") : "";
+
+                if (!string.IsNullOrWhiteSpace(softwareType))
+                {
+                    selectedSoftwareList.Add(new SoftwareItem
+                    {
+                        SoftwareType = softwareType,
+                        Note = note
+                    });
+                }
+            }
+        }
+    }
+
+    private string CreateCombinedData()
+    {
+        // Create combined string for database storage
+        var entries = new List<string>();
+
+        foreach (var item in selectedSoftwareList)
+        {
+            if (!string.IsNullOrWhiteSpace(item.SoftwareType) && item.SoftwareType != "")
+            {
+                // Escaping for special characters
+                var softwareType = item.SoftwareType.Replace("|", "PIPE").Replace(";", "SEMICOLON");
+                var note = (item.Note ?? "").Replace("|", "PIPE").Replace(";", "SEMICOLON");
+                entries.Add($"{softwareType}|{note}");
+            }
+        }
+
+        return string.Join(";", entries);
+    }
+
+    private async Task SaveChanges()
+    {
+        if (currentWorkflow == null)
+        {
+            Snackbar.Add("Formular nicht gefunden!", Severity.Error);
+            return;
+        }
+
+        if (!selectedSoftwareList.Any())
+        {
+            Snackbar.Add("Bitte mindestens eine Software auswählen!", Severity.Warning);
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            using var transaction = await DbContext.Database.BeginTransactionAsync();
+
+            // Save software data as combined string
+            var combinedSoftwareData = CreateCombinedData();
+
+            // Save software data in workflow description field (with prefix)
+            var existingDescription = currentWorkflow.Description ?? "";
+
+            // Remove old BV software data if present
+            if (existingDescription.Contains("BVSOFTWARE:"))
+            {
+                var startIndex = existingDescription.IndexOf("BVSOFTWARE:");
+                var endIndex = existingDescription.IndexOf("ENDMEC:", startIndex);
+                if (endIndex > startIndex)
+                {
+                    existingDescription = existingDescription.Remove(startIndex, endIndex - startIndex + 7);
+                }
+                else
+                {
+                    // If no ENDMEC found, remove everything from BVSOFTWARE
+                    existingDescription = existingDescription.Substring(0, startIndex);
+                }
+            }
+
+            // Add new software data
+            currentWorkflow.Description = existingDescription + $"BVSOFTWARE:{combinedSoftwareData}ENDMEC:";
+
+            // Update workflow status
+            currentWorkflow.Status = WorkflowStatus.SoftwareCompleted;
+            currentWorkflow.LastChange = DateTime.UtcNow;
+
+            await DbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            Snackbar.Add($"BV Software-Konfiguration erfolgreich gespeichert! ({selectedSoftwareList.Count} Software-Pakete)", Severity.Success);
+
+            // Back to OverviewForms.razor
+            await Task.Delay(1500);
+            Navigation.NavigateTo($"/project/{currentWorkflow.ProjectId}/forms");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Fehler beim Speichern: {ex.Message}", Severity.Error);
+            Console.WriteLine($"SaveChanges Error: {ex}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        if (currentWorkflow?.ProjectId != null)
+        {
+            Navigation.NavigateTo($"/project/{currentWorkflow.ProjectId}/forms");
+        }
+        else
+        {
+            Navigation.NavigateTo("/projects");
+        }
+    }
+}

@@ -1,0 +1,776 @@
+﻿@using MECWeb.Components.Shared.Project
+@using MECWeb.DbModels.Project
+@using MECWeb.DbModels.Workflow
+@using MECWeb.DbModels
+@using Microsoft.EntityFrameworkCore
+
+@inject IDialogService DialogService
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+@layout MainLayout
+
+@page "/workflow/{WorkflowId:guid}/bv-hardware"
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudStack Spacing="4">
+
+        <!-- Header -->
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                <MudStack Spacing="1">
+                    <MudText Typo="Typo.h5">BV Hardware-Konfiguration</MudText>
+                    @if (currentWorkflow != null)
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                             @currentWorkflow.Name
+                        </MudText>
+                    }
+                </MudStack>
+                <!-- Status indicator -->
+                <MudChip T="string"
+                         Color="@(HasSelectedItems() ? Color.Success : Color.Default)"
+                         Size="Size.Small"
+                         Icon="@(HasSelectedItems() ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.RadioButtonUnchecked)">
+                    @(HasSelectedItems() ? "Konfiguriert" : "Nicht konfiguriert")
+                </MudChip>
+            </MudStack>
+        </MudPaper>
+
+        <MudGrid>
+
+            <!-- BV Computer Configuration -->
+            <MudItem xs="12">
+                <MudPaper Class="pa-4" Elevation="1"
+                          Style="@(IsComputerConfigured() ? "background-color: #f8f9fa; border-left: 4px solid #4caf50;" : "")">
+                    <MudText Typo="Typo.h6" Class="mb-3">
+                        BV Computer Konfiguration
+                        @if (IsComputerConfigured())
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" Class="ml-2" />
+                        }
+                    </MudText>
+
+                    <MudStack Spacing="3">
+                        <MudTextField @bind-Value="contactPerson"
+                                      Label="Ansprechpartner"
+                                      Variant="Variant.Outlined"
+                                      Class="@(!string.IsNullOrWhiteSpace(contactPerson) ? "mud-success-text" : "")" />
+
+                        <MudSelect T="string"
+                                   Value="selectedPcType"
+                                   ValueChanged="OnPcTypeChanged"
+                                   Label="PC-Typ"
+                                   Placeholder="Bitte auswählen"
+                                   Variant="Variant.Outlined"
+                                   Class="@(IsPcTypeSelected() ? "mud-success-text" : "")">
+                            <MudSelectItem T="string" Value="@("")">Bitte auswählen</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("MIC 7700 + Erweiterung")">MIC 7700 + Erweiterung</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("Sonstige")">Sonstige</MudSelectItem>
+                        </MudSelect>
+
+                        @* Show text field when "Sonstige" is selected *@
+                        @if (selectedPcType == "Sonstige")
+                        {
+                            <MudTextField @bind-Value="customPcType"
+                                          Label="Bitte spezifizieren Sie den PC-Typ"
+                                          Variant="Variant.Outlined"
+                                          Placeholder="Geben Sie den gewünschten PC-Typ ein..."
+                                          Required="true"
+                                          RequiredError="Bitte geben Sie den PC-Typ ein" />
+                        }
+
+                        <MudTextField @bind-Value="pcDetails"
+                                      Label="Bemerkung"
+                                      Variant="Variant.Outlined"
+                                      Placeholder="Spezielle Hinweise, Anforderungen oder Anmerkungen..."
+                                      Lines="3" />
+                    </MudStack>
+
+                    @if (IsComputerConfigured())
+                    {
+                        <MudAlert Severity="Severity.Success" Class="mt-3" NoIcon="true">
+                            <MudText Typo="Typo.body2">
+                                <strong>PC-Typ:</strong> @GetDisplayPcType()
+                                @if (!string.IsNullOrWhiteSpace(contactPerson))
+                                {
+                                    <br />
+                                    <strong>Ansprechpartner:</strong>
+ 
+                                    @contactPerson
+                                }
+                            </MudText>
+                        </MudAlert>
+                    }
+                </MudPaper>
+            </MudItem>
+
+            <!-- Additional Requirements -->
+            <MudItem xs="12">
+                <MudPaper Class="pa-4" Elevation="1"
+                          Style="@(selectedRequirementsList.Any() ? "background-color: #f8f9fa; border-left: 4px solid #4caf50;" : "")">
+                    <MudText Typo="Typo.h6" Class="mb-3">
+                        Zusätzliche Anforderungen
+                        @if (selectedRequirementsList.Any())
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" Class="ml-2" />
+                        }
+                    </MudText>
+
+                    <!-- Adding Requirements -->
+                    <MudStack Spacing="3">
+                        <MudGrid>
+                            <MudItem xs="8">
+                                <MudSelect T="string"
+                                           @bind-Value="newRequirementType"
+                                           Label="Anforderung auswählen"
+                                           Variant="Variant.Outlined"
+                                           Placeholder="Anforderung auswählen">
+                                    <MudSelectItem T="string" Value="@("")">Anforderung auswählen</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("19\"- PC-Wandmontage")">19"- PC-Wandmontage</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("24V mit (B=485/H=170/T=320)")">24V mit (B=485/H=170/T=320)</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("Temp. Admin-Rechte für externe Installation nötig")">Temp. Admin-Rechte für externe Installation nötig</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("Sonstige")">Sonstige Anforderung</MudSelectItem>
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="4">
+                                <MudButton Color="Color.Success"
+                                           Variant="Variant.Filled"
+                                           Size="Size.Medium"
+                                           StartIcon="@Icons.Material.Filled.Add"
+                                           OnClick="AddSelectedRequirement"
+                                           Disabled="@(string.IsNullOrWhiteSpace(newRequirementType))"
+                                           FullWidth="true">
+                                    Hinzufügen
+                                </MudButton>
+                            </MudItem>
+                        </MudGrid>
+
+                        @* Show custom requirement input when "Sonstige" is selected *@
+                        @if (newRequirementType == "Sonstige")
+                        {
+                            <MudTextField @bind-Value="customRequirement"
+                                          Label="Sonstige Anforderung"
+                                          Variant="Variant.Outlined"
+                                          Placeholder="Geben Sie Ihre spezielle Anforderung ein..."
+                                          Required="true"
+                                          RequiredError="Bitte geben Sie die Anforderung ein" />
+                        }
+                    </MudStack>
+
+                    <!-- Selected Requirements List -->
+                    <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Ausgewählte Anforderungen</MudText>
+
+                    @if (selectedRequirementsList.Any())
+                    {
+                        <MudStack Spacing="2">
+                            @foreach (var requirement in selectedRequirementsList.Select((item, index) => new { item, index }))
+                            {
+                                <MudPaper Class="pa-3 mud-success-lighten-5" Elevation="1">
+                                    <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                        <!-- Requirement Info with Index -->
+                                        <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                                            <MudAvatar Color="Color.Success" Size="Size.Small">
+                                                @(requirement.index + 1)
+                                            </MudAvatar>
+                                            <MudStack Spacing="1">
+                                                <MudText Typo="Typo.body1" Class="font-weight-bold" Color="Color.Success">
+                                                    @requirement.item
+                                                </MudText>
+                                            </MudStack>
+                                        </MudStack>
+
+                                        <!-- Remove Button -->
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                       Color="Color.Error"
+                                                       Size="Size.Small"
+                                                       OnClick="() => RemoveSelectedRequirement(requirement.item)"
+                                                       Title="Anforderung entfernen" />
+                                    </MudStack>
+                                </MudPaper>
+                            }
+                        </MudStack>
+                    }
+                    else
+                    {
+                        <MudPaper Class="pa-4 mud-surface-lighten-2" Style="border: 2px dashed var(--mud-palette-lines-default);">
+                            <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Filled.Assignment" Color="Color.Secondary" Size="Size.Large" />
+                                <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
+                                    Noch keine zusätzlichen Anforderungen hinzugefügt
+                                </MudText>
+                            </MudStack>
+                        </MudPaper>
+                    }
+                </MudPaper>
+            </MudItem>
+
+            <!-- Hardware Components Adding -->
+            <MudItem xs="12">
+                <MudPaper Class="pa-4" Elevation="1"
+                          Style="@(selectedComponentsList.Any() ? "background-color: #f8f9fa; border-left: 4px solid #4caf50;" : "")">
+                    <MudText Typo="Typo.h6" Class="mb-3">
+                        Hardware-Komponenten
+                        @if (selectedComponentsList.Any())
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" Class="ml-2" />
+                        }
+                    </MudText>
+
+                    <!-- Fixed input fields for adding hardware components -->
+                    <MudStack Spacing="3">
+                        <MudSelect T="string"
+                                   @bind-Value="newComponentName"
+                                   Label="Komponenten-Name"
+                                   Variant="Variant.Outlined"
+                                   Placeholder="Komponente auswählen">
+                            <MudSelectItem T="string" Value="@("")">Komponente auswählen</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("Firewirerkarte")">Firewirerkarte</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("Baumer")">Baumer</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("Hilscher Profinet CIFx (PCIe)")">Hilscher Profinet CIFx (PCIe)</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("Meilhaus ME 5810 (PCIe)")">Meilhaus ME 5810 (PCIe)</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("Grabber")">Grabber</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("zus. LAN Karten")">zus. LAN Karten</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("sonstige Komponente")">sonstige Komponente</MudSelectItem>
+                        </MudSelect>
+
+                        <!-- Always show Quantity and Details for ALL components -->
+                        <MudGrid>
+                            <MudItem xs="6">
+                                <MudTextField @bind-Value="newComponentQuantity"
+                                              Label="Anzahl"
+                                              Variant="Variant.Outlined"
+                                              Placeholder="1" />
+                            </MudItem>
+                            <MudItem xs="6">
+                                <MudTextField @bind-Value="newComponentType"
+                                              Label="Details / Spezifikation"
+                                              Variant="Variant.Outlined"
+                                              Placeholder="Details eingeben..."
+                                              Disabled="@(string.IsNullOrWhiteSpace(newComponentName))" />
+                            </MudItem>
+                        </MudGrid>
+
+                        <!-- Remarks field for hardware components -->
+                        <MudTextField @bind-Value="newComponentRemarks"
+                                      Label="Bemerkung"
+                                      Variant="Variant.Outlined"
+                                      Lines="2"
+                                      Placeholder="Spezielle Hinweise, Anforderungen oder Anmerkungen..." />
+
+                        <MudButton Color="Color.Success"
+                                   Variant="Variant.Filled"
+                                   Size="Size.Medium"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="AddSelectedComponent"
+                                   FullWidth="true">
+                            Komponente hinzufügen
+                        </MudButton>
+
+                    </MudStack>
+
+                    <!-- Selected Components List -->
+                    <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Ausgewählte Hardware-Komponenten</MudText>
+
+                    @if (selectedComponentsList.Any())
+                    {
+                        <MudStack Spacing="2">
+                            @foreach (var component in selectedComponentsList.Select((item, index) => new { item, index }))
+                            {
+                                <MudPaper Class="pa-3 mud-success-lighten-5" Elevation="1">
+                                    <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                        <!-- Component Info -->
+                                        <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Class="flex-grow-1">
+                                            <MudAvatar Color="Color.Success" Size="Size.Small">
+                                                @(component.index + 1)
+                                            </MudAvatar>
+                                            <MudStack Spacing="1">
+                                                <MudText Typo="Typo.body1" Class="font-weight-bold" Color="Color.Success">
+                                                    @component.item.ComponentName
+                                                </MudText>
+                                                <MudText Typo="Typo.caption" Color="Color.Primary">
+                                                    Anzahl: @component.item.Quantity
+                                                </MudText>
+                                                @if (!string.IsNullOrEmpty(component.item.ComponentType))
+                                                {
+                                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                        Details: @component.item.ComponentType
+                                                    </MudText>
+                                                }
+                                                @if (!string.IsNullOrEmpty(component.item.Remarks))
+                                                {
+                                                    <MudAlert Severity="Severity.Info" Class="mt-1" Dense="true">
+                                                        <MudText Typo="Typo.caption">
+                                                            <strong>Bemerkung:</strong> @component.item.Remarks
+                                                        </MudText>
+                                                    </MudAlert>
+                                                }
+                                            </MudStack>
+                                        </MudStack>
+
+                                        <!-- Remove Button -->
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                       Color="Color.Error"
+                                                       Size="Size.Small"
+                                                       OnClick="() => RemoveSelectedComponent(component.item)"
+                                                       Title="Komponente entfernen" />
+                                    </MudStack>
+                                </MudPaper>
+                            }
+                        </MudStack>
+                    }
+                    else
+                    {
+                        <MudPaper Class="pa-4 mud-surface-lighten-2" Style="border: 2px dashed var(--mud-palette-lines-default);">
+                            <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Filled.Memory" Color="Color.Secondary" Size="Size.Large" />
+                                <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
+                                    Noch keine Hardware-Komponenten hinzugefügt
+                                </MudText>
+                            </MudStack>
+                        </MudPaper>
+                    }
+                </MudPaper>
+            </MudItem>
+
+            <!-- Save Button -->
+            <MudItem xs="12">
+                <MudStack Row Justify="Justify.Center" Spacing="3" Class="mt-8">
+                    <MudButton Color="Color.Success"
+                               Variant="Variant.Filled"
+                               Size="Size.Large"
+                               StartIcon="@Icons.Material.Filled.Save"
+                               OnClick="SaveChanges"
+                               Loading="@isSaving"
+                               Disabled="@(isSaving || !HasSelectedItems())">
+                        @(existingBvHardware != null ? "Änderungen speichern" : "BV Hardware-Konfiguration speichern")
+                    </MudButton>
+                </MudStack>
+                <!-- Back Button -->
+                <MudButton Variant="Variant.Text" Class="mt-4"
+                           Size="Size.Small"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.ArrowBack"
+                           FullWidth="true"
+                           OnClick="GoBack">
+                    Zurück zur Formular Übersicht
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudStack>
+</MudContainer>
+
+@code {
+    [Parameter] public Guid WorkflowId { get; set; }
+
+    // BV Computer configuration fields
+    private string selectedPcType = "";
+    private string customPcType = ""; // Custom PC type for "Sonstige"
+    private string contactPerson = "";
+    private string pcDetails = "";
+
+    // Additional Requirements Management
+    private string newRequirementType = string.Empty;
+    private string customRequirement = string.Empty;
+    private List<string> selectedRequirementsList = new();
+
+    // Fixed input fields for adding new components
+    private string newComponentName = string.Empty;
+    private string newComponentQuantity = "1";
+    private string newComponentType = string.Empty;
+    private string newComponentRemarks = string.Empty;
+
+    private bool isSaving = false;
+
+    // Helper class for hardware components
+    public class HardwareComponent
+    {
+        public string ComponentName { get; set; } = string.Empty;
+        public string Quantity { get; set; } = "1";
+        public string ComponentType { get; set; } = string.Empty;
+        public string Remarks { get; set; } = string.Empty;
+    }
+
+    // List of selected components
+    private List<HardwareComponent> selectedComponentsList = new();
+
+    private DbWorkflow? currentWorkflow;
+    private DbBvHardwareComputer? existingBvHardware;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadWorkflowData();
+    }
+
+    // Helper methods for visual feedback
+    private bool HasSelectedItems()
+    {
+        return IsComputerConfigured() ||
+               selectedRequirementsList.Any() ||
+               selectedComponentsList.Any();
+    }
+
+    private bool IsComputerConfigured()
+    {
+        return IsPcTypeSelected() || !string.IsNullOrWhiteSpace(contactPerson);
+    }
+
+    private bool IsPcTypeSelected()
+    {
+        if (string.IsNullOrEmpty(selectedPcType)) return false;
+        if (selectedPcType == "Sonstige")
+            return !string.IsNullOrWhiteSpace(customPcType);
+        return true;
+    }
+
+    private string GetDisplayPcType()
+    {
+        if (string.IsNullOrEmpty(selectedPcType)) return "";
+        if (selectedPcType == "Sonstige" && !string.IsNullOrWhiteSpace(customPcType))
+            return $"Sonstige: {customPcType}";
+        return selectedPcType;
+    }
+
+    private string GetActualPcType()
+    {
+        if (selectedPcType == "Sonstige" && !string.IsNullOrWhiteSpace(customPcType))
+            return customPcType.Trim();
+        return selectedPcType;
+    }
+
+    private void OnPcTypeChanged(string newValue)
+    {
+        selectedPcType = newValue;
+
+        // Clear custom text when switching away from "Sonstige"
+        if (newValue != "Sonstige")
+        {
+            customPcType = "";
+        }
+
+        StateHasChanged();
+    }
+
+    // Add selected requirement to list
+    private void AddSelectedRequirement()
+    {
+        string requirementToAdd = "";
+
+        if (newRequirementType == "Sonstige")
+        {
+            if (string.IsNullOrWhiteSpace(customRequirement))
+            {
+                Snackbar.Add("Bitte geben Sie eine sonstige Anforderung ein!", Severity.Warning);
+                return;
+            }
+            requirementToAdd = customRequirement.Trim();
+        }
+        else
+        {
+            requirementToAdd = newRequirementType.Trim();
+        }
+
+        // Check if requirement already exists in list
+        if (selectedRequirementsList.Any(r => r.Equals(requirementToAdd, StringComparison.OrdinalIgnoreCase)))
+        {
+            Snackbar.Add("Diese Anforderung wurde bereits hinzugefügt!", Severity.Warning);
+            return;
+        }
+
+        // Add to selected list
+        selectedRequirementsList.Add(requirementToAdd);
+
+        // Clear input fields
+        newRequirementType = string.Empty;
+        customRequirement = string.Empty;
+
+        Snackbar.Add("Anforderung hinzugefügt!", Severity.Success);
+    }
+
+    // Remove requirement from selected list
+    private void RemoveSelectedRequirement(string requirement)
+    {
+        selectedRequirementsList.Remove(requirement);
+        Snackbar.Add("Anforderung entfernt!", Severity.Info);
+    }
+
+    // Add selected component to list with flexible validation
+    private void AddSelectedComponent()
+    {
+        // Allow if either name OR details are provided (not both required)
+        if (string.IsNullOrWhiteSpace(newComponentName) && string.IsNullOrWhiteSpace(newComponentType))
+        {
+            Snackbar.Add("Bitte Komponente oder Details eingeben!", Severity.Warning);
+            return;
+        }
+
+        // Use "Hardware-Komponente" as default name if only details provided
+        var itemName = string.IsNullOrWhiteSpace(newComponentName) ? "Hardware-Komponente" : newComponentName.Trim();
+        var itemType = newComponentType?.Trim() ?? string.Empty;
+        var itemQuantity = string.IsNullOrWhiteSpace(newComponentQuantity) ? "1" : newComponentQuantity.Trim();
+        var itemRemarks = newComponentRemarks?.Trim() ?? string.Empty;
+
+        // Check if component already exists in list (only check if name is meaningful)
+        if (!string.IsNullOrWhiteSpace(newComponentName) &&
+            selectedComponentsList.Any(c => c.ComponentName.Equals(itemName, StringComparison.OrdinalIgnoreCase)))
+        {
+            Snackbar.Add("Diese Hardware-Komponente wurde bereits hinzugefügt!", Severity.Warning);
+            return;
+        }
+
+        // Add to selected list
+        selectedComponentsList.Add(new HardwareComponent
+        {
+            ComponentName = itemName,
+            Quantity = itemQuantity,
+            ComponentType = itemType,
+            Remarks = itemRemarks
+        });
+
+        // Clear input fields
+        newComponentName = string.Empty;
+        newComponentQuantity = "1";
+        newComponentType = string.Empty;
+        newComponentRemarks = string.Empty;
+
+        Snackbar.Add("Hardware-Komponente hinzugefügt!", Severity.Success);
+    }
+
+    // Remove component from selected list
+    private void RemoveSelectedComponent(HardwareComponent component)
+    {
+        selectedComponentsList.Remove(component);
+        Snackbar.Add("Hardware-Komponente entfernt!", Severity.Info);
+    }
+
+    private async Task LoadWorkflowData()
+    {
+        try
+        {
+            // Load workflow
+            currentWorkflow = await DbContext.Workflow
+                .FirstOrDefaultAsync(w => w.Id == WorkflowId);
+
+            if (currentWorkflow == null)
+            {
+                Snackbar.Add("Workflow nicht gefunden!", Severity.Error);
+                return;
+            }
+
+            // Load existing BV hardware data (if available)
+            existingBvHardware = await DbContext.BvHardwareComputer
+                .FirstOrDefaultAsync(h => h.WorkflowId == WorkflowId);
+
+            if (existingBvHardware != null)
+            {
+                // Load existing data into form
+                var pcType = existingBvHardware.PcType ?? "";
+
+                // Check if PC type is one of the predefined options
+                var predefinedTypes = new[] { "MIC 7700 + Erweiterung" };
+
+                if (predefinedTypes.Contains(pcType))
+                {
+                    selectedPcType = pcType;
+                    customPcType = "";
+                }
+                else if (!string.IsNullOrEmpty(pcType))
+                {
+                    // PC type is custom, set to "Sonstige" and put actual value in customPcType
+                    selectedPcType = "Sonstige";
+                    customPcType = pcType;
+                }
+                else
+                {
+                    selectedPcType = "";
+                    customPcType = "";
+                }
+
+                contactPerson = existingBvHardware.ContactPerson ?? "";
+
+                // Parse PcTypeDetails (format: pcDetails|additionalRequirements|remarks|pcDetailsRemarks|additionalRemarks)
+                if (!string.IsNullOrEmpty(existingBvHardware.PcTypeDetails))
+                {
+                    var parts = existingBvHardware.PcTypeDetails.Split('|');
+                    pcDetails = parts.Length > 0 ? parts[0] : "";
+
+                    // Load multiple requirements from parts[1] (separated by semicolons)
+                    if (parts.Length > 1 && !string.IsNullOrEmpty(parts[1]))
+                    {
+                        selectedRequirementsList = parts[1].Split(';', StringSplitOptions.RemoveEmptyEntries).ToList();
+                    }
+                }
+
+                // Load existing hardware components from database
+                var components = await DbContext.BvHardwareComponent
+                    .Where(c => c.BvHardwareComputerId == existingBvHardware.Id && c.IsActive)
+                    .ToListAsync();
+
+                // Convert to list structure
+                selectedComponentsList = components.Select(c => new HardwareComponent
+                {
+                    ComponentName = c.ComponentName,
+                    Quantity = c.Quantity ?? "1",
+                    ComponentType = c.ComponentType ?? string.Empty,
+                    Remarks = c.Category ?? string.Empty // Use Category field for Remarks (workaround)
+                }).ToList();
+
+                Snackbar.Add("Existierende BV Hardware-Konfiguration geladen!", Severity.Info);
+            }
+            else
+            {
+                // New creation: empty fields and lists
+                selectedPcType = "";
+                customPcType = "";
+                contactPerson = "";
+                pcDetails = "";
+                selectedRequirementsList = new List<string>();
+                selectedComponentsList = new List<HardwareComponent>();
+            }
+
+            // Force UI refresh
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Fehler beim Laden: {ex.Message}", Severity.Error);
+            Console.WriteLine($"LoadWorkflowData Error: {ex}");
+        }
+    }
+
+    private async Task SaveChanges()
+    {
+        if (currentWorkflow == null)
+        {
+            Snackbar.Add("BV Hardware Formular nicht gefunden!", Severity.Error);
+            return;
+        }
+
+        if (!HasSelectedItems())
+        {
+            Snackbar.Add("Bitte mindestens eine Konfiguration vornehmen!", Severity.Warning);
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            using var transaction = await DbContext.Database.BeginTransactionAsync();
+
+            // Determine the actual PC type to save
+            string actualPcType = GetActualPcType();
+
+            // Combine requirements into semicolon-separated string
+            string combinedRequirements = string.Join(";", selectedRequirementsList);
+
+            // 1. Create or update BV hardware computer
+            if (existingBvHardware == null)
+            {
+                // Create new BV hardware computer
+                existingBvHardware = new DbBvHardwareComputer
+                {
+                    Id = Guid.NewGuid(),
+                    WorkflowId = WorkflowId,
+                    Name = $"{currentWorkflow.Name} BV Hardware",
+                    SerialNumber = $"BV-{DateTime.Now:yyyyMMdd-HHmmss}",
+                    ContactPerson = contactPerson,
+                    PcType = actualPcType,
+                    PcTypeDetails = $"{pcDetails}|{combinedRequirements}|||", // Store requirements in part 1
+                    Description = "BV Hardware Konfiguration",
+                    CreationDate = DateTime.UtcNow,
+                    LastChange = DateTime.UtcNow,
+                    IsActive = true
+                };
+
+                DbContext.BvHardwareComputer.Add(existingBvHardware);
+                await DbContext.SaveChangesAsync(); // Save hardware first to get ID
+            }
+            else
+            {
+                // Update existing BV hardware computer
+                existingBvHardware.PcType = actualPcType;
+                existingBvHardware.ContactPerson = contactPerson;
+                existingBvHardware.PcTypeDetails = $"{pcDetails}|{combinedRequirements}|||";
+                existingBvHardware.Name = $"{currentWorkflow.Name} BV Hardware";
+                existingBvHardware.LastChange = DateTime.UtcNow;
+
+                // Delete old hardware components (for clean update)
+                var oldComponents = await DbContext.BvHardwareComponent
+                    .Where(c => c.BvHardwareComputerId == existingBvHardware.Id)
+                    .ToListAsync();
+
+                if (oldComponents.Any())
+                {
+                    DbContext.BvHardwareComponent.RemoveRange(oldComponents);
+                    await DbContext.SaveChangesAsync(); // Delete old components
+                }
+            }
+
+            // 2. Save new hardware components
+            var newComponents = new List<DbBvHardwareComponent>();
+
+            foreach (var component in selectedComponentsList)
+            {
+                newComponents.Add(new DbBvHardwareComponent
+                {
+                    Id = Guid.NewGuid(),
+                    BvHardwareComputerId = existingBvHardware.Id,
+                    ComponentName = component.ComponentName,
+                    Quantity = component.Quantity,
+                    ComponentType = component.ComponentType,
+                    Category = component.Remarks, // Use Category field for Remarks (workaround)
+                    IsSelected = true,
+                    CreationDate = DateTime.UtcNow,
+                    IsActive = true
+                });
+            }
+
+            // Save all new components in batch
+            if (newComponents.Any())
+            {
+                DbContext.BvHardwareComponent.AddRange(newComponents);
+            }
+
+            // 3. Update workflow status to allow software configuration
+            currentWorkflow.Status = WorkflowStatus.SoftwareInProgress;
+            currentWorkflow.LastChange = DateTime.UtcNow;
+
+            // Save everything and commit transaction
+            await DbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            // Success notification
+            var savedItemsCount = selectedComponentsList.Count + selectedRequirementsList.Count;
+            var pcTypeText = IsPcTypeSelected() ? $"PC-Typ: {GetDisplayPcType()}" : "";
+            var message = $"BV Hardware-Konfiguration erfolgreich gespeichert! {pcTypeText} ({savedItemsCount} Einträge)";
+
+            Snackbar.Add(message, Severity.Success);
+
+            // Short delay to show success message, then navigate back
+            await Task.Delay(1500);
+            Navigation.NavigateTo($"/project/{currentWorkflow.ProjectId}/forms");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Fehler beim Speichern: {ex.Message}", Severity.Error);
+            Console.WriteLine($"SaveChanges Error: {ex}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        if (currentWorkflow?.ProjectId != null)
+        {
+            Navigation.NavigateTo($"/project/{currentWorkflow.ProjectId}/forms");
+        }
+        else
+        {
+            Navigation.NavigateTo("/projects");
+        }
+    }
+}

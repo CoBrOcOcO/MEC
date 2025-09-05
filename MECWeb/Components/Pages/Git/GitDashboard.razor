@@ -1,0 +1,258 @@
+﻿@page "/git"
+@using MECWeb.Services
+@using MECWeb.Models.Gitea
+@inject GiteaService GiteaService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Git Dashboard - MECWeb</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+
+    @* Header Section *@
+    <MudPaper Class="pa-6 mb-4" Elevation="3" Style="background: linear-gradient(135deg, #00893d 0%, #005e46 100%); color: white;">
+        <MudStack AlignItems="AlignItems.Center" Spacing="3">
+            <MudIcon Icon="@Icons.Material.Filled.Dashboard" Style="font-size: 4rem;" />
+            <MudText Typo="Typo.h3" Align="Align.Center">Git Management Dashboard</MudText>
+            <MudText Typo="Typo.body1" Align="Align.Center" Style="opacity: 0.9;">
+                Verwalten Sie Ihre Git-Repositories, laden Sie Dateien hoch und erstellen Sie neue Projekte
+            </MudText>
+        </MudStack>
+    </MudPaper>
+
+    @* Quick Stats *@
+    <MudGrid Class="mb-4">
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.Storage" Size="Size.Large" Color="Color.Primary" />
+                    <MudText Typo="Typo.h4" Color="Color.Primary">@repositoryCount</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Repositories</MudText>
+                </MudStack>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Large" Color="Color.Success" />
+                    <MudText Typo="Typo.h4" Color="Color.Success">@todayUploads</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Uploads Heute</MudText>
+                </MudStack>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.Commit" Size="Size.Large" Color="Color.Info" />
+                    <MudText Typo="Typo.h4" Color="Color.Info">@totalCommits</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Commits</MudText>
+                </MudStack>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                    <MudIcon Icon="@connectionStatus.icon" Size="Size.Large" Color="@connectionStatus.color" />
+                    <MudText Typo="Typo.body1" Color="@connectionStatus.color">@connectionStatus.text</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Gitea Status</MudText>
+                </MudStack>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    @* Quick Actions *@
+    <MudGrid Class="mb-4">
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudStack Spacing="3">
+                    <MudText Typo="Typo.h6" Color="Color.Primary">
+                        <MudIcon Icon="@Icons.Material.Filled.RocketLaunch" Class="mr-2" />
+                        Schnellaktionen
+                    </MudText>
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               FullWidth="true"
+                               Href="/git/create-repository">
+                        Neues S-Repository erstellen
+                    </MudButton>
+
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Secondary"
+                               StartIcon="@Icons.Material.Filled.Upload"
+                               FullWidth="true"
+                               Href="/git/upload">
+                        Datei hochladen
+                    </MudButton>
+
+                    <MudButton Variant="Variant.Text"
+                               Color="Color.Info"
+                               StartIcon="@Icons.Material.Filled.Storage"
+                               FullWidth="true"
+                               Href="/git/repositories">
+                        Repositories durchsuchen
+                    </MudButton>
+                </MudStack>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudStack Spacing="3">
+                    <MudText Typo="Typo.h6" Color="Color.Primary">
+                        <MudIcon Icon="@Icons.Material.Filled.Timeline" Class="mr-2" />
+                        Letzte Aktivitäten
+                    </MudText>
+
+                    @if (recentRepositories?.Any() == true)
+                    {
+                        <MudList T="string" Dense="true">
+                            @foreach (var repo in recentRepositories.Take(5))
+                            {
+                                <MudListItem T="string"
+                                             Icon="@Icons.Material.Filled.Folder"
+                                             IconColor="Color.Primary"
+                                             OnClick="@(() => NavigateToRepository(repo))">
+                                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                        <MudText Typo="Typo.body2">@repo.Name</MudText>
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Default">
+                                            @repo.Owner?.Login
+                                        </MudChip>
+                                    </MudStack>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    }
+                    else
+                    {
+                        <MudAlert Severity="Severity.Info" Dense="true">
+                            Noch keine Repositories verfügbar. Erstellen Sie Ihr erstes Repository!
+                        </MudAlert>
+                    }
+                </MudStack>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    @* System Status *@
+    <MudPaper Class="pa-4" Elevation="2">
+        <MudStack Spacing="3">
+            <MudText Typo="Typo.h6" Color="Color.Primary">
+                <MudIcon Icon="@Icons.Material.Filled.HealthAndSafety" Class="mr-2" />
+                System-Status
+            </MudText>
+
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                        <MudText Typo="Typo.body2">Gitea-Verbindung:</MudText>
+                        <MudChip T="string"
+                                 Color="@connectionStatus.color"
+                                 Icon="@connectionStatus.icon"
+                                 Size="Size.Small">
+                            @connectionStatus.text
+                        </MudChip>
+                    </MudStack>
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                        <MudText Typo="Typo.body2">Letzte Synchronisation:</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            @lastSyncTime.ToString("dd.MM.yyyy HH:mm")
+                        </MudText>
+                    </MudStack>
+                </MudItem>
+            </MudGrid>
+
+            <MudButton Variant="Variant.Outlined"
+                       StartIcon="@Icons.Material.Filled.Refresh"
+                       OnClick="RefreshData"
+                       Disabled="@isLoading"
+                       Size="Size.Small">
+                @if (isLoading)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Lädt...</span>
+                }
+                else
+                {
+                    <span>Daten aktualisieren</span>
+                }
+            </MudButton>
+        </MudStack>
+    </MudPaper>
+
+</MudContainer>
+
+@code {
+    private List<Repository>? recentRepositories;
+    private int repositoryCount = 0;
+    private int todayUploads = 12; // Placeholder
+    private int totalCommits = 0;
+    private DateTime lastSyncTime = DateTime.Now;
+    private bool isLoading = false;
+
+    private (string icon, Color color, string text) connectionStatus =
+        (Icons.Material.Filled.HelpOutline, Color.Default, "Wird getestet...");
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardData();
+    }
+
+    private async Task LoadDashboardData()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            // Test Gitea connection
+            recentRepositories = await GiteaService.GetUserRepositoriesAsync();
+
+            if (recentRepositories != null)
+            {
+                repositoryCount = recentRepositories.Count;
+                connectionStatus = (Icons.Material.Filled.CheckCircle, Color.Success, "Verbunden");
+
+                // Calculate total commits (placeholder logic)
+                totalCommits = repositoryCount * 15; // Rough estimate
+            }
+            else
+            {
+                connectionStatus = (Icons.Material.Filled.Error, Color.Error, "Fehler");
+            }
+        }
+        catch (Exception ex)
+        {
+            connectionStatus = (Icons.Material.Filled.Warning, Color.Warning, "Offline");
+            Snackbar.Add($"Verbindung zu Gitea fehlgeschlagen: {ex.Message}", Severity.Warning);
+        }
+        finally
+        {
+            isLoading = false;
+            lastSyncTime = DateTime.Now;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        await LoadDashboardData();
+        Snackbar.Add("Dashboard-Daten aktualisiert", Severity.Info);
+    }
+
+    private void NavigateToRepository(Repository repo)
+    {
+        if (repo?.Owner?.Login != null && !string.IsNullOrEmpty(repo.Name))
+        {
+            var url = $"/git/repository/{repo.Owner.Login}/{repo.Name}";
+            // Navigation would be handled by NavigationManager if injected
+        }
+    }
+}

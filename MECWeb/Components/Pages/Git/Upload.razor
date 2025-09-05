@@ -1,0 +1,588 @@
+﻿@page "/git/upload"
+@page "/git/upload/{owner}/{repoName}"
+@page "/git/upload/{owner}/{repoName}/{*currentPath}"
+@using MECWeb.Services
+@using MECWeb.Models.Gitea
+@inject GiteaService GiteaService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Upload - Git Repository Management</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+
+    @* Upload Header *@
+    <MudPaper Class="pa-6 mb-4" Elevation="3" Style="background: linear-gradient(135deg, #00893d 0%, #005e46 100%); color: white;">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+            <MudStack Spacing="2">
+                <MudText Typo="Typo.h4">
+                    <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Class="mr-3" />
+                    📤 Datei Upload
+                </MudText>
+                <MudText Typo="Typo.body1" Style="opacity: 0.9;">
+                    Laden Sie Dateien in Ihr Git-Repository hoch oder erstellen Sie neue Ordner
+                </MudText>
+                @if (!string.IsNullOrEmpty(owner) && !string.IsNullOrEmpty(repoName))
+                {
+                    <MudText Typo="Typo.body2" Style="opacity: 0.8;">
+                        🎯 Ziel: @owner/@repoName @(!string.IsNullOrEmpty(currentPath) ? $"/{currentPath}" : "")
+                    </MudText>
+                }
+            </MudStack>
+            
+            <MudStack Row="true" Spacing="2">
+                @if (!string.IsNullOrEmpty(owner) && !string.IsNullOrEmpty(repoName))
+                {
+                    <MudButton Variant="Variant.Outlined"
+                               StartIcon="@Icons.Material.Filled.ArrowBack"
+                               OnClick="GoBack"
+                               Style="border-color: rgba(255,255,255,0.3); color: white;">
+                        Zurück
+                    </MudButton>
+                }
+            </MudStack>
+        </MudStack>
+    </MudPaper>
+
+    @* Repository Selection (if not specified in URL) *@
+    @if (string.IsNullOrEmpty(owner) || string.IsNullOrEmpty(repoName))
+    {
+        <MudPaper Class="pa-6 mb-4" Elevation="2">
+            <MudText Typo="Typo.h5" Class="mb-4">
+                <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Class="mr-2" />
+                📁 Ziel-Repository auswählen
+            </MudText>
+            
+            @if (availableRepositories == null)
+            {
+                <MudStack AlignItems="AlignItems.Center">
+                    <MudProgressCircular Size="Size.Medium" Indeterminate="true" />
+                    <MudText Typo="Typo.body2">Repositories werden geladen...</MudText>
+                </MudStack>
+            }
+            else if (!availableRepositories.Any())
+            {
+                <MudAlert Severity="Severity.Info">
+                    <MudText>Keine Repositories verfügbar. Erstellen Sie zuerst ein Repository.</MudText>
+                </MudAlert>
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           Href="/git/create-repository"
+                           Class="mt-3">
+                    Neues Repository erstellen
+                </MudButton>
+            }
+            else
+            {
+                <MudGrid Spacing="3">
+                    @foreach (var repo in availableRepositories)
+                    {
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudPaper Class="pa-4" Elevation="1" Style="cursor: pointer; transition: all 0.2s ease;"
+                                      @onclick="@(() => SelectRepository(repo))">
+                                <MudStack Spacing="2">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                        <MudAvatar Color="Color.Primary" Size="Size.Medium">
+                                            <MudIcon Icon="@Icons.Material.Filled.Folder" />
+                                        </MudAvatar>
+                                        <MudStack Spacing="0">
+                                            <MudText Typo="Typo.subtitle1" Style="font-weight: 500;">@repo.Name</MudText>
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">@repo.Owner?.Login</MudText>
+                                        </MudStack>
+                                    </MudStack>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary" Style="overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
+                                        @(string.IsNullOrEmpty(repo.Description) ? "Keine Beschreibung" : repo.Description)
+                                    </MudText>
+                                </MudStack>
+                            </MudPaper>
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+        </MudPaper>
+    }
+    else
+    {
+        @* Upload Configuration *@
+        <MudGrid Spacing="4">
+            
+            @* Left: Upload Settings *@
+            <MudItem xs="12" md="6">
+                <MudPaper Class="pa-6" Elevation="2">
+                    <MudText Typo="Typo.h5" Class="mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.Settings" Class="mr-2" />
+                        📋 Upload-Konfiguration
+                    </MudText>
+
+                    <MudStack Spacing="4">
+                        
+                        @* File Selection *@
+                        <MudStack Spacing="2">
+                            <MudText Typo="Typo.subtitle1">📁 Datei auswählen</MudText>
+                            <InputFile OnChange="OnFileSelected"
+                                       accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.md,.jpg,.jpeg,.png,.zip"
+                                       class="form-control" />
+                                <MudButton Variant="Variant.Outlined"
+                                           Color="Color.Primary"
+                                           StartIcon="@Icons.Material.Filled.CloudUpload">
+                                    Datei auswählen
+                                </MudButton>
+                            
+                            
+                            @if (selectedFile != null)
+                            {
+                                <MudAlert Severity="Severity.Success" Dense="true">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                        <MudIcon Icon="@GetFileIcon(selectedFile.Name)" />
+                                        <MudStack Spacing="0">
+                                            <MudText Typo="Typo.body2">📄 @selectedFile.Name</MudText>
+                                            <MudText Typo="Typo.caption">📊 @FormatFileSize(selectedFile.Size)</MudText>
+                                        </MudStack>
+                                    </MudStack>
+                                </MudAlert>
+                            }
+                        </MudStack>
+
+                        @* Target Path *@
+                        <MudStack Spacing="2">
+                            <MudText Typo="Typo.subtitle1">📂 Ziel-Pfad</MudText>
+                            <MudTextField @bind-Value="targetPath"
+                                          Label="Ordner-Pfad (optional)"
+                                          Placeholder="@GetPlaceholder()"
+                                          HelperText="Leer = Root-Verzeichnis, z.B. docs/bilder/ für Unterordner"
+                                          Adornment="Adornment.Start"
+                                          AdornmentIcon="@Icons.Material.Filled.Folder" />
+                        </MudStack>
+
+                        @* File Name *@
+                        <MudStack Spacing="2">
+                            <MudText Typo="Typo.subtitle1">📝 Dateiname</MudText>
+                            <MudTextField @bind-Value="fileName"
+                                          Label="Dateiname"
+                                          HelperText="Name der Datei ohne Pfad"
+                                          Adornment="Adornment.Start"
+                                          AdornmentIcon="@Icons.Material.Filled.InsertDriveFile" />
+                        </MudStack>
+
+                        @* Commit Message *@
+                        <MudStack Spacing="2">
+                            <MudText Typo="Typo.subtitle1">💬 Commit-Nachricht</MudText>
+                            <MudTextField @bind-Value="commitMessage"
+                                          Label="Commit-Nachricht"
+                                          Lines="2"
+                                          HelperText="Beschreibung der Änderung für Git-Historie"
+                                          Adornment="Adornment.Start"
+                                          AdornmentIcon="@Icons.Material.Filled.Message" />
+                        </MudStack>
+
+                    </MudStack>
+                </MudPaper>
+            </MudItem>
+
+            @* Right: Upload Preview & Actions *@
+            <MudItem xs="12" md="6">
+                <MudPaper Class="pa-6" Elevation="2">
+                    <MudText Typo="Typo.h5" Class="mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.Preview" Class="mr-2" />
+                        🔍 Upload-Vorschau
+                    </MudText>
+
+                    <MudStack Spacing="3">
+                        
+                        @* Preview Info *@
+                        <MudAlert Severity="@(canUpload ? Severity.Success : Severity.Info)">
+                            <MudStack Spacing="2">
+                                <MudText Typo="Typo.subtitle2">📋 Upload-Details:</MudText>
+                                <MudList T="string" Dense="true">
+                                    <MudListItem Icon="@Icons.Material.Filled.Storage">
+                                        <MudText><strong>Repository:</strong> @owner/@repoName</MudText>
+                                    </MudListItem>
+                                    <MudListItem Icon="@Icons.Material.Filled.Route">
+                                        <MudText><strong>Vollständiger Pfad:</strong> <code>@GetFullPath()</code></MudText>
+                                    </MudListItem>
+                                    <MudListItem Icon="@Icons.Material.Filled.Message">
+                                        <MudText><strong>Commit:</strong> @(string.IsNullOrEmpty(commitMessage) ? "Keine Nachricht" : commitMessage)</MudText>
+                                    </MudListItem>
+                                    <MudListItem Icon="@(canUpload ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Cancel)">
+                                        <MudText><strong>Status:</strong> @(canUpload ? "✅ Bereit zum Upload" : "❌ Nicht bereit")</MudText>
+                                    </MudListItem>
+                                </MudList>
+                            </MudStack>
+                        </MudAlert>
+
+                        @* Upload Actions *@
+                        <MudStack Row="true" Spacing="2">
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.CloudUpload"
+                                       OnClick="DoUpload"
+                                       Disabled="@(!canUpload || isUploading)"
+                                       FullWidth="true">
+                                @if (isUploading)
+                                {
+                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                    <span>Wird hochgeladen...</span>
+                                }
+                                else
+                                {
+                                    <span>🚀 Upload starten</span>
+                                }
+                            </MudButton>
+                        </MudStack>
+
+                        @* Alternative Actions *@
+                        <MudDivider />
+                        <MudText Typo="Typo.subtitle2" Color="Color.Secondary">📁 Ordner-Aktionen:</MudText>
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Secondary"
+                                   StartIcon="@Icons.Material.Filled.CreateNewFolder"
+                                   OnClick="ShowCreateFolderDialog"
+                                   FullWidth="true">
+                            📁 Neuen Ordner erstellen
+                        </MudButton>
+
+                    </MudStack>
+                </MudPaper>
+            </MudItem>
+
+        </MudGrid>
+
+        @* Upload Log *@
+        @if (uploadLogs.Any())
+        {
+            <MudPaper Class="pa-4 mt-4" Elevation="1">
+                <MudText Typo="Typo.h6" Class="mb-3">
+                    <MudIcon Icon="@Icons.Material.Filled.List" Class="mr-2" />
+                    📋 Upload-Log
+                </MudText>
+                <MudExpansionPanels>
+                    <MudExpansionPanel IsInitiallyExpanded="true">
+                        <TitleContent>
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Filled.Terminal" />
+                                <MudText>Letzte @Math.Min(uploadLogs.Count, 10) Log-Einträge</MudText>
+                            </MudStack>
+                        </TitleContent>
+                        <ChildContent>
+                            <MudPaper Style="background: #f8f9fa; padding: 16px; max-height: 300px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 12px;">
+                                @foreach (var log in uploadLogs.TakeLast(20).Reverse())
+                                {
+                                    <div style="margin: 2px 0;">
+                                        <span style="color: #6c757d;">[@log.Time]</span> @log.Text
+                                    </div>
+                                }
+                            </MudPaper>
+                        </ChildContent>
+                    </MudExpansionPanel>
+                </MudExpansionPanels>
+            </MudPaper>
+        }
+    }
+
+</MudContainer>
+
+@* Create Folder Dialog *@
+<MudDialog @bind-IsVisible="showCreateFolderDialog" Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium })">
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-4">
+            <MudIcon Icon="@Icons.Material.Filled.CreateNewFolder" Class="mr-2" />
+            📁 Neuen Ordner erstellen
+        </MudText>
+        
+        <MudStack Spacing="3">
+            <MudTextField @bind-Value="newFolderName"
+                          Label="Ordner-Name"
+                          Placeholder="docs, bilder, software..."
+                          HelperText="Nur Buchstaben, Zahlen, Bindestriche und Unterstriche"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Folder" />
+
+            <MudTextField @bind-Value="newFolderDescription"
+                          Label="Ordner-Beschreibung"
+                          Lines="3"
+                          Placeholder="Beschreibung des Ordners und seines Zwecks..."
+                          HelperText="Wird als README.md im Ordner gespeichert"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Description" />
+
+            @if (!string.IsNullOrEmpty(currentPath))
+            {
+                <MudAlert Severity="Severity.Info" Dense="true">
+                    <MudText>📍 Ordner wird erstellt in: <code>/@currentPath/@newFolderName</code></MudText>
+                </MudAlert>
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="HideCreateFolderDialog">Abbrechen</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled"
+                   OnClick="CreateFolder"
+                   Disabled="@(string.IsNullOrWhiteSpace(newFolderName) || string.IsNullOrWhiteSpace(newFolderDescription) || isCreatingFolder)">
+            @if (isCreatingFolder)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            📁 Ordner erstellen
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public string? owner { get; set; }
+    [Parameter] public string? repoName { get; set; }
+    [Parameter] public string? currentPath { get; set; }
+
+    private List<Repository>? availableRepositories;
+    private IBrowserFile? selectedFile;
+    private string fileName = "";
+    private string targetPath = "";
+    private string commitMessage = "Datei hochgeladen";
+    private bool isUploading = false;
+    private List<LogMessage> uploadLogs = new();
+
+    // Folder creation
+    private bool showCreateFolderDialog = false;
+    private string newFolderName = "";
+    private string newFolderDescription = "";
+    private bool isCreatingFolder = false;
+
+    private bool canUpload => !string.IsNullOrEmpty(owner) &&
+                             !string.IsNullOrEmpty(repoName) &&
+                             selectedFile != null &&
+                             !string.IsNullOrWhiteSpace(fileName);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrEmpty(currentPath))
+        {
+            targetPath = currentPath;
+        }
+
+        if (string.IsNullOrEmpty(owner) || string.IsNullOrEmpty(repoName))
+        {
+            await LoadAvailableRepositories();
+        }
+
+        Log($"Upload-Seite geladen. Ziel: {owner}/{repoName}" + (!string.IsNullOrEmpty(currentPath) ? $"/{currentPath}" : ""));
+    }
+
+    private async Task LoadAvailableRepositories()
+    {
+        try
+        {
+            availableRepositories = await GiteaService.GetUserRepositoriesAsync();
+            
+            if (availableRepositories?.Any() == true)
+            {
+                Log($"✅ {availableRepositories.Count} Repositories verfügbar");
+            }
+            else
+            {
+                Log("❌ Keine Repositories gefunden");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"❌ Fehler beim Laden der Repositories: {ex.Message}");
+            availableRepositories = new List<Repository>();
+        }
+    }
+
+    private void SelectRepository(Repository repo)
+    {
+        Navigation.NavigateTo($"/git/upload/{repo.Owner?.Login}/{repo.Name}");
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs e)
+    {
+        selectedFile = e.File;
+        fileName = e.File.Name;
+        Log($"📁 Datei ausgewählt: {e.File.Name} ({FormatFileSize(e.File.Size)})");
+    }
+
+    private async Task DoUpload()
+    {
+        if (!canUpload) return;
+
+        Log("=== UPLOAD GESTARTET ===");
+        isUploading = true;
+        
+        try
+        {
+            var fullPath = GetFullPath();
+            Log($"🎯 Upload-Parameter:");
+            Log($"  Repository: {owner}/{repoName}");
+            Log($"  Pfad: {fullPath}");
+            Log($"  Größe: {FormatFileSize(selectedFile!.Size)}");
+
+            var buffer = new byte[selectedFile.Size];
+            await selectedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024).ReadAsync(buffer);
+            
+            Log($"📖 Datei gelesen: {buffer.Length} Bytes");
+
+            var success = await GiteaService.UploadFileAsync(owner!, repoName!, fullPath, buffer, commitMessage);
+
+            if (success)
+            {
+                Log("✅ UPLOAD ERFOLGREICH!");
+                Snackbar.Add($"✅ Datei '{fileName}' erfolgreich hochgeladen", Severity.Success);
+                
+                // Reset form
+                selectedFile = null;
+                fileName = "";
+                commitMessage = "Datei hochgeladen";
+                StateHasChanged();
+                
+                await Task.Delay(1500);
+                GoBack();
+            }
+            else
+            {
+                Log("❌ UPLOAD FEHLGESCHLAGEN");
+                Snackbar.Add("❌ Upload fehlgeschlagen", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"❌ UPLOAD EXCEPTION: {ex.Message}");
+            Snackbar.Add($"❌ Upload-Fehler: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isUploading = false;
+            Log("=== UPLOAD BEENDET ===");
+            StateHasChanged();
+        }
+    }
+
+    private void ShowCreateFolderDialog()
+    {
+        newFolderName = "";
+        newFolderDescription = "";
+        showCreateFolderDialog = true;
+    }
+
+    private void HideCreateFolderDialog()
+    {
+        showCreateFolderDialog = false;
+    }
+
+    private async Task CreateFolder()
+    {
+        if (string.IsNullOrWhiteSpace(newFolderName) || string.IsNullOrWhiteSpace(newFolderDescription))
+            return;
+
+        isCreatingFolder = true;
+        
+        try
+        {
+            var folderPath = string.IsNullOrEmpty(currentPath) 
+                ? newFolderName 
+                : $"{currentPath}/{newFolderName}";
+
+            Log($"📁 Erstelle Ordner: {folderPath}");
+            
+            // Erstelle README.md im neuen Ordner
+            var readmeContent = System.Text.Encoding.UTF8.GetBytes(newFolderDescription);
+            var success = await GiteaService.UploadFileAsync(owner!, repoName!, $"{folderPath}/README.md", readmeContent, $"Ordner {folderPath} erstellt");
+            
+            if (success)
+            {
+                Log($"✅ Ordner '{folderPath}' erfolgreich erstellt!");
+                Snackbar.Add($"✅ Ordner '{newFolderName}' erstellt", Severity.Success);
+                HideCreateFolderDialog();
+            }
+            else
+            {
+                Log($"❌ Ordner-Erstellung fehlgeschlagen");
+                Snackbar.Add("❌ Ordner konnte nicht erstellt werden", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"❌ Ordner-Erstellung Exception: {ex.Message}");
+            Snackbar.Add($"❌ Fehler: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isCreatingFolder = false;
+            StateHasChanged();
+        }
+    }
+
+    private void GoBack()
+    {
+        if (string.IsNullOrEmpty(currentPath))
+        {
+            Navigation.NavigateTo($"/git/repository/{owner}/{repoName}");
+        }
+        else
+        {
+            Navigation.NavigateTo($"/git/repository/{owner}/{repoName}/{currentPath}");
+        }
+    }
+
+    private string GetFullPath()
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+            return "???";
+
+        if (string.IsNullOrWhiteSpace(targetPath))
+            return fileName;
+
+        var normalizedPath = targetPath.Trim('/');
+        return string.IsNullOrEmpty(normalizedPath)
+            ? fileName
+            : $"{normalizedPath}/{fileName}";
+    }
+
+    private string GetPlaceholder()
+    {
+        if (string.IsNullOrEmpty(currentPath))
+            return "docs/bilder/";
+        return $"{currentPath}/";
+    }
+
+    private string GetFileIcon(string fileName)
+    {
+        var extension = Path.GetExtension(fileName).ToLower();
+        return extension switch
+        {
+            ".pdf" => Icons.Material.Filled.PictureAsPdf,
+            ".doc" or ".docx" => Icons.Material.Filled.Description,
+            ".jpg" or ".png" => Icons.Material.Filled.Image,
+            _ => Icons.Material.Filled.InsertDriveFile
+        };
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024:F1} KB";
+        return $"{bytes / (1024 * 1024):F1} MB";
+    }
+
+    private void Log(string message)
+    {
+        uploadLogs.Add(new LogMessage
+        {
+            Time = DateTime.Now.ToString("HH:mm:ss"),
+            Text = message
+        });
+        
+        if (uploadLogs.Count > 50)
+        {
+            uploadLogs.RemoveAt(0);
+        }
+        
+        StateHasChanged();
+    }
+
+    private class LogMessage
+    {
+        public string Time { get; set; } = "";
+        public string Text { get; set; } = "";
+    }
+}

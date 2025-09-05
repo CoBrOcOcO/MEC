@@ -1,0 +1,99 @@
+﻿@* ERWEITERT die bestehende Navigation um Gitea-Features *@
+
+@inject NavigationManager Navigation
+
+<MudNavMenu Class="pl-2 pr-2" Rounded="true" Margin="Margin.None" Color="Color.Primary" Dense=true>
+
+    @* ===== BESTEHENDE NAVIGATION (unverändert) ===== *@
+    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">
+        Home
+    </MudNavLink>
+
+    <MudNavLink Href="/projects" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.List">
+        Projekte
+    </MudNavLink>
+
+    <MudDivider Class="my-2" />
+
+    @* ===== NEUE GITEA-INTEGRATION ===== *@
+    <MudNavGroup Title="📁 Git Repository" 
+                 Icon="@Icons.Material.Filled.Storage" 
+                 Expanded="false">
+        
+        <MudNavLink Href="/git/repositories" 
+                    Match="NavLinkMatch.Prefix" 
+                    Icon="@Icons.Material.Filled.Folder">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Style="width: 100%">
+                <MudText>Alle Repositories</MudText>
+                <MudChip T="string" Size="Size.Small" Color="Color.Success">✅ Gültig</MudChip>
+            </MudStack>
+        </MudNavLink>
+
+        <MudNavLink Href="/git/create-repository" 
+                    Match="NavLinkMatch.Prefix" 
+                    Icon="@Icons.Material.Filled.Add">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Style="width: 100%">
+                <MudText>Neues Repository</MudText>
+                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Text">➕</MudChip>
+            </MudStack>
+        </MudNavLink>
+
+        <MudNavLink Href="/git/upload" 
+                    Match="NavLinkMatch.Prefix" 
+                    Icon="@Icons.Material.Filled.Upload">
+            <MudText>Datei hochladen</MudText>
+        </MudNavLink>
+
+    </MudNavGroup>
+
+    @* ===== WEITERE BESTEHENDE FEATURES ===== *@
+    <MudDivider Class="my-2" />
+
+    <MudNavGroup Title="🔧 Erweitert" 
+                 Icon="@Icons.Material.Filled.Settings" 
+                 Expanded="false">
+        
+        <MudNavLink Href="/git/commits" 
+                    Match="NavLinkMatch.Prefix" 
+                    Icon="@Icons.Material.Filled.History">
+            <MudText>Git Historie</MudText>
+        </MudNavLink>
+
+        <MudNavLink Href="/git/releases" 
+                    Match="NavLinkMatch.Prefix" 
+                    Icon="@Icons.Material.Filled.NewReleases">
+            <MudText>Releases</MudText>
+        </MudNavLink>
+
+    </MudNavGroup>
+
+</MudNavMenu>
+
+@* ===== GIT-STATUS (nur wenn auf Git-Seiten) ===== *@
+@if (IsOnGitPage())
+{
+    <MudSpacer />
+    
+    <MudPaper Class="pa-3 ma-2" Style="background: var(--mud-palette-background-gray);" Elevation="0">
+        <MudStack Spacing="1">
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Align="Align.Center">
+                🔗 Gitea Integration
+            </MudText>
+            <MudChip T="string" Size="Size.Small"
+                     Color="Color.Success" 
+                     Variant="Variant.Text" 
+                     Icon="@Icons.Material.Filled.CheckCircle"
+                     Style="width: 100%;">
+                Verbunden
+            </MudChip>
+        </MudStack>
+    </MudPaper>
+}
+
+@code {
+    private bool IsOnGitPage()
+    {
+        var currentPath = Navigation.ToBaseRelativePath(Navigation.Uri);
+        return currentPath.StartsWith("git/") || currentPath.StartsWith("repository/");
+    }
+}

@@ -1,0 +1,226 @@
+﻿@using MECWeb.DbModels.Project
+@using MECWeb.DbModels.Workflow
+@using Microsoft.EntityFrameworkCore
+
+@inject ApplicationDbContext DbContext
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Delete" Class="mr-3" Color="Color.Error" />
+            Projekt löschen
+        </MudText>
+    </TitleContent>
+
+    <DialogContent>
+        <MudStack Spacing="4">
+            <!-- Warning Message -->
+            <MudAlert Severity="Severity.Warning" Icon="@Icons.Material.Filled.Warning">
+                <MudText Typo="Typo.body1" Style="line-height: 1.6;">
+                    Möchten Sie das folgende Projekt wirklich <strong>unwiderruflich löschen</strong>?
+                </MudText>
+            </MudAlert>
+
+            <!-- Project Information -->
+            <MudPaper Class="pa-4" Elevation="1" Style="background-color: var(--mud-palette-background-grey);">
+                <MudStack Spacing="2">
+                    <MudText Typo="Typo.subtitle1" Style="font-weight: 600; color: var(--mud-palette-primary);">
+                        Projekt:
+                    </MudText>
+                    <MudText Typo="Typo.body1" Style="font-weight: 500;">
+                        @Project.ProjectNumber - @Project.Name
+                    </MudText>
+                    @if (!string.IsNullOrWhiteSpace(Project.Description))
+                    {
+                        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">
+                            @Project.Description
+                        </MudText>
+                    }
+                    <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-disabled);">
+                        Erstellt am: @Project.CreationDate.ToString("dd.MM.yyyy HH:mm")
+                    </MudText>
+                </MudStack>
+            </MudPaper>
+
+            <!-- Impact Information -->
+            @if (workflowCount > 0)
+            {
+                <MudAlert Severity="Severity.Error" Icon="@Icons.Material.Filled.Warning">
+                    <MudText Typo="Typo.body2">
+                        <strong>Achtung:</strong> Dieses Projekt enthält @workflowCount Workflow(s), die ebenfalls gelöscht werden.
+                    </MudText>
+                </MudAlert>
+            }
+
+            <!-- Final Confirmation -->
+            <MudAlert Severity="Severity.Error" Icon="@Icons.Material.Filled.Error">
+                <MudText Typo="Typo.body2" Style="font-weight: 500;">
+                    ⚠️ Dieser Vorgang kann nicht rückgängig gemacht werden!
+                </MudText>
+            </MudAlert>
+
+            <!-- Error Message Display -->
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" ShowCloseIcon="true" CloseIconClicked="() => errorMessage = string.Empty">
+                    @errorMessage
+                </MudAlert>
+            }
+        </MudStack>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text">
+            Abbrechen
+        </MudButton>
+        <MudButton Color="Color.Error"
+                   Variant="Variant.Filled"
+                   OnClick="ConfirmDelete"
+                   Disabled="@isDeleting"
+                   Loading="@isDeleting"
+                   StartIcon="@Icons.Material.Filled.Delete">
+            Projekt löschen
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter]
+    public DbProject Project { get; set; } = null!;
+
+    private int workflowCount = 0;
+    private bool isDeleting = false;
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Project != null)
+        {
+            await LoadWorkflowCount();
+        }
+    }
+
+    /// <summary>
+    /// Load the number of workflows associated with this project
+    /// </summary>
+    private async Task LoadWorkflowCount()
+    {
+        try
+        {
+            workflowCount = await DbContext.Workflow
+                .Where(w => w.ProjectId == Project.Id)
+                .CountAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading workflow count: {ex.Message}");
+            workflowCount = 0;
+        }
+    }
+
+    /// <summary>
+    /// Confirm and execute project deletion
+    /// </summary>
+    private async Task ConfirmDelete()
+    {
+        if (Project == null)
+        {
+            errorMessage = "Projekt nicht gefunden.";
+            return;
+        }
+
+        isDeleting = true;
+        errorMessage = string.Empty;
+
+        try
+        {
+            // Delete all associated workflows first (if cascade delete is not configured)
+            var workflows = await DbContext.Workflow
+                .Where(w => w.ProjectId == Project.Id)
+                .ToListAsync();
+
+            foreach (var workflow in workflows)
+            {
+                // Delete associated hardware data for each workflow
+                await DeleteWorkflowData(workflow);
+            }
+
+            // Delete workflows
+            DbContext.Workflow.RemoveRange(workflows);
+
+            // Delete the project itself
+            DbContext.Project.Remove(Project);
+
+            // Save all changes
+            await DbContext.SaveChangesAsync();
+
+            // Show success message
+            Snackbar.Add($"Projekt '{Project.ProjectNumber} - {Project.Name}' erfolgreich gelöscht!", Severity.Success);
+
+            // Close dialog with success result
+            MudDialog.Close(DialogResult.Ok(Project));
+        }
+        catch (DbUpdateException dbEx)
+        {
+            // Handle database-specific errors
+            Console.WriteLine($"Database error deleting project {Project.Id}: {dbEx}");
+            errorMessage = "Datenbankfehler beim Löschen des Projekts. Bitte versuchen Sie es erneut.";
+        }
+        catch (Exception ex)
+        {
+            // Handle general errors
+            Console.WriteLine($"Error deleting project {Project.Id}: {ex}");
+            errorMessage = $"Fehler beim Löschen des Projekts: {ex.Message}";
+        }
+        finally
+        {
+            isDeleting = false;
+        }
+    }
+
+    /// <summary>
+    /// Delete workflow-specific data (hardware, software, etc.)
+    /// </summary>
+    private async Task DeleteWorkflowData(DbWorkflow workflow)
+    {
+        try
+        {
+            if (workflow.WorkflowType == WorkflowType.BDR)
+            {
+                // Delete BDR hardware data
+                var bdrHardware = await DbContext.HardwareComputer
+                    .Where(h => h.WorkflowId == workflow.Id)
+                    .ToListAsync();
+                DbContext.HardwareComputer.RemoveRange(bdrHardware);
+            }
+            else if (workflow.WorkflowType == WorkflowType.BV)
+            {
+                // Delete BV hardware data
+                var bvHardware = await DbContext.BvHardwareComputer
+                    .Where(h => h.WorkflowId == workflow.Id)
+                    .ToListAsync();
+                DbContext.BvHardwareComputer.RemoveRange(bvHardware);
+            }
+
+            // Add any other workflow-specific data deletion here
+            // For example: software configurations, purchase orders, etc.
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting workflow data for workflow {workflow.Id}: {ex.Message}");
+            // Continue with deletion even if some workflow data couldn't be deleted
+        }
+    }
+
+    /// <summary>
+    /// Cancel the deletion process
+    /// </summary>
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}

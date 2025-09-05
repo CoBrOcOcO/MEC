@@ -1,0 +1,726 @@
+﻿@using MECWeb.Components.Shared.Project
+@using MECWeb.DbModels.Project
+@using MECWeb.DbModels.Workflow
+@using MECWeb.DbModels
+@using Microsoft.EntityFrameworkCore
+
+@inject IDialogService DialogService
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+@layout MainLayout
+
+@page "/workflow/{WorkflowId:guid}/hardware"
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-18">
+    <MudStack Spacing="4">
+
+        <!-- Header -->
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                <MudStack Spacing="1">
+                    <MudText Typo="Typo.h5">BDR Hardware-Konfiguration</MudText>
+                    @if (currentWorkflow != null)
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                             @currentWorkflow.Name
+                        </MudText>
+                    }
+                </MudStack>
+                <!-- Status indicator -->
+                <MudChip T="string"
+                         Color="@(HasSelectedItems() ? Color.Success : Color.Default)"
+                         Size="Size.Small"
+                         Icon="@(HasSelectedItems() ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.RadioButtonUnchecked)">
+                    @(HasSelectedItems() ? "Konfiguriert" : "Nicht konfiguriert")
+                </MudChip>
+            </MudStack>
+        </MudPaper>
+
+        <MudGrid>
+
+            <!-- Hardware Rechner Typ -->
+            <MudItem xs="12">
+                <MudPaper Class="pa-4" Elevation="1"
+                          Style="@(IsHardwareTypeSelected() ? "background-color: #f8f9fa; border-left: 4px solid #4caf50;" : "")">
+                    <MudText Typo="Typo.h6" Class="mb-3">
+                        Hardware Rechner Typ
+                        @if (IsHardwareTypeSelected())
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" Class="ml-2" />
+                        }
+                    </MudText>
+
+                    <MudSelect T="string"
+                               Value="selectedHardwareType"
+                               ValueChanged="OnHardwareTypeChanged"
+                               Placeholder="Bitte Hardware-Typ auswählen"
+                               Variant="Variant.Outlined"
+                               Class="@(IsHardwareTypeSelected() ? "mud-success-text" : "")">
+                        <MudSelectItem T="string" Value="@("")">Bitte auswählen</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("MIC")">MIC</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("BDR 230V 15")">BDR 230V 15"</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("BDR24V 15")">BDR24V 15"</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("MPG2 15")">MPG2 15"</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("MPG2 10")">MPG2 10"</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Siemens Panel-PC")">Siemens Panel-PC</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Siemens Box-PC")">Siemens Box-PC</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("OPC-Slot-in")">OPC-Slot-in</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("TQ-Box (LowCost)")">TQ-Box (LowCost)</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Sonstiges")">Sonstiges (freie Eingabe)</MudSelectItem>
+                    </MudSelect>
+
+                    <!-- Sonstiges Textfeld - nur anzeigen wenn "Sonstiges" ausgewählt -->
+                    @if (selectedHardwareType == "Sonstiges")
+                    {
+                        <MudTextField @bind-Value="customHardwareType"
+                                      Label="Hardware-Typ (freie Eingabe)"
+                                      Variant="Variant.Outlined"
+                                      Placeholder="z.B. Custom Industrial PC, Raspberry Pi, etc."
+                                      Class="mt-3"
+                                      HelperText="Bitte geben Sie den gewünschten Hardware-Typ ein"
+                                      MaxLength="100" />
+                    }
+
+                    @if (IsHardwareTypeSelected())
+                    {
+                        <MudAlert Severity="Severity.Success" Class="mt-2" NoIcon="true">
+                            <MudText Typo="Typo.body2">
+                                <strong>Ausgewählt:</strong> @GetDisplayHardwareType()
+                            </MudText>
+                        </MudAlert>
+                    }
+                </MudPaper>
+            </MudItem>
+
+            <!-- Hardware-Details hinzufügen -->
+            <MudItem xs="12">
+                <MudPaper Class="pa-4" Elevation="1"
+                          Style="@(selectedHardwareList.Any() ? "background-color: #f8f9fa; border-left: 4px solid #4caf50;" : "")">
+                    <MudText Typo="Typo.h6" Class="mb-3">
+                        Hardware-Details
+                        @if (selectedHardwareList.Any())
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Success" Class="ml-2">
+                                @selectedHardwareList.Count Einträge
+                            </MudChip>
+                        }
+                    </MudText>
+
+                    <!-- Add new hardware details -->
+                    <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                        <MudTextField @bind-Value="newHardwareFieldName"
+                                      Label="Name"
+                                      Variant="Variant.Outlined"
+                                      Class="flex-grow-1"
+                                      Placeholder="z.B. Prozessor, RAM, SSD..." />
+                        <MudTextField @bind-Value="newHardwareFieldValue"
+                                      Label="Details"
+                                      Variant="Variant.Outlined"
+                                      Class="flex-grow-1"
+                                      Placeholder="z.B. Intel i5, 8GB, 256GB..." />
+                        <MudButton Color="Color.Success"
+                                   Variant="Variant.Filled"
+                                   Size="Size.Medium"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="AddSelectedHardware"
+                                   Title="Hardware hinzufügen">
+                            Hinzufügen
+                        </MudButton>
+                    </MudStack>
+
+                    <!-- Selected Hardware Details List -->
+                    <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Ausgewählte Hardware-Details</MudText>
+
+                    @if (selectedHardwareList.Any())
+                    {
+                        <MudStack Spacing="2">
+                            @foreach (var hardware in selectedHardwareList.Select((item, index) => new { item, index }))
+                            {
+                                <MudPaper Class="pa-3 mud-success-lighten-5" Elevation="1">
+                                    <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                        <!-- Hardware Info with Index -->
+                                        <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                                            <MudAvatar Color="Color.Success" Size="Size.Small">
+                                                @(hardware.index + 1)
+                                            </MudAvatar>
+                                            <MudStack Spacing="1">
+                                                <MudText Typo="Typo.body1" Class="font-weight-bold" Color="Color.Success">
+                                                    @hardware.item.Name
+                                                </MudText>
+                                                @if (!string.IsNullOrWhiteSpace(hardware.item.Value))
+                                                {
+                                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                        @hardware.item.Value
+                                                    </MudText>
+                                                }
+                                            </MudStack>
+                                        </MudStack>
+
+                                        <!-- Remove Button -->
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                       Color="Color.Error"
+                                                       Size="Size.Small"
+                                                       OnClick="() => RemoveSelectedHardware(hardware.item)"
+                                                       Title="Hardware entfernen" />
+                                    </MudStack>
+                                </MudPaper>
+                            }
+                        </MudStack>
+                    }
+                    else
+                    {
+                        <MudPaper Class="pa-4 mud-surface-lighten-2" Style="border: 2px dashed var(--mud-palette-lines-default);">
+                            <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Filled.Computer" Color="Color.Secondary" Size="Size.Large" />
+                                <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
+                                    Noch keine Hardware-Details hinzugefügt
+                                </MudText>
+                            </MudStack>
+                        </MudPaper>
+                    }
+                </MudPaper>
+            </MudItem>
+
+            <!-- Zusatzhardware hinzufügen -->
+            <MudItem xs="12">
+                <MudPaper Class="pa-4" Elevation="1"
+                          Style="@(selectedAdditionalList.Any() ? "background-color: #f8f9fa; border-left: 4px solid #4caf50;" : "")">
+                    <MudText Typo="Typo.h6" Class="mb-3">
+                        Zusatzhardware (z.B. Tastatur EN, Maus, Monitor, etc.)
+                        @if (selectedAdditionalList.Any())
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" Class="ml-2" />
+                        }
+                    </MudText>
+
+                    <!-- Add new additional hardware -->
+                    <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                        <MudTextField @bind-Value="newAdditionalFieldName"
+                                      Label="Name"
+                                      Variant="Variant.Outlined"
+                                      Class="flex-grow-1"
+                                      Placeholder="z.B. Tastatur, Maus, Monitor..." />
+                        <MudTextField @bind-Value="newAdditionalFieldValue"
+                                      Label="Details"
+                                      Variant="Variant.Outlined"
+                                      Class="flex-grow-1"
+                                      Placeholder="z.B. EN Layout, Optisch, 24 Zoll..." />
+                        <MudButton Color="Color.Success"
+                                   Variant="Variant.Filled"
+                                   Size="Size.Medium"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="AddSelectedAdditional"
+                                   Title="Zusatzhardware hinzufügen">
+                            Hinzufügen
+                        </MudButton>
+                    </MudStack>
+
+                    <!-- Selected Additional Hardware List -->
+                    <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Ausgewählte Zusatzhardware</MudText>
+
+                    @if (selectedAdditionalList.Any())
+                    {
+                        <MudStack Spacing="2">
+                            @foreach (var additional in selectedAdditionalList.Select((item, index) => new { item, index }))
+                            {
+                                <MudPaper Class="pa-3 mud-success-lighten-5" Elevation="1">
+                                    <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                        <!-- Additional Hardware Info with Index -->
+                                        <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                                            <MudAvatar Color="Color.Success" Size="Size.Small">
+                                                @(additional.index + 1)
+                                            </MudAvatar>
+                                            <MudStack Spacing="1">
+                                                <MudText Typo="Typo.body1" Class="font-weight-bold" Color="Color.Success">
+                                                    @additional.item.Name
+                                                </MudText>
+                                                @if (!string.IsNullOrWhiteSpace(additional.item.Value))
+                                                {
+                                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                        @additional.item.Value
+                                                    </MudText>
+                                                }
+                                            </MudStack>
+                                        </MudStack>
+
+                                        <!-- Remove Button -->
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                       Color="Color.Error"
+                                                       Size="Size.Small"
+                                                       OnClick="() => RemoveSelectedAdditional(additional.item)"
+                                                       Title="Zusatzhardware entfernen" />
+                                    </MudStack>
+                                </MudPaper>
+                            }
+                        </MudStack>
+                    }
+                    else
+                    {
+                        <MudPaper Class="pa-4 mud-surface-lighten-2" Style="border: 2px dashed var(--mud-palette-lines-default);">
+                            <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Filled.Devices" Color="Color.Secondary" Size="Size.Large" />
+                                <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
+                                    Noch keine Zusatzhardware hinzugefügt
+                                </MudText>
+                            </MudStack>
+                        </MudPaper>
+                    }
+                </MudPaper>
+            </MudItem>
+
+            <!-- Save Button -->
+            <MudItem xs="12">
+                <MudStack Row Justify="Justify.Center" Spacing="3" Class="mt-4">
+                    <MudButton Color="Color.Success"
+                               Variant="Variant.Filled"
+                               Size="Size.Large"
+                               StartIcon="@Icons.Material.Filled.Save"
+                               OnClick="SaveChanges"
+                               Loading="@isSaving"
+                               Disabled="@(isSaving || !HasSelectedItems())">
+                        @(existingHardware != null ? "Änderungen speichern" : "Hardware-Konfiguration speichern")
+                    </MudButton>
+                </MudStack>
+            </MudItem>
+        </MudGrid>
+
+        <!-- Back Button -->
+        <MudButton Variant="Variant.Text" Class="mt-6"
+                   Size="Size.Small"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                   FullWidth="true"
+                   OnClick="GoBack">
+            Zurück zur Formular Übersicht
+        </MudButton>
+
+    </MudStack>
+</MudContainer>
+
+@code {
+    [Parameter] public Guid WorkflowId { get; set; }
+
+    // Hardware selection fields
+    private string selectedHardwareType = "";
+    private string customHardwareType = ""; // For "Sonstiges" free text input
+
+    // Fixed input fields for adding new items
+    private string newHardwareFieldName = string.Empty;
+    private string newHardwareFieldValue = string.Empty;
+    private string newAdditionalFieldName = string.Empty;
+    private string newAdditionalFieldValue = string.Empty;
+
+    private bool isSaving = false;
+
+    // Helper class for hardware items
+    public class HardwareItem
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Value { get; set; } = string.Empty;
+    }
+
+    // Lists of selected items
+    private List<HardwareItem> selectedHardwareList = new();
+    private List<HardwareItem> selectedAdditionalList = new();
+
+    private DbWorkflow? currentWorkflow;
+    private DbHardwareComputer? existingHardware;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadWorkflowData();
+    }
+
+    // Helper method to check if any items are selected
+    private bool HasSelectedItems()
+    {
+        return IsHardwareTypeSelected() ||
+               selectedHardwareList.Any() ||
+               selectedAdditionalList.Any();
+    }
+
+    // Helper method to check if hardware type is properly selected
+    private bool IsHardwareTypeSelected()
+    {
+        if (string.IsNullOrEmpty(selectedHardwareType)) return false;
+        if (selectedHardwareType == "Sonstiges")
+            return !string.IsNullOrWhiteSpace(customHardwareType);
+        return true;
+    }
+
+    // Get display text for selected hardware type
+    private string GetDisplayHardwareType()
+    {
+        if (string.IsNullOrEmpty(selectedHardwareType)) return "";
+        if (selectedHardwareType == "Sonstiges" && !string.IsNullOrWhiteSpace(customHardwareType))
+            return $"Sonstiges: {customHardwareType}";
+        return selectedHardwareType;
+    }
+
+    // Get the actual hardware type value for database storage
+    private string GetActualHardwareType()
+    {
+        if (selectedHardwareType == "Sonstiges" && !string.IsNullOrWhiteSpace(customHardwareType))
+            return customHardwareType.Trim();
+        return selectedHardwareType;
+    }
+
+    // Handle hardware type selection change
+    private void OnHardwareTypeChanged(string newValue)
+    {
+        selectedHardwareType = newValue;
+
+        // Clear custom text when switching away from "Sonstiges"
+        if (newValue != "Sonstiges")
+        {
+            customHardwareType = "";
+        }
+
+        StateHasChanged();
+    }
+
+    // Add selected hardware to list with flexible validation
+    private void AddSelectedHardware()
+    {
+        // Allow if either name OR details are provided (not both required)
+        if (string.IsNullOrWhiteSpace(newHardwareFieldName) && string.IsNullOrWhiteSpace(newHardwareFieldValue))
+        {
+            Snackbar.Add("Bitte Name oder Details eingeben!", Severity.Warning);
+            return;
+        }
+
+        // Use "Hardware" as default name if only details provided
+        var itemName = string.IsNullOrWhiteSpace(newHardwareFieldName) ? "Hardware" : newHardwareFieldName.Trim();
+        var itemValue = newHardwareFieldValue?.Trim() ?? string.Empty;
+
+        // Check if hardware already exists in list (only check if name is meaningful)
+        if (!string.IsNullOrWhiteSpace(newHardwareFieldName) &&
+            selectedHardwareList.Any(h => h.Name.Equals(itemName, StringComparison.OrdinalIgnoreCase)))
+        {
+            Snackbar.Add("Dieses Hardware-Detail wurde bereits hinzugefügt!", Severity.Warning);
+            return;
+        }
+
+        // Add to selected list
+        selectedHardwareList.Add(new HardwareItem
+        {
+            Name = itemName,
+            Value = itemValue
+        });
+
+        // Clear input fields
+        newHardwareFieldName = string.Empty;
+        newHardwareFieldValue = string.Empty;
+
+        // Success message
+        Snackbar.Add("Hardware-Detail hinzugefügt!", Severity.Success);
+    }
+
+    // Add selected additional hardware to list with flexible validation
+    private void AddSelectedAdditional()
+    {
+        // Allow if either name OR details are provided (not both required)
+        if (string.IsNullOrWhiteSpace(newAdditionalFieldName) && string.IsNullOrWhiteSpace(newAdditionalFieldValue))
+        {
+            Snackbar.Add("Bitte Name oder Details eingeben!", Severity.Warning);
+            return;
+        }
+
+        // Use "Zusatzhardware" as default name if only details provided
+        var itemName = string.IsNullOrWhiteSpace(newAdditionalFieldName) ? "Zusatzhardware" : newAdditionalFieldName.Trim();
+        var itemValue = newAdditionalFieldValue?.Trim() ?? string.Empty;
+
+        // Check if additional hardware already exists in list (only check if name is meaningful)
+        if (!string.IsNullOrWhiteSpace(newAdditionalFieldName) &&
+            selectedAdditionalList.Any(a => a.Name.Equals(itemName, StringComparison.OrdinalIgnoreCase)))
+        {
+            Snackbar.Add("Diese Zusatzhardware wurde bereits hinzugefügt!", Severity.Warning);
+            return;
+        }
+
+        // Add to selected list
+        selectedAdditionalList.Add(new HardwareItem
+        {
+            Name = itemName,
+            Value = itemValue
+        });
+
+        // Clear input fields
+        newAdditionalFieldName = string.Empty;
+        newAdditionalFieldValue = string.Empty;
+
+        // Success message
+        Snackbar.Add("Zusatzhardware hinzugefügt!", Severity.Success);
+    }
+
+    // Remove hardware from selected list
+    private void RemoveSelectedHardware(HardwareItem item)
+    {
+        selectedHardwareList.Remove(item);
+        Snackbar.Add("Hardware-Detail entfernt!", Severity.Info);
+    }
+
+    // Remove additional hardware from selected list
+    private void RemoveSelectedAdditional(HardwareItem item)
+    {
+        selectedAdditionalList.Remove(item);
+        Snackbar.Add("Zusatzhardware entfernt!", Severity.Info);
+    }
+
+    private async Task LoadWorkflowData()
+    {
+        try
+        {
+            // Load workflow
+            currentWorkflow = await DbContext.Workflow
+                .FirstOrDefaultAsync(w => w.Id == WorkflowId);
+
+            if (currentWorkflow == null)
+            {
+                Snackbar.Add("Workflow nicht gefunden!", Severity.Error);
+                return;
+            }
+
+            // Load existing hardware data (if available)
+            existingHardware = await DbContext.HardwareComputer
+                .FirstOrDefaultAsync(h => h.WorkflowId == WorkflowId);
+
+            if (existingHardware != null)
+            {
+                // Load existing data into form
+                var hardwareSpecs = existingHardware.HardwareSpecs ?? "";
+
+                // Check if it's a predefined type or custom "Sonstiges"
+                var predefinedTypes = new[] { "MIC", "BDR 230V 15", "BDR24V 15", "MPG2 15", "MPG2 10",
+                                            "Siemens Panel-PC", "Siemens Box-PC", "OPC-Slot-in", "TQ-Box (LowCost)" };
+
+                if (predefinedTypes.Contains(hardwareSpecs))
+                {
+                    selectedHardwareType = hardwareSpecs;
+                    customHardwareType = "";
+                }
+                else if (!string.IsNullOrEmpty(hardwareSpecs))
+                {
+                    // It's a custom type
+                    selectedHardwareType = "Sonstiges";
+                    customHardwareType = hardwareSpecs;
+                }
+                else
+                {
+                    selectedHardwareType = "";
+                    customHardwareType = "";
+                }
+
+                // Load existing hardware fields from database
+                var fields = await DbContext.HardwareField
+                    .Where(f => f.HardwareComputerId == existingHardware.Id && f.IsActive)
+                    .OrderBy(f => f.DisplayOrder)
+                    .ToListAsync();
+
+                // Convert to lists
+                selectedHardwareList = fields
+                    .Where(f => f.FieldType == "Hardware")
+                    .Select(f => new HardwareItem { Name = f.DisplayName ?? f.FieldName, Value = f.FieldValue ?? string.Empty })
+                    .ToList();
+
+                selectedAdditionalList = fields
+                    .Where(f => f.FieldType == "Additional")
+                    .Select(f => new HardwareItem { Name = f.DisplayName ?? f.FieldName, Value = f.FieldValue ?? string.Empty })
+                    .ToList();
+
+                Snackbar.Add("Existierende Hardware-Konfiguration geladen!", Severity.Info);
+            }
+            else
+            {
+                // New creation: empty fields
+                selectedHardwareType = "";
+                customHardwareType = "";
+                selectedHardwareList = new List<HardwareItem>();
+                selectedAdditionalList = new List<HardwareItem>();
+            }
+
+            // Force UI refresh
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Fehler beim Laden: {ex.Message}", Severity.Error);
+            Console.WriteLine($"LoadWorkflowData Error: {ex}");
+        }
+    }
+
+    private async Task SaveChanges()
+    {
+        if (currentWorkflow == null)
+        {
+            Snackbar.Add("BDR Hardware Formular nicht gefunden!", Severity.Error);
+            return;
+        }
+
+        if (!HasSelectedItems())
+        {
+            Snackbar.Add("Bitte mindestens einen Hardware-Typ oder Hardware-Detail auswählen!", Severity.Warning);
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            using var transaction = await DbContext.Database.BeginTransactionAsync();
+
+            // 1. Create or update hardware computer
+            if (existingHardware == null)
+            {
+                // Create new hardware computer
+                existingHardware = new DbHardwareComputer
+                {
+                    Id = Guid.NewGuid(),
+                    WorkflowId = WorkflowId,
+                    Name = $"{currentWorkflow.Name} Hardware",
+                    SerialNumber = $"HW-{DateTime.Now:yyyyMMdd-HHmmss}",
+                    Location = "Standard",
+                    IpAddress = "192.168.1.100",
+                    HardwareSpecs = GetActualHardwareType(), // Use actual hardware type
+                    Description = "BDR Hardware Konfiguration",
+                    CreationDate = DateTime.UtcNow,
+                    LastChange = DateTime.UtcNow,
+                    CreatedBy = "System",
+                    IsActive = true
+                };
+
+                DbContext.HardwareComputer.Add(existingHardware);
+                await DbContext.SaveChangesAsync(); // Save hardware first to get ID
+            }
+            else
+            {
+                // Update existing hardware computer
+                existingHardware.HardwareSpecs = GetActualHardwareType(); // Use actual hardware type
+                existingHardware.Name = $"{currentWorkflow.Name} Hardware";
+                existingHardware.LastChange = DateTime.UtcNow;
+
+                // Delete old hardware fields (for clean update)
+                var oldFields = await DbContext.HardwareField
+                    .Where(f => f.HardwareComputerId == existingHardware.Id)
+                    .ToListAsync();
+
+                if (oldFields.Any())
+                {
+                    DbContext.HardwareField.RemoveRange(oldFields);
+                    await DbContext.SaveChangesAsync(); // Delete old fields
+                }
+            }
+
+            // 2. Save new hardware fields (all fields)
+            var newFields = new List<DbHardwareField>();
+            var displayOrder = 1;
+
+            // Add hardware fields
+            foreach (var hardware in selectedHardwareList)
+            {
+                newFields.Add(new DbHardwareField
+                {
+                    Id = Guid.NewGuid(),
+                    HardwareComputerId = existingHardware.Id,
+                    FieldName = CreateFieldName(hardware.Name),
+                    DisplayName = hardware.Name,
+                    FieldType = "Hardware",
+                    FieldValue = hardware.Value,
+                    Description = $"Hardware Detail: {hardware.Name}",
+                    DisplayOrder = displayOrder++,
+                    CreationDate = DateTime.UtcNow,
+                    LastChange = DateTime.UtcNow,
+                    CreatedBy = "System",
+                    IsActive = true,
+                    IsRequired = false,
+                    IsReadOnly = false
+                });
+            }
+
+            // Add additional hardware fields
+            foreach (var additional in selectedAdditionalList)
+            {
+                newFields.Add(new DbHardwareField
+                {
+                    Id = Guid.NewGuid(),
+                    HardwareComputerId = existingHardware.Id,
+                    FieldName = CreateFieldName(additional.Name),
+                    DisplayName = additional.Name,
+                    FieldType = "Additional",
+                    FieldValue = additional.Value,
+                    Description = $"Additional Hardware: {additional.Name}",
+                    DisplayOrder = displayOrder++,
+                    CreationDate = DateTime.UtcNow,
+                    LastChange = DateTime.UtcNow,
+                    CreatedBy = "System",
+                    IsActive = true,
+                    IsRequired = false,
+                    IsReadOnly = false
+                });
+            }
+
+            // Save all new fields in batch
+            if (newFields.Any())
+            {
+                DbContext.HardwareField.AddRange(newFields);
+            }
+
+            // 3. Update workflow status to allow software configuration
+            currentWorkflow.Status = WorkflowStatus.SoftwareInProgress;
+            currentWorkflow.LastChange = DateTime.UtcNow;
+
+            // Save everything and commit transaction
+            await DbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            // Success notification
+            var savedItemsCount = selectedHardwareList.Count + selectedAdditionalList.Count;
+            var hardwareTypeText = IsHardwareTypeSelected() ? $"Hardware-Typ: {GetDisplayHardwareType()}" : "";
+            var message = $"Hardware-Konfiguration erfolgreich gespeichert! {hardwareTypeText} ({savedItemsCount} Einträge)";
+
+            Snackbar.Add(message, Severity.Success);
+
+            // Short delay to show success message, then navigate back
+            await Task.Delay(1500);
+            Navigation.NavigateTo($"/project/{currentWorkflow.ProjectId}/forms");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Fehler beim Speichern: {ex.Message}", Severity.Error);
+            Console.WriteLine($"SaveChanges Error: {ex}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    // Helper method to create clean field names for database
+    private string CreateFieldName(string displayName)
+    {
+        return displayName
+            .Replace(" ", "_")
+            .Replace("ä", "ae")
+            .Replace("ö", "oe")
+            .Replace("ü", "ue")
+            .Replace("ß", "ss")
+            .Replace("-", "_")
+            .Replace("(", "")
+            .Replace(")", "")
+            .ToLower()
+            .Trim();
+    }
+
+    private void GoBack()
+    {
+        if (currentWorkflow?.ProjectId != null)
+        {
+            Navigation.NavigateTo($"/project/{currentWorkflow.ProjectId}/forms");
+        }
+        else
+        {
+            Navigation.NavigateTo("/projects");
+        }
+    }
+}

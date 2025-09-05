@@ -1,0 +1,40 @@
+﻿@layout AppLayout
+@inherits LayoutComponentBase
+
+<MudDrawer id="nav-drawer"
+           @bind-Open="NavOpen"
+           ClipMode="DrawerClipMode.Always"
+           Elevation="4"
+           Variant="DrawerVariant.Persistent">
+    <MudNavMenu Rounded="true"
+                Margin="Margin.Normal"
+                Class="pa-2"
+                Color="Color.Primary">
+        <MudNavLink Href=""
+                    Match="NavLinkMatch.All"
+                    Icon="@Icons.Material.Filled.Home">
+            Home
+        </MudNavLink>
+        <MudNavLink Href="/projects"
+                    Match="NavLinkMatch.Prefix"
+                    Icon="@Icons.Material.Filled.List">
+            Projekte
+        </MudNavLink>
+        <MudDivider />
+    </MudNavMenu>
+</MudDrawer>
+
+<MudMainContent Class="pt-20 pa-4">
+    @Body
+</MudMainContent>
+
+@code {
+    [CascadingParameter]
+    public bool NavOpen { get; set; }
+
+    protected override void OnInitialized()
+    {
+        // Initialize component if needed
+        // No async operations required for basic layout
+    }
+}

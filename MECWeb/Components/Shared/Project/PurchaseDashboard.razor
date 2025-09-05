@@ -1,0 +1,99 @@
+﻿@page "/purchase"
+@using MECWeb.Services
+@using MECWeb.Components.Shared
+@inject PurchaseCardService PurchaseCardService
+@inject NavigationManager Navigation
+@layout MainLayout
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Style="margin-top: 25px;">
+    <MudStack Spacing="4">
+        <!-- Header -->
+        <MudStack Spacing="3" AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.h4" Align="Align.Center">
+                Einkauf
+            </MudText>
+            <MudText Typo="Typo.h6" Align="Align.Center" Color="Color.Secondary">
+                Zentrale Verwaltung aller Einkaufs-Prozesse
+            </MudText>
+        </MudStack>
+
+        <!-- Purchase Cards -->
+        <MudStack Spacing="3" Class="mt-6">
+            @foreach (var HeadertextGroup in PurchaseCardService.GetPurchaseCardsCategorized())
+            {
+                <MudStack Spacing="3">
+                    <!-- Category Header -->
+                    <MudText Typo="Typo.h6" Class="mb-2">
+                        @HeadertextGroup.Key
+                    </MudText>
+
+                    <!-- Cards Grid -->
+                    <MudGrid Spacing="4" Justify="Justify.FlexStart">
+                        @foreach (var card in HeadertextGroup.Value)
+                        {
+                            <MudItem xs="12" sm="6" md="4" lg="3">
+                                <MudCard Style="width: 220px; cursor: pointer; transition: transform 0.2s;"
+                                         @onclick="() => NavigateToCard(card.Href)">
+                                    <MudCardHeader>
+                                        <CardHeaderAvatar>
+                                            <MudAvatar Size="Size.Medium" Variant="Variant.Outlined">
+                                                <MudIcon Color="Color.Secondary" Icon="@card.Icon" Size="Size.Small" />
+                                            </MudAvatar>
+                                        </CardHeaderAvatar>
+                                        <CardHeaderContent>
+                                            <MudText Typo="Typo.body2">@card.HeaderText</MudText>
+                                        </CardHeaderContent>
+                                    </MudCardHeader>
+
+                                    <MudContainer Class="mud-background-gray d-flex justify-center align-center"
+                                                  Style="height:80px">
+                                        <MudCardMedia Image="@card.Image" Height="60" Style="width: 60px;" />
+                                    </MudContainer>
+
+                                    <MudCardContent Style="height: 80px;">
+                                        <MudText Typo="Typo.caption">@card.Description</MudText>
+                                    </MudCardContent>
+
+                                    <MudCardActions>
+                                        <MudButton Variant="Variant.Outlined"
+                                                   Size="Size.Small"
+                                                   Color="Color.Primary"
+                                                   FullWidth="true"
+                                                   Href="@card.Href">
+                                            ÖFFNEN
+                                        </MudButton>
+                                    </MudCardActions>
+                                </MudCard>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                </MudStack>
+            }
+        </MudStack>
+
+        <!-- Back Button - consistent with other pages -->
+        <MudButton Variant="Variant.Text"
+                   Size="Size.Small"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                   FullWidth="true"
+                   Href="/projects">
+            Zurück zu Projekten
+        </MudButton>
+    </MudStack>
+</MudContainer>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.CompletedTask;
+    }
+
+    private void NavigateToCard(string href)
+    {
+        if (!string.IsNullOrEmpty(href))
+        {
+            Navigation.NavigateTo(href);
+        }
+    }
+}

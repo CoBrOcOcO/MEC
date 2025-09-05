@@ -1,0 +1,79 @@
+﻿@using MECWeb.DbModels.Project
+
+
+@inject ApplicationDbContext DbContext
+@* @inject UserProfileService UserProfileService *@
+
+@layout MainLayout
+@page "/"
+
+
+
+
+<MudStack Class="d-flex gap-2">
+    <MudText Typo="Typo.h3" Align="Align.Center" Class="mt-8">Willkommen</MudText>
+    <MudText Typo="Typo.h5" Align="Align.Center">Machine Engineering Center</MudText>
+    <MudImage Src="assets/homePicture.png" Alt="homePicture" Width="100" Class="ma-16 align-self-center" />
+
+    <MudContainer MaxWidth="MaxWidth.Medium">
+        <MudText Typo="Typo.h6" Align="Align.Center" Class="mb-6">Zuletzt verwendet</MudText>
+        <MudStack Spacing="2">
+            @if (projects == null || projects.Count == 0)
+            {
+       
+                <MudImage Src="assets/systemstatus/empty_state_V1.png" Alt="Empty" Width="150" Class="align-self-center " />
+                <MudText Typo="Typo.body2" Class="align-self-center">Keine zuletzt verwendeten Projekte gefunden ...</MudText>
+         
+            }
+            else
+            {
+
+                @foreach (var project in projects)
+                {
+                    <MudPaper Elevation="1" Class="pa-2">
+                        <MudStack Row=true Class="d-flex align-center">
+                            <MudIcon Icon="@Icons.Material.Filled.Star" Color="Color.Tertiary" />
+                            <MudText Typo="Typo.button" Style="min-width: 80px">@project.ProjectNumber</MudText>
+                            <MudText Typo="Typo.body2">@project.Name</MudText>
+
+                            <MudSpacer />
+
+                            <MudIconButton Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" Color="Color.Primary" Href=@($"project/{project.Id}") />
+                        </MudStack>
+                    </MudPaper>
+                }
+
+
+            }
+        </MudStack>
+    </MudContainer>
+
+</MudStack>
+
+
+@code {
+
+    private List<DbProject> projects = new List<DbProject>();
+
+
+    protected override void OnInitialized()
+    {
+        // base.OnInitialized();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // await base.OnInitializedAsync();
+
+        projects = await DbContext.UserProjectFavorite
+            .Include(upf => upf.Project)
+            .Select(upf => upf.Project)
+            .ToListAsync();
+
+    }
+
+
+
+
+
+}

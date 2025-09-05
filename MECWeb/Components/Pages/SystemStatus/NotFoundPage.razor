@@ -1,0 +1,23 @@
+﻿@page "/{*Route:nonfile}"
+
+
+<MudContainer Class="mt-16">
+    <MudStack Class="d-flex align-center gap-8">
+        <MudImage Src="assets/systemstatus/error_404.png" Alt="Error 404" Width="400"/>
+
+        <MudText Typo="Typo.h5" Align="Align.Center">404 - This page does not exist</MudText>
+        <MudText Typo="Typo.body2" Align="Align.Center">
+            You have entered unknown territory - this URL is not yet known here.<br/>
+            To find the right direction, please return to [Home] or contact<br/>
+            our support team.
+        </MudText>
+        <MudFab Color="Color.Primary" Size="Size.Small" Label="Back to Home" Href="/" />
+    </MudStack>
+</MudContainer>
+
+
+
+@code {
+    [Parameter]
+    public string? Route { get; set; }
+}

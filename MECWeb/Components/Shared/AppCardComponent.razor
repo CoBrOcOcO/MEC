@@ -1,0 +1,39 @@
+﻿<MudCard Style="width: 220px;">
+    <MudCardHeader>
+        <CardHeaderAvatar>
+            <MudAvatar Color="Color.Secondary" Size="Size.Medium" Variant="Variant.Outlined">
+                <MudIcon Color="Color.Secondary" Icon="@ViewModel.Icon" Size="Size.Small" />
+            </MudAvatar>
+        </CardHeaderAvatar>
+        <CardHeaderContent>
+            <MudText Typo="Typo.body2">@ViewModel.HeaderText</MudText>
+            <MudText Typo="Typo.caption">@ViewModel.HeaderDescription</MudText>
+        </CardHeaderContent>
+        @*         <CardHeaderActions>
+            <MudIconButton Icon="@Icons.Material.Filled.Settings" Color="Color.Default" />
+        </CardHeaderActions> *@
+    </MudCardHeader>
+
+    <MudContainer Class="mud-background-gray d-flex justify-center align-center" Style="height:80px">
+        <MudCardMedia Image="@ViewModel.Image" Height="60" Style="width: 60px;" />
+    </MudContainer>
+
+    <MudCardContent Style="height: 80px;">
+        <MudText Typo="Typo.caption">@ViewModel.Description</MudText>
+    </MudCardContent>
+
+    <MudCardActions>
+        <MudButton Variant="Variant.Outlined"
+                   Size="Size.Small"
+                   Color="Color.Primary"
+                   FullWidth="true"
+                   Href="@ViewModel.Href">
+            Öffnen
+        </MudButton>
+    </MudCardActions>
+</MudCard>
+
+@code {
+    [Parameter]
+    public AppCardViewModel ViewModel { get; set; } = new AppCardViewModel();
+}

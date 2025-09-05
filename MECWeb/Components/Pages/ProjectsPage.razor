@@ -1,0 +1,243 @@
+﻿@using MECWeb.Components.Shared.Project
+@using MECWeb.DbModels.Project
+@using MECWeb.DbModels.Workflow
+@using MECWeb.DbModels
+@using Microsoft.EntityFrameworkCore
+
+@inject IDialogService DialogService
+@inject ApplicationDbContext DbContext
+@inject ISnackbar Snackbar
+
+@layout MainLayout
+@page "/projects"
+
+<MudContainer MaxWidth="MaxWidth.Large" Style="margin-top: 25px;">
+    <MudStack Spacing="3">
+        <!-- Header Section -->
+        <MudText Typo="Typo.h4" Align="Align.Center">
+            Projekte
+        </MudText>
+
+
+        <!-- Action Buttons Section -->
+        <MudStack Row Justify="Justify.FlexEnd" AlignItems="AlignItems.Center" Class="mb-1">
+            <MudButton Color="Color.Primary"
+                       Variant="Variant.Filled"
+                       Size="Size.Medium"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="AddProject">
+                Neues Projekt
+            </MudButton>
+        </MudStack>
+
+        <!-- Projects Table -->
+        <MudTable Items="projects"
+                  Hover="true"
+                  SortLabel="Sort By"
+                  Elevation="2"
+                  AllowUnsorted="false"
+                  Virtualize="true"
+                  FixedHeader="true"
+                  Height="600px"
+                  Breakpoint="Breakpoint.Sm"
+                  Loading="@loading"
+                  LoadingProgressColor="Color.Primary"
+                  Filter="new Func<DbProject, bool>(FilterFunc)"
+                  Class="mt-2"
+                  Dense="true">
+
+            <ToolBarContent>
+                <MudTextField @bind-Value="searchValue"
+                              Placeholder="Projekte suchen..."
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              IconSize="Size.Small"
+                              Clearable="true"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense">
+                </MudTextField>
+            </ToolBarContent>
+
+            <HeaderContent>
+                <MudTh><MudTableSortLabel SortBy="new Func<DbProject, object>(x => x.ProjectNumber)">Projektnummer</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<DbProject, object>(x => x.Name)">Projekt</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<DbProject, object>(x => x.CreationDate)">Erstelldatum</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<DbProject, object>(x => x.LastChange)">Letzte Änderung</MudTableSortLabel></MudTh>
+                <MudTh Style="width: 120px;">Aktionen</MudTh>
+            </HeaderContent>
+
+            <RowTemplate>
+                <!-- 1. PROJECT NUMBER -->
+                <MudTd DataLabel="Projektnummer">
+                    <MudText Typo="Typo.body1" Class="font-weight-medium" Style="color: #424242;">
+                        @context.ProjectNumber
+                    </MudText>
+                </MudTd>
+
+                <!-- 2. PROJECT NAME -->
+                <MudTd DataLabel="Projekt">
+                    <MudText Typo="Typo.body1" Class="font-weight-normal" Style="color: #212121;">
+                        @context.Name
+                    </MudText>
+                </MudTd>
+
+                <!-- 3. CREATION DATE -->
+                <MudTd DataLabel="Erstelldatum">
+                    <MudText Typo="Typo.body2" Class="font-weight-normal mud-text-secondary">
+                        @context.CreationDate.ToString("dd.MM.yyyy")
+                    </MudText>
+                </MudTd>
+
+                <!-- 4. LAST MODIFICATION -->
+                <MudTd DataLabel="Letzte Änderung">
+                    <MudText Typo="Typo.body2" Class="font-weight-normal mud-text-secondary">
+                        @context.LastChange.ToString("dd.MM.yyyy")
+                    </MudText>
+                </MudTd>
+
+                <!-- 5. ACTIONS -->
+                <MudTd DataLabel="Aktionen">
+                    <MudStack Row Spacing="1" AlignItems="AlignItems.Center" Justify="Justify.Center">
+                        <MudButton Size="Size.Small"
+                                   Color="Color.Primary"
+                                   Variant="Variant.Filled"
+                                   StartIcon="@Icons.Material.Filled.OpenInNew"
+                                   Href=@($"project/{context.Id}")
+                                   Class="px-3 py-1">
+                            Öffnen
+                        </MudButton>
+
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Color="Color.Error"
+                                       Size="Size.Small"
+                                       OnClick="() => DeleteProject(context)"
+                                       Title="Projekt löschen" />
+                    </MudStack>
+                </MudTd>
+            </RowTemplate>
+
+            <NoRecordsContent>
+                <EmptyRecordComponent></EmptyRecordComponent>
+            </NoRecordsContent>
+
+            <LoadingContent>
+                <LoadingRecordComponent></LoadingRecordComponent>
+            </LoadingContent>
+
+            <PagerContent>
+                <MudTablePager PageSizeOptions="new int[] { 25, 50, 100 }" />
+            </PagerContent>
+        </MudTable>
+
+        <!-- Back Button -->
+        <MudButton Variant="Variant.Text"
+                   Size="Size.Small"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                   FullWidth="true"
+                   Href="/">
+            Zurück zur Startseite
+        </MudButton>
+
+    </MudStack>
+</MudContainer>
+
+@code {
+    private IEnumerable<DbProject> projects { get; set; } = new List<DbProject>();
+    private string searchValue { get; set; } = string.Empty;
+    private bool loading { get; set; } = false;
+
+    protected override void OnInitialized()
+    {
+        // base.OnInitialized();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // await base.OnInitializedAsync();
+        await this.LoadProjects();
+    }
+
+    /// <summary>
+    /// Opens the new project creation dialog
+    /// </summary>
+    private async void AddProject()
+    {
+        var dialog = await DialogService.ShowAsync<ProjectNewDialog>("Neues Projekt anlegen");
+        var dialogResult = await dialog.Result;
+
+        if (!dialogResult?.Canceled == true)
+        {
+            await this.LoadProjects();
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Opens the project deletion dialog
+    /// </summary>
+    private async Task DeleteProject(DbProject project)
+    {
+        var parameters = new DialogParameters
+        {
+            { "Project", project }
+        };
+
+        var dialog = await DialogService.ShowAsync<ProjectDeleteDialog>("", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            // Project was successfully deleted, reload the project list
+            await LoadProjects();
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Load all projects from the database
+    /// </summary>
+    private async Task LoadProjects()
+    {
+        loading = true;
+        try
+        {
+            // Load projects ordered by last modification date
+            projects = await DbContext.Project
+                .OrderByDescending(p => p.LastChange)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading projects: {ex.Message}");
+            Snackbar.Add("Fehler beim Laden der Projekte.", Severity.Error);
+            projects = new List<DbProject>();
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    /// <summary>
+    /// Filter function for the search functionality
+    /// </summary>
+    private bool FilterFunc(DbProject element)
+    {
+        if (string.IsNullOrWhiteSpace(searchValue))
+            return true;
+
+        if (element.ProjectNumber.Contains(searchValue, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (element.Name.Contains(searchValue, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Also search in description if it exists
+        if (!string.IsNullOrWhiteSpace(element.Description) &&
+            element.Description.Contains(searchValue, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return false;
+    }
+}

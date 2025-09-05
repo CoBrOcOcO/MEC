@@ -1,0 +1,369 @@
+﻿@page "/git/create-repository"
+@using MECWeb.Services
+@using MECWeb.Models.Gitea
+@inject GiteaService GiteaService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Repository erstellen - Git Management</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-4">
+
+    @* Header *@
+    <MudPaper Class="pa-6 mb-4" Elevation="3" Style="background: linear-gradient(135deg, #00893d 0%, #005e46 100%); color: white;">
+        <MudStack AlignItems="AlignItems.Center" Spacing="3">
+            <MudIcon Icon="@Icons.Material.Filled.Add" Style="font-size: 4rem;" />
+            <MudText Typo="Typo.h3" Align="Align.Center">
+                🗂️ Neues Repository erstellen
+            </MudText>
+            <MudText Typo="Typo.body1" Align="Align.Center" Style="opacity: 0.9;">
+                Erstellen Sie ein neues Git-Repository mit automatischer S-Projekt-Validierung
+            </MudText>
+        </MudStack>
+    </MudPaper>
+
+    @* Status Card *@
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+            <MudText Typo="Typo.h6" Color="Color.Primary">
+                📊 Repository-Status
+            </MudText>
+            <MudStack Row="true" Spacing="4">
+                <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Repository-Name</MudText>
+                    <MudText Typo="Typo.body2" Color="@(string.IsNullOrEmpty(repositoryName) ? Color.Default : Color.Success)">
+                        @(string.IsNullOrEmpty(repositoryName) ? "Nicht angegeben" : GetFinalRepositoryName())
+                    </MudText>
+                </MudStack>
+                <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Validierung</MudText>
+                    <MudChip T="string" Size="Size.Small" Color="@(string.IsNullOrEmpty(repositoryName) ? Color.Default : Color.Success)" Icon="@Icons.Material.Filled.CheckCircle">
+                        @(string.IsNullOrEmpty(repositoryName) ? "Wartet" : "Gültig")
+                    </MudChip>
+                </MudStack>
+                <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Bereit</MudText>
+                    <MudChip T="string" Size="Size.Small" Color="@(canCreate? Color.Success: Color.Default)" Icon="@(canCreate? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Cancel)">
+                        @(canCreate ? "Ja" : "Nein")
+                    </MudChip>
+                </MudStack>
+            </MudStack>
+        </MudStack>
+    </MudPaper>
+
+    @* Form *@
+    <MudPaper Class="pa-6" Elevation="2">
+        <MudStack Spacing="4">
+
+            <MudText Typo="Typo.h5" Class="mb-2">
+                <MudIcon Icon="@Icons.Material.Filled.Settings" Class="mr-2" />
+                📋 Repository-Konfiguration
+            </MudText>
+
+            @* Repository Name with S- Validation *@
+            <MudStack Spacing="2">
+                <MudText Typo="Typo.subtitle1">📛 Repository-Name *</MudText>
+                <MudTextField @bind-Value="repositoryName"
+                              @oninput="OnRepositoryNameInput"
+                              Label="Repository-Name"
+                              Placeholder="12345 oder S-12345"
+                              HelperText="Muss im Format 'S-[Zahlen]' sein. S- wird automatisch hinzugefügt."
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Badge" />
+
+                @if (!string.IsNullOrEmpty(repositoryName))
+                {
+                    <MudAlert Severity="Severity.Success" Dense="true">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" />
+                            <MudStack Spacing="0">
+                                <MudText Typo="Typo.body2">
+                                    <strong>Finaler Name:</strong> @GetFinalRepositoryName()
+                                </MudText>
+                                <MudText Typo="Typo.caption">
+                                    ✅ Name entspricht dem S-Projekt-Format
+                                </MudText>
+                            </MudStack>
+                        </MudStack>
+                    </MudAlert>
+                }
+            </MudStack>
+
+            @* Description *@
+            <MudStack Spacing="2">
+                <MudText Typo="Typo.subtitle1">📝 Beschreibung *</MudText>
+                <MudTextField @bind-Value="description"
+                              Label="Projekt-Beschreibung"
+                              Lines="3"
+                              Placeholder="Beschreibung des Projekts und seines Zwecks..."
+                              HelperText="Beschreibung des Repository-Zwecks"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Description" />
+            </MudStack>
+
+            @* Repository Settings *@
+            <MudDivider />
+            <MudText Typo="Typo.subtitle1">⚙️ Repository-Einstellungen</MudText>
+
+            <MudStack Spacing="3">
+                <MudSwitch @bind-Value="isPrivate"
+                           Color="Color.Primary"
+                           Label="🔒 Privates Repository"
+                           HelperText="Private Repositories sind nur für autorisierte Benutzer sichtbar" />
+
+                <MudSwitch @bind-Value="autoInit"
+                           Color="Color.Primary"
+                           Label="📄 Mit README initialisieren"
+                           HelperText="Erstellt automatisch eine README.md Datei" />
+
+                <MudSwitch @bind-Value="enableGitLfs"
+                           Color="Color.Secondary"
+                           Label="📦 Git LFS aktivieren"
+                           HelperText="Large File Support für große Dateien (empfohlen für CAD-Dateien)" />
+            </MudStack>
+
+            @* Actions *@
+            <MudDivider />
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                <MudButton Variant="Variant.Text"
+                           StartIcon="@Icons.Material.Filled.ArrowBack"
+                           Href="/git/repositories"
+                           Color="Color.Secondary">
+                    Abbrechen
+                </MudButton>
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="CreateRepositoryAsync"
+                           Disabled="@(!canCreate || isCreating)"
+                           Size="Size.Large">
+                    @if (isCreating)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        <span>Repository wird erstellt...</span>
+                    }
+                    else
+                    {
+                        <span>🚀 Repository erstellen</span>
+                    }
+                </MudButton>
+            </MudStack>
+
+        </MudStack>
+    </MudPaper>
+
+    @* Connection Test *@
+    <MudPaper Class="pa-4 mt-4" Elevation="1">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+            <MudStack Spacing="1">
+                <MudText Typo="Typo.subtitle2">🔗 Gitea-Verbindung</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    Testen Sie die Verbindung vor der Repository-Erstellung
+                </MudText>
+            </MudStack>
+
+            <MudButton Variant="Variant.Outlined"
+                       StartIcon="@Icons.Material.Filled.NetworkCheck"
+                       OnClick="TestConnectionAsync"
+                       Disabled="@isTestingConnection"
+                       Color="Color.Info">
+                @if (isTestingConnection)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Teste...</span>
+                }
+                else
+                {
+                    <span>Verbindung testen</span>
+                }
+            </MudButton>
+        </MudStack>
+    </MudPaper>
+
+    @* Debug Log *@
+    @if (debugLogs.Any())
+    {
+        <MudPaper Class="pa-4 mt-4" Elevation="1">
+            <MudExpansionPanels>
+                <MudExpansionPanel>
+                    <TitleContent>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudIcon Icon="@Icons.Material.Filled.BugReport" />
+                            <MudText>🐛 Debug-Log (@debugLogs.Count Einträge)</MudText>
+                        </MudStack>
+                    </TitleContent>
+                    <ChildContent>
+                        <MudPaper Style="background: #f8f9fa; padding: 12px; max-height: 200px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 11px;">
+                            @foreach (var log in debugLogs.TakeLast(15))
+                            {
+                                <div style="margin: 1px 0;">
+                                    <span style="color: #6c757d;">[@log.Time]</span> @log.Text
+                                </div>
+                            }
+                        </MudPaper>
+                    </ChildContent>
+                </MudExpansionPanel>
+            </MudExpansionPanels>
+        </MudPaper>
+    }
+
+</MudContainer>
+
+@code {
+    // Basis-Properties
+    private string repositoryName = "";
+    private string description = "";
+    private bool isPrivate = false;
+    private bool autoInit = true;
+    private bool enableGitLfs = false;
+
+    // Status-Properties
+    private bool isCreating = false;
+    private bool isTestingConnection = false;
+    private List<LogMessage> debugLogs = new();
+
+    // Vereinfachte Validierung
+    private bool canCreate => !string.IsNullOrWhiteSpace(repositoryName) &&
+                             !string.IsNullOrWhiteSpace(description);
+
+    protected override void OnInitialized()
+    {
+        Log("Repository-Erstellungsseite geladen");
+        Log($"🔗 GiteaService verfügbar: {(GiteaService != null ? "Ja" : "Nein")}");
+    }
+
+    private void OnRepositoryNameInput(ChangeEventArgs e)
+    {
+        repositoryName = e.Value?.ToString() ?? "";
+        Log($"Repository-Name eingegeben: {repositoryName}");
+    }
+
+    private string GetFinalRepositoryName()
+    {
+        if (string.IsNullOrWhiteSpace(repositoryName)) return "";
+
+        var cleanName = repositoryName.Trim();
+
+        // Bereits S- Format?
+        if (cleanName.StartsWith("S-", StringComparison.OrdinalIgnoreCase))
+        {
+            return "S-" + cleanName.Substring(2); // Normalisiert zu S-
+        }
+
+        // Zahlen? S- voranstellen
+        return $"S-{cleanName}";
+    }
+
+    private async Task TestConnectionAsync()
+    {
+        Log("=== VERBINDUNGSTEST GESTARTET ===");
+        isTestingConnection = true;
+
+        try
+        {
+            var repositories = await GiteaService.GetUserRepositoriesAsync();
+
+            if (repositories != null)
+            {
+                Log($"✅ Verbindung erfolgreich - {repositories.Count} Repositories gefunden");
+                Snackbar.Add($"✅ Gitea-Verbindung erfolgreich ({repositories.Count} Repos)", Severity.Success);
+
+                foreach (var repo in repositories.Take(3))
+                {
+                    Log($"  📁 {repo.Name} (Owner: {repo.Owner?.Login})");
+                }
+            }
+            else
+            {
+                Log("❌ Verbindung fehlgeschlagen - keine Repositories erhalten");
+                Snackbar.Add("❌ Gitea-Verbindung fehlgeschlagen", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"❌ Verbindungsfehler: {ex.Message}");
+            Snackbar.Add($"❌ Verbindungsfehler: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isTestingConnection = false;
+            Log("=== VERBINDUNGSTEST BEENDET ===");
+            StateHasChanged();
+        }
+    }
+
+    private async Task CreateRepositoryAsync()
+    {
+        if (!canCreate) return;
+
+        Log("=== REPOSITORY-ERSTELLUNG GESTARTET ===");
+        isCreating = true;
+
+        try
+        {
+            var finalName = GetFinalRepositoryName();
+            Log($"📝 Repository wird erstellt: {finalName}");
+            Log($"📝 Beschreibung: {description}");
+
+            var newRepo = await GiteaService.CreateRepositoryAsync(finalName, description.Trim());
+
+            if (newRepo != null)
+            {
+                Log($"✅ Repository erfolgreich erstellt: {newRepo.Name}");
+                Log($"  Owner: {newRepo.Owner?.Login}");
+                Log($"  URL: {newRepo.Html_Url}");
+
+                Snackbar.Add($"✅ Repository '{newRepo.Name}' erfolgreich erstellt!", Severity.Success);
+
+                // Kurz warten, dann zum neuen Repository navigieren
+                await Task.Delay(1500);
+                Navigation.NavigateTo($"/git/repository/{newRepo.Owner?.Login}/{newRepo.Name}");
+            }
+            else
+            {
+                Log("❌ Repository-Erstellung fehlgeschlagen - null returned");
+                Snackbar.Add("❌ Repository konnte nicht erstellt werden", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"❌ Repository-Erstellung Exception: {ex.Message}");
+            Snackbar.Add($"❌ Fehler bei der Repository-Erstellung: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isCreating = false;
+            Log("=== REPOSITORY-ERSTELLUNG BEENDET ===");
+            StateHasChanged();
+        }
+    }
+
+    private void Log(string message)
+    {
+        debugLogs.Add(new LogMessage
+        {
+            Time = DateTime.Now.ToString("HH:mm:ss"),
+            Text = message
+        });
+
+        if (debugLogs.Count > 30)
+        {
+            debugLogs.RemoveAt(0);
+        }
+
+        StateHasChanged();
+    }
+
+    private class LogMessage
+    {
+        public string Time { get; set; } = "";
+        public string Text { get; set; } = "";
+    }
+}
+
+<style>
+    .mud-input-control.mud-input-error .mud-input-control-input {
+        border-color: var(--mud-palette-error) !important;
+    }
+</style>

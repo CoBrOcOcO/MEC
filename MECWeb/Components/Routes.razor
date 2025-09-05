@@ -1,0 +1,11 @@
+﻿<CascadingAuthenticationState>
+<Router AppAssembly="typeof(Program).Assembly">
+    <Found Context="routeData">
+            <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.AppLayout)" />
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <MECWeb.Components.Pages.SystemStatus.NotFoundPage/>
+    </NotFound>
+</Router>
+</CascadingAuthenticationState>

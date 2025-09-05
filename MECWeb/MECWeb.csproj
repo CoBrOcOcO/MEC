@@ -1,0 +1,37 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<NoWarn>$(NoWarn);MUD0001;MUD0002;MUD0003;MUD0004;MUD0005;IDE0290;CA1860;CA1822;IDE0060;CA1861;IDE0057;IDE0005;IDE0028;CA1866;SYSLIB10;CA1862;SYSLIB1006;IDE0305;SYSLIB1010;SYSLIB1011;SYSLIB1096;SYSLIB1045</NoWarn>
+	</PropertyGroup>
+	<ItemGroup>
+		<PackageReference Include="itext7" Version="8.0.2" />
+		<PackageReference Include="itext7.bouncy-castle-adapter" Version="8.0.2" />
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="9.0.8" />
+		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="9.0.8" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.8" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.8">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.8" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.8">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.Identity.Web" Version="3.13.2" />
+		<PackageReference Include="Microsoft.Identity.Web.Certificate" Version="3.13.2" />
+		<PackageReference Include="Microsoft.Identity.Web.Certificateless" Version="3.13.2" />
+		<PackageReference Include="Microsoft.Identity.Web.MicrosoftGraph" Version="3.13.2" />
+		<PackageReference Include="Microsoft.Identity.Web.TokenAcquisition" Version="3.13.2" />
+		<PackageReference Include="Microsoft.Identity.Web.TokenCache" Version="3.13.2" />
+		<PackageReference Include="Microsoft.Identity.Web.UI" Version="3.13.2" />
+		<PackageReference Include="MudBlazor" Version="8.*" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+		<PackageReference Include="QuestPDF" Version="2025.7.0" />
+	</ItemGroup>
+	<ItemGroup>
+		<Folder Include="Languages\Components\Pages\" />
+	</ItemGroup>
+</Project>

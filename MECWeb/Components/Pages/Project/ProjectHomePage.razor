@@ -1,0 +1,55 @@
+﻿@using MECWeb.DbModels.Project
+
+@layout ProjectMainLayout
+@page "/project/{Id:guid}"
+
+@inject AppCardService AppCardService
+
+<MudText Typo="Typo.h6" Align="Align.Left" Class="mb-2">Applikationen</MudText>
+
+@* <MudTextField @bind-Value="searchValue" Class="ml-6 mr-6" Style="background-color: background" Label="Suche" Variant="Variant.Outlined" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search" AdornmentColor="Color.Secondary" Clearable=true Margin="Margin.Dense" IconSize="Size.Small" /> *@
+
+<MudExpansionPanels MultiExpansion="true" Outlined="false" Elevation="0">
+    @foreach (var category in cardItems.Keys)
+    {
+        <MudExpansionPanel Text="@category" Expanded="true" Style="background-color: transparent;">
+            <MudStack Row=true Wrap="Wrap.Wrap">
+                @foreach (var item in cardItems[category])
+                {
+                    <AppCardComponent ViewModel="item"></AppCardComponent>
+                }
+            </MudStack>
+        </MudExpansionPanel>
+    }
+</MudExpansionPanels>
+
+@code {
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private Dictionary<string, List<AppCardViewModel>> cardItems = new Dictionary<string, List<AppCardViewModel>>();
+
+    private string searchValue { get; set; } = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        // base.OnInitialized();
+
+        try
+        {
+            cardItems = AppCardService.GetAppCardsCategorized(Id);
+        }
+        catch
+        {
+            cardItems.Clear();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        
+        await Task.Yield();
+        
+    }
+}

@@ -1,0 +1,704 @@
+﻿@using MECWeb.DbModels.Workflow
+@using MECWeb.DbModels.Project
+@using Microsoft.EntityFrameworkCore
+
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@layout ProjectMainLayout
+
+@page "/project/{ProjectId:guid}/forms"
+
+<MudContainer MaxWidth="MaxWidth.Medium" style="margin-top:30px;">
+    <MudStack Spacing="1">
+
+        <!--Header -->
+        <MudStack  Class="mb-1">
+            <MudText Typo="Typo.h4" Align="Align.Center">
+                BDR & BV Rechner Formulare
+            </MudText>
+
+            @if (currentProject != null)
+            {
+                <MudText Typo="Typo.h6" Align="Align.Center" Color="Color.Secondary">
+                    @currentProject.ProjectNumber - @currentProject.Name
+                </MudText>
+            }
+        </MudStack>
+
+        <!-- PROJECT STATUS -->
+        @if (workflows.Any())
+        {
+            <MudPaper Class="pa-4 mb-4" Elevation="1" Style="background-color: var(--mud-palette-background-grey);">
+                <MudStack Spacing="3">
+                    <MudText Typo="Typo.h6" Color="Color.Primary">
+                        <MudIcon Icon="@Icons.Material.Filled.Dashboard" Class="mr-2" />
+                        Projekt-Status Übersicht
+                    </MudText>
+
+                    <!-- Status Progress Bar -->
+                    <MudStack Row Spacing="4" AlignItems="AlignItems.Center" Justify="Justify.Center">
+                        <!-- Hardware Status -->
+                        <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                            <MudChip T="string"
+                                     Size="Size.Medium"
+                                     Color="@GetHardwareStatusColor()"
+                                     Variant="Variant.Filled"
+                                     Icon="@Icons.Material.Filled.Computer"
+                                     Class="px-3 font-weight-bold text-caption"
+                                     Style="min-width: 80px;">
+                                Hardware
+                            </MudChip>
+                        </MudStack>
+
+                        <!-- Arrow -->
+                        <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Color="Color.Secondary" />
+
+                        <!-- Software Status -->
+                        <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                            <MudChip T="string"
+                                     Size="Size.Medium"
+                                     Color="@GetSoftwareStatusColor()"
+                                     Variant="Variant.Filled"
+                                     Icon="@Icons.Material.Filled.Build"
+                                     Class="px-3 font-weight-bold text-caption"
+                                     Style="min-width: 80px;">
+                                Software
+                            </MudChip>
+                        </MudStack>
+
+                        <!-- Arrow -->
+                        <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Color="Color.Secondary" />
+
+                        <!-- Purchase Status -->
+                        <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                            <MudChip T="string"
+                                     Size="Size.Medium"
+                                     Color="@GetPurchaseStatusColor()"
+                                     Variant="Variant.Filled"
+                                     Icon="@Icons.Material.Filled.ShoppingCart"
+                                     Class="px-3 font-weight-bold text-caption"
+                                     Style="min-width: 80px;">
+                                Einkauf
+                            </MudChip>
+                        </MudStack>
+
+                        <!-- Arrow -->
+                        <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Color="Color.Secondary" />
+
+                        <!-- Installation Status -->
+                        <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                            <MudChip T="string"
+                                     Size="Size.Medium"
+                                     Color="@GetInstallationStatusColor()"
+                                     Variant="Variant.Filled"
+                                     Icon="@Icons.Material.Filled.Construction"
+                                     Class="px-3 font-weight-bold text-caption"
+                                     Style="min-width: 80px;">
+                                Installation
+                            </MudChip>
+                        </MudStack>
+                    </MudStack>
+
+                    <!-- Overall Progress Information -->
+                    <MudDivider />
+                    <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            Gesamt: @workflows.Count Formulare (@workflows.Count(w => w.WorkflowType == WorkflowType.BDR) BDR, @workflows.Count(w => w.WorkflowType == WorkflowType.BV) BV)
+                        </MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Success">
+                            @GetCompletionPercentage()% abgeschlossen
+                        </MudText>
+                    </MudStack>
+                </MudStack>
+            </MudPaper>
+        }
+
+        <!-- Create-Buttons  -->
+        <MudStack Row Justify="Justify.FlexEnd" AlignItems="AlignItems.Center" Class="mt-4 mb-4">
+            <MudStack Row Spacing="2">
+                <MudButton Color="Color.Primary"
+                           Variant="Variant.Filled"
+                           StartIcon="@Icons.Material.Filled.Computer"
+                           OnClick="@(() => CreateWorkflow(WorkflowType.BDR))">
+                    BDR anlegen
+                </MudButton>
+
+                <MudButton Color="Color.Secondary"
+                           Variant="Variant.Filled"
+                           StartIcon="@Icons.Material.Filled.CameraAlt"
+                           OnClick="@(() => CreateWorkflow(WorkflowType.BV))">
+                    BV anlegen
+                </MudButton>
+            </MudStack>
+        </MudStack>
+    </MudStack>
+
+    <MudTable Items="workflows"
+              Hover="true"
+              Loading="@loading"
+              LoadingProgressColor="Color.Primary"
+              Class="mt-6"
+              Dense="true">
+
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Typ</MudTh>
+            <MudTh>Hardware</MudTh>
+            <MudTh>Software</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Löschen</MudTh>
+        </HeaderContent>
+
+        <RowTemplate>
+            <MudTd>@context.Name</MudTd>
+            <MudTd>
+                <MudChip T="string"
+                         Color="@(context.WorkflowType == WorkflowType.BDR ? Color.Primary : Color.Secondary)"
+                         Size="Size.Small">
+                    @GetHardwareTypeText(context)
+                </MudChip>
+            </MudTd>
+            <MudTd>
+                @if (context.Status == WorkflowStatus.Created || context.Status == WorkflowStatus.HardwareInProgress)
+                {
+                    <MudButton Size="Size.Small"
+                               Color="Color.Primary"
+                               Variant="Variant.Outlined"
+                               OnClick="@(() => GoToHardwareForm(context.Id))">
+                        @(HasHardwareData(context) ? "Bearbeiten" : "Anlegen")
+                    </MudButton>
+                }
+                else if (context.Status == WorkflowStatus.SoftwareInProgress || context.Status == WorkflowStatus.SoftwareCompleted)
+                {
+                    <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                        <MudText Typo="Typo.caption" Color="Color.Success">Fertig</MudText>
+
+                        <!-- Only show edit button if not completed or forwarded -->
+                        @if (context.Status != WorkflowStatus.Completed && context.Status != WorkflowStatus.ForwardedToInstallation)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                           Size="Size.Small"
+                                           Color="Color.Primary"
+                                           OnClick="@(() => GoToHardwareForm(context.Id))"
+                                           Title="Bearbeiten" />
+                        }
+                    </MudStack>
+                }
+                else if (context.Status == WorkflowStatus.Completed || context.Status == WorkflowStatus.ForwardedToInstallation)
+                {
+                    <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
+                        <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Secondary" Size="Size.Small" />
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Abgeschlossen</MudText>
+                    </MudStack>
+                }
+            </MudTd>
+            <MudTd>
+                @if (context.Status == WorkflowStatus.SoftwareInProgress)
+                {
+                    <MudButton Size="Size.Small"
+                               Color="Color.Secondary"
+                               Variant="Variant.Outlined"
+                               OnClick="@(() => GoToSoftwareForm(context.Id))">
+                        @(HasSoftwareData(context) ? "Bearbeiten" : "Anlegen")
+                    </MudButton>
+                }
+                else if (context.Status == WorkflowStatus.SoftwareCompleted)
+                {
+                    <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                        <MudText Typo="Typo.caption" Color="Color.Success">Fertig</MudText>
+
+                        <!-- Only show edit button if not completed or forwarded -->
+                        @if (context.Status != WorkflowStatus.Completed && context.Status != WorkflowStatus.ForwardedToInstallation)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                           Size="Size.Small"
+                                           Color="Color.Secondary"
+                                           OnClick="@(() => GoToSoftwareForm(context.Id))"
+                                           Title="Bearbeiten" />
+                        }
+                    </MudStack>
+                }
+                else if (context.Status == WorkflowStatus.Completed || context.Status == WorkflowStatus.ForwardedToInstallation)
+                {
+                    <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
+                        <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Secondary" Size="Size.Small" />
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Abgeschlossen</MudText>
+                    </MudStack>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Tertiary">Warten</MudText>
+                }
+            </MudTd>
+            <MudTd>
+                <MudChip T="string"
+                         Color="@GetStatusColor(context)"
+                         Size="Size.Small"
+                         Variant="Variant.Text">
+                    @GetStatusText(context)
+                </MudChip>
+            </MudTd>
+            <MudTd>
+                @if (context.Status != WorkflowStatus.Completed && context.Status != WorkflowStatus.ForwardedToInstallation)
+                {
+                    <MudButtonGroup Size="Size.Small">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Color="Color.Error"
+                                       OnClick="@(() => DeleteWorkflow(context.Id))"
+                                       Title="Löschen" />
+                    </MudButtonGroup>
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Lock"
+                             Color="Color.Secondary"
+                             Size="Size.Small"
+                             Title="Geschützt - kann nicht gelöscht werden" />
+                }
+            </MudTd>
+        </RowTemplate>
+
+        <NoRecordsContent>
+            <EmptyRecordComponent></EmptyRecordComponent>
+        </NoRecordsContent>
+        <LoadingContent>
+            <LoadingRecordComponent></LoadingRecordComponent>
+        </LoadingContent>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="new int[] { 25, 50, 100 }" />
+        </PagerContent>
+    </MudTable>
+
+    <!-- Forwarding to purchase button (only if all workflows are ready but not yet forwarded) -->
+    @if (AllWorkflowsCompleted())
+    {
+        <MudStack Class="mt-6" AlignItems="AlignItems.Center">
+            <MudButton Color="Color.Secondary"
+                       Variant="Variant.Filled"
+                       Size="Size.Large"
+                       StartIcon="@Icons.Material.Filled.ShoppingCart"
+                       OnClick="@ForwardToPurchasing"
+                       Class="px-8"
+                       Loading="@isForwarding"
+                       Disabled="@isForwarding">
+                Weiterleiten an Einkauf
+            </MudButton>
+            <MudText Typo="Typo.caption" Color="Color.Success">
+                Alle Formulare sind bereit für die Einkaufsfreigabe
+            </MudText>
+        </MudStack>
+    }
+    else if (AllWorkflowsForwarded())
+    {
+        <MudStack Class="mt-6" AlignItems="AlignItems.Center">
+            <MudAlert Severity="Severity.Success" Class="ma-2">
+                <MudText Typo="Typo.body2">
+                    Dieses Projekt wurde bereits an den Einkauf weitergeleitet.
+                </MudText>
+            </MudAlert>
+        </MudStack>
+    }
+
+    <MudButton Variant="Variant.Text"
+               Size="Size.Small"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.ArrowBack"
+               FullWidth="true"
+               Href= "@($"/project/{ProjectId}")"
+               Class="px-3 py-1">
+        Zurück zur Projektübersicht
+    </MudButton>
+</MudContainer>
+
+@code {
+    [Parameter] public Guid ProjectId { get; set; }
+
+    private List<DbWorkflow> workflows = new();
+    private DbProject? currentProject;
+    private bool loading = false;
+    private bool isForwarding = false;
+
+    // Hardware-Typ Cache for better Performance
+    private Dictionary<Guid, string> hardwareTypeCache = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCurrentProject();
+        await LoadWorkflows();
+    }
+
+    /// <summary>
+    /// Load the current project information
+    /// </summary>
+    private async Task LoadCurrentProject()
+    {
+        try
+        {
+            currentProject = await DbContext.Project
+                .FirstOrDefaultAsync(p => p.Id == ProjectId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading current project: {ex.Message}");
+            currentProject = null;
+        }
+    }
+
+    /// <summary>
+    /// Load all workflows for the current project
+    /// </summary>
+    private async Task LoadWorkflows()
+    {
+        loading = true;
+        try
+        {
+            // Load workflows sorted - first BDR, then BV
+            workflows = await DbContext.Workflow
+                .Where(w => w.ProjectId == ProjectId)
+                .OrderBy(w => w.WorkflowType == WorkflowType.BDR ? 0 : 1) // BDR First
+                .ThenBy(w => w.Name)
+                .ToListAsync();
+
+            // Hardware-Typen Loading and caching
+            await LoadHardwareTypes();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading workflows: {ex.Message}");
+            workflows = new List<DbWorkflow>();
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    /// <summary>
+    /// Load and cache hardware types for performance optimization
+    /// </summary>
+    private async Task LoadHardwareTypes()
+    {
+        hardwareTypeCache.Clear();
+
+        try
+        {
+            // BDR Hardware-Typ Loading
+            var bdrHardware = await DbContext.HardwareComputer
+                .Where(h => workflows.Select(w => w.Id).Contains(h.WorkflowId))
+                .Select(h => new { h.WorkflowId, h.HardwareSpecs })
+                .ToListAsync();
+
+            foreach (var hardware in bdrHardware)
+            {
+                hardwareTypeCache[hardware.WorkflowId] = hardware.HardwareSpecs ?? "BDR";
+            }
+
+            // BV Hardware-Typ Loading
+            var bvHardware = await DbContext.BvHardwareComputer
+                .Where(h => workflows.Select(w => w.Id).Contains(h.WorkflowId))
+                .Select(h => new { h.WorkflowId, h.PcType })
+                .ToListAsync();
+
+            foreach (var hardware in bvHardware)
+            {
+                hardwareTypeCache[hardware.WorkflowId] = hardware.PcType ?? "BV";
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading hardware types: {ex.Message}");
+            // Continue execution even if hardware type loading fails
+        }
+    }
+
+    // PROJECT STATUS METHODS
+    private Color GetHardwareStatusColor()
+    {
+        if (!workflows.Any()) return Color.Default;
+
+        var allHaveHardware = workflows.All(w => w.Status >= WorkflowStatus.SoftwareInProgress);
+        var someHaveHardware = workflows.Any(w => w.Status >= WorkflowStatus.SoftwareInProgress);
+
+        if (allHaveHardware) return Color.Success;   // Green - completed
+        if (someHaveHardware) return Color.Warning;  // Yellow - in progress
+        return Color.Default;                        // Gray - not started
+    }
+
+    private Color GetSoftwareStatusColor()
+    {
+        if (!workflows.Any()) return Color.Default;
+
+        var allHaveSoftware = workflows.All(w => w.Status >= WorkflowStatus.SoftwareCompleted);
+        var someHaveSoftware = workflows.Any(w => w.Status >= WorkflowStatus.SoftwareCompleted);
+
+        if (allHaveSoftware) return Color.Success;
+        if (someHaveSoftware) return Color.Warning;
+        return Color.Default;
+    }
+
+    private Color GetPurchaseStatusColor()
+    {
+        if (!workflows.Any()) return Color.Default;
+
+        var allAtPurchase = workflows.All(w => w.Status >= WorkflowStatus.Completed);
+        var someAtPurchase = workflows.Any(w => w.Status >= WorkflowStatus.Completed);
+
+        if (allAtPurchase) return Color.Success;
+        if (someAtPurchase) return Color.Warning;
+        return Color.Default;
+    }
+
+    private Color GetInstallationStatusColor()
+    {
+        if (!workflows.Any()) return Color.Default;
+
+        var allForwarded = workflows.All(w => w.Status >= WorkflowStatus.ForwardedToInstallation);
+        var someForwarded = workflows.Any(w => w.Status >= WorkflowStatus.ForwardedToInstallation);
+
+        if (allForwarded) return Color.Success;
+        if (someForwarded) return Color.Warning;
+        return Color.Default;
+    }
+
+    /// <summary>
+    /// Calculate overall project completion percentage
+    /// </summary>
+    private int GetCompletionPercentage()
+    {
+        if (!workflows.Any()) return 0;
+
+        var totalSteps = workflows.Count * 4; // 4 steps per workflow (HW, SW, Purchase, Installation)
+        var completedSteps = 0;
+
+        foreach (var workflow in workflows)
+        {
+            if (workflow.Status >= WorkflowStatus.SoftwareInProgress) completedSteps++; // Hardware
+            if (workflow.Status >= WorkflowStatus.SoftwareCompleted) completedSteps++; // Software
+            if (workflow.Status >= WorkflowStatus.Completed) completedSteps++; // Purchase
+            if (workflow.Status >= WorkflowStatus.ForwardedToInstallation) completedSteps++; // Installation
+        }
+
+        return (int)Math.Round((double)completedSteps / totalSteps * 100);
+    }
+
+    /// <summary>
+    /// Create a new workflow for the current project
+    /// </summary>
+    private async Task CreateWorkflow(WorkflowType workflowType)
+    {
+        try
+        {
+            // Count existing forms of the same type for numbering
+            var existingCount = await DbContext.Workflow
+                .Where(w => w.ProjectId == ProjectId && w.WorkflowType == workflowType)
+                .CountAsync();
+
+            var workflowNumber = existingCount + 1;
+
+            var newWorkflow = new DbWorkflow
+            {
+                Id = Guid.NewGuid(),
+                ProjectId = ProjectId,
+                Name = $"{workflowType} {workflowNumber}", // e.g. "BDR 1", "BV 2"
+                WorkflowType = workflowType,
+                Status = WorkflowStatus.Created, // Start with "Created"
+                CreationDate = DateTime.UtcNow,
+                LastChange = DateTime.UtcNow
+            };
+
+            DbContext.Workflow.Add(newWorkflow);
+            await DbContext.SaveChangesAsync();
+            await LoadWorkflows(); // Also reloads hardware types
+
+            Snackbar.Add($"{workflowType} Workflow erfolgreich erstellt!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error creating workflow: {ex.Message}");
+            Snackbar.Add($"Fehler beim Erstellen des Workflows: {ex.Message}", Severity.Error);
+        }
+    }
+
+    /// <summary>
+    /// Delete a workflow and its associated data
+    /// </summary>
+    private async Task DeleteWorkflow(Guid workflowId)
+    {
+        try
+        {
+            var workflow = await DbContext.Workflow.FindAsync(workflowId);
+            if (workflow == null) return;
+
+            // Delete linked hardware data
+            if (workflow.WorkflowType == WorkflowType.BDR)
+            {
+                // Delete BDR hardware
+                var bdrHardware = await DbContext.HardwareComputer
+                    .Where(h => h.WorkflowId == workflowId)
+                    .ToListAsync();
+                DbContext.HardwareComputer.RemoveRange(bdrHardware);
+            }
+            else // BV
+            {
+                // Delete BV hardware - delete manually due to NoAction DeleteBehavior
+                var bvHardware = await DbContext.BvHardwareComputer
+                    .Where(h => h.WorkflowId == workflowId)
+                    .ToListAsync();
+                DbContext.BvHardwareComputer.RemoveRange(bvHardware);
+            }
+
+            // Delete workflow itself
+            DbContext.Workflow.Remove(workflow);
+            await DbContext.SaveChangesAsync();
+            await LoadWorkflows(); // Reloads hardware types
+
+            Snackbar.Add($"Workflow {workflow.Name} erfolgreich gelöscht!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Fehler beim Löschen des Workflows: {ex.Message}", Severity.Error);
+            Console.WriteLine($"Error deleting workflow: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Navigate to the hardware form for a workflow
+    /// </summary>
+    private void GoToHardwareForm(Guid workflowId)
+    {
+        var workflow = workflows.FirstOrDefault(w => w.Id == workflowId);
+        if (workflow == null) return;
+
+        if (workflow.WorkflowType == WorkflowType.BDR)
+        {
+            Navigation.NavigateTo($"/workflow/{workflowId}/hardware");
+        }
+        else // BV
+        {
+            Navigation.NavigateTo($"/workflow/{workflowId}/bv-hardware");
+        }
+    }
+
+    /// <summary>
+    /// Navigate to the software form for a workflow
+    /// </summary>
+    private void GoToSoftwareForm(Guid workflowId)
+    {
+        var workflow = workflows.FirstOrDefault(w => w.Id == workflowId);
+        if (workflow == null) return;
+
+        if (workflow.WorkflowType == WorkflowType.BDR)
+        {
+            Navigation.NavigateTo($"/workflow/{workflowId}/bdr-software"); // BDRSoftwareForm.razor
+        }
+        else // BV
+        {
+            Navigation.NavigateTo($"/workflow/{workflowId}/bv-software"); // BvSoftwareForm.razor
+        }
+    }
+
+    /// <summary>
+    /// Forward all completed workflows to purchasing
+    /// </summary>
+    private async Task ForwardToPurchasing()
+    {
+        isForwarding = true;
+        try
+        {
+            // Set all workflows to "Completed" status
+            foreach (var workflow in workflows)
+            {
+                workflow.Status = WorkflowStatus.Completed;
+                workflow.LastChange = DateTime.UtcNow;
+            }
+
+            await DbContext.SaveChangesAsync();
+
+            // Success message
+            Snackbar.Add("Alle Formulare erfolgreich an Einkauf weitergeleitet!", Severity.Success);
+
+            // Wait a bit for user to see the success message
+            await Task.Delay(1500);
+
+            // Navigate back to projects overview
+            Navigation.NavigateTo("/projects");
+        }
+        catch (Exception ex)
+        {
+            // Error handling
+            Snackbar.Add($"Fehler beim Weiterleiten: {ex.Message}", Severity.Error);
+            Console.WriteLine($"ForwardToPurchasing Error: {ex.Message}");
+        }
+        finally
+        {
+            isForwarding = false;
+        }
+    }
+
+    // Helper Methods
+    private bool HasHardwareData(DbWorkflow workflow)
+    {
+        // Hardware is considered present when status > Created
+        return workflow.Status > WorkflowStatus.Created;
+    }
+
+    private bool HasSoftwareData(DbWorkflow workflow)
+    {
+        // Software is considered present when status = SoftwareCompleted
+        return workflow.Status == WorkflowStatus.SoftwareCompleted;
+    }
+
+    private bool AllWorkflowsCompleted()
+    {
+        // Only show forward button if all workflows are software completed but NOT yet forwarded
+        return workflows.Any() &&
+               workflows.All(w => w.Status == WorkflowStatus.SoftwareCompleted) &&
+               workflows.All(w => w.Status != WorkflowStatus.Completed && w.Status != WorkflowStatus.ForwardedToInstallation);
+    }
+
+    private bool AllWorkflowsForwarded()
+    {
+        // Check if any workflows have been forwarded to purchasing or installation
+        return workflows.Any() &&
+               workflows.Any(w => w.Status == WorkflowStatus.Completed || w.Status == WorkflowStatus.ForwardedToInstallation);
+    }
+
+    private Color GetStatusColor(DbWorkflow workflow) => workflow.Status switch
+    {
+        WorkflowStatus.Created => Color.Default,
+        WorkflowStatus.HardwareInProgress => Color.Warning,
+        WorkflowStatus.SoftwareInProgress => Color.Info,
+        WorkflowStatus.SoftwareCompleted => Color.Success,
+        WorkflowStatus.Completed => Color.Primary,
+        WorkflowStatus.ForwardedToInstallation => Color.Secondary,
+        _ => Color.Default
+    };
+
+    private string GetHardwareTypeText(DbWorkflow workflow)
+    {
+        // Load from cache
+        if (hardwareTypeCache.TryGetValue(workflow.Id, out var hardwareType))
+        {
+            return hardwareType;
+        }
+
+        // Fallback if no hardware is configured
+        return workflow.WorkflowType.ToString();
+    }
+
+    private string GetStatusText(DbWorkflow workflow) => workflow.Status switch
+    {
+        WorkflowStatus.Created => "Neu",
+        WorkflowStatus.HardwareInProgress => "HW läuft",
+        WorkflowStatus.SoftwareInProgress => "SW läuft",
+        WorkflowStatus.SoftwareCompleted => "Bereit",
+        WorkflowStatus.Completed => "Beim Einkauf",
+        WorkflowStatus.ForwardedToInstallation => "Bei Installation",
+        _ => "Unbekannt"
+    };
+}

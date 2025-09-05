@@ -1,0 +1,706 @@
+﻿@using MECWeb.DbModels.Project
+@using MECWeb.Models.Gitea
+@using Microsoft.JSInterop
+@layout ProjectMainLayout
+@page "/project/{ProjectId:guid}/repository"
+@page "/project/{ProjectId:guid}/repository/{*CurrentPath}"
+@inject ApplicationDbContext DbContext
+@inject GiteaService GiteaService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+
+<style>
+    :root {
+        --schaeffler-green: #00A86B;
+        --schaeffler-green-light: #00C876;
+        --schaeffler-green-dark: #008B57;
+        --schaeffler-gray: #F5F7FA;
+        --schaeffler-gray-dark: #E2E8F0;
+        --text-primary: #1A202C;
+        --text-secondary: #4A5568;
+        --bg-card: #FFFFFF;
+        --border-color: #E2E8F0;
+        --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.08);
+        --shadow-medium: 0 4px 16px rgba(0, 0, 0, 0.12);
+    }
+
+    [data-theme="dark"] {
+        --schaeffler-gray: #2D3748;
+        --schaeffler-gray-dark: #1A202C;
+        --text-primary: #F7FAFC;
+        --text-secondary: #A0AEC0;
+        --bg-card: #2D3748;
+        --border-color: #4A5568;
+        --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.3);
+        --shadow-medium: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+
+    .repo-header {
+        background: linear-gradient(135deg, var(--schaeffler-green) 0%, var(--schaeffler-green-dark) 100%);
+        color: white;
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 24px;
+        box-shadow: var(--shadow-medium);
+    }
+
+    .navigation-bar {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin-bottom: 20px;
+        box-shadow: var(--shadow-soft);
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .back-button {
+        background: var(--schaeffler-green) !important;
+        color: white !important;
+        border-radius: 8px;
+        padding: 8px 16px;
+        transition: all 0.2s ease;
+        border: none;
+        font-weight: 500;
+    }
+
+        .back-button:hover {
+            background: var(--schaeffler-green-light) !important;
+            transform: translateX(-2px);
+        }
+
+    .breadcrumb-container {
+        background: var(--schaeffler-gray);
+        border-radius: 8px;
+        padding: 8px 16px;
+        flex: 1;
+        border: 1px solid var(--border-color);
+    }
+
+    .breadcrumb-item {
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        padding: 4px 8px;
+        border-radius: 4px;
+    }
+
+        .breadcrumb-item:hover {
+            background: var(--schaeffler-green);
+            color: white;
+        }
+
+    .breadcrumb-current {
+        color: var(--schaeffler-green);
+        font-weight: 600;
+    }
+
+    .content-section {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: var(--shadow-soft);
+        position: relative;
+    }
+
+    .section-header {
+        background: var(--schaeffler-gray);
+        color: var(--text-primary);
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--border-color);
+        justify-content: space-between;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 8px;
+    }
+
+    .action-button {
+        background: var(--schaeffler-green);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+        .action-button:hover {
+            background: var(--schaeffler-green-light);
+            transform: translateY(-1px);
+        }
+
+    .file-item {
+        padding: 12px 16px;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        border: 1px solid transparent;
+        background: var(--bg-card);
+    }
+
+        .file-item:hover {
+            background: var(--schaeffler-gray);
+            border-color: var(--schaeffler-green);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-soft);
+        }
+
+    .file-icon {
+        font-size: 24px;
+        margin-right: 12px;
+    }
+
+    .folder-icon {
+        color: var(--schaeffler-green);
+    }
+
+    .file-icon-doc {
+        color: var(--schaeffler-green);
+    }
+
+    .file-icon-img {
+        color: #ea4335;
+    }
+
+    .file-icon-code {
+        color: #9333ea;
+    }
+
+    .file-icon-archive {
+        color: #f59e0b;
+    }
+
+    .file-size {
+        color: var(--text-secondary);
+        font-size: 12px;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--text-secondary);
+        background: var(--schaeffler-gray);
+        border-radius: 12px;
+        border: 2px dashed var(--border-color);
+    }
+
+    .loading-state {
+        text-align: center;
+        padding: 40px 20px;
+    }
+
+    .item-badge {
+        background: var(--schaeffler-green);
+        color: white;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .upload-zone {
+        border: 2px dashed var(--schaeffler-green);
+        border-radius: 12px;
+        padding: 24px;
+        text-align: center;
+        margin-top: 16px;
+        transition: all 0.2s ease;
+        background: rgba(0, 168, 107, 0.02);
+    }
+
+        .upload-zone:hover {
+            background: rgba(0, 168, 107, 0.05);
+            border-color: var(--schaeffler-green-dark);
+        }
+
+    .stats-info {
+        background: rgba(0, 168, 107, 0.1);
+        border: 1px solid rgba(0, 168, 107, 0.2);
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+</style>
+
+@if (isLoading)
+{
+    <div class="loading-state">
+        <MudProgressCircular Size="Size.Large" Indeterminate="true" />
+        <MudText Typo="Typo.body1" Class="mt-3">Repository wird geladen...</MudText>
+    </div>
+}
+else if (project == null)
+{
+    <MudAlert Severity="Severity.Error">
+        <MudText Typo="Typo.h6">❌ Projekt nicht gefunden</MudText>
+    </MudAlert>
+}
+else if (!project.GitEnabled)
+{
+    <div class="content-section">
+        <div class="empty-state">
+            <MudIcon Icon="@Icons.Material.Filled.CloudOff" Style="font-size: 64px; color: var(--text-secondary); margin-bottom: 16px;" />
+            <MudText Typo="Typo.h6">Kein Git-Repository aktiviert</MudText>
+            <MudText Typo="Typo.body2">Für dieses Projekt ist keine Git-Integration aktiviert.</MudText>
+        </div>
+    </div>
+}
+else
+{
+    <!-- Repository Header -->
+    <div class="repo-header">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+            <MudStack Spacing="1">
+                <MudText Typo="Typo.h4">
+                    <MudIcon Icon="@Icons.Material.Filled.Archive" Class="mr-2" />
+                    Software Archiv
+                </MudText>
+                <MudText Typo="Typo.body1" Style="opacity: 0.9">
+                    📁 @project.ProjectNumber - @project.Name
+                </MudText>
+                @if (!string.IsNullOrEmpty(repositoryName))
+                {
+                    <MudText Typo="Typo.body2" Style="opacity: 0.8">
+                        🗂️ Repository: @repositoryName
+                    </MudText>
+                }
+            </MudStack>
+            <MudStack Row="true" Class="action-buttons">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Upload"
+                           Style="background: rgba(255,255,255,0.2)"
+                           OnClick="ShowUploadDialog">
+                    📤 Upload
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           StartIcon="@Icons.Material.Filled.CreateNewFolder"
+                           Style="border-color: rgba(255,255,255,0.3); color: white"
+                           OnClick="ShowCreateFolderDialog">
+                    📁 Ordner
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           Style="border-color: rgba(255,255,255,0.3); color: white"
+                           OnClick="ShowCreateRepositoryDialog">
+                    🏗️ Repository
+                </MudButton>
+                @if (!string.IsNullOrEmpty(project.GitRepositoryUrl))
+                {
+                    <MudButton Variant="Variant.Outlined"
+                               StartIcon="@Icons.Material.Filled.Launch"
+                               Href="@project.GitRepositoryUrl"
+                               Target="_blank"
+                               Style="border-color: rgba(255,255,255,0.3); color: white">
+                        🔗 Git
+                    </MudButton>
+                }
+            </MudStack>
+        </MudStack>
+    </div>
+
+    <!-- Navigation Bar -->
+    <div class="navigation-bar">
+        @if (!string.IsNullOrEmpty(CurrentPath))
+        {
+            <MudButton Class="back-button"
+                       StartIcon="@Icons.Material.Filled.ArrowBack"
+                       OnClick="NavigateBack"
+                       Size="Size.Small">
+                Zurück
+            </MudButton>
+        }
+
+        <div class="breadcrumb-container">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <span class="breadcrumb-item @(string.IsNullOrEmpty(CurrentPath) ? "breadcrumb-current" : "")"
+                      @onclick='() => NavigateToPath("")'>
+                    <MudIcon Icon="@Icons.Material.Filled.Home" Size="Size.Small" Style="margin-right: 4px;" />
+                    📁 Root
+                </span>
+
+                @if (!string.IsNullOrEmpty(CurrentPath))
+                {
+                    var pathParts = CurrentPath.Split('/').Where(p => !string.IsNullOrEmpty(p)).ToArray();
+                    var cumulativePath = "";
+
+                    @for (int i = 0; i < pathParts.Length; i++)
+                    {
+                        var part = pathParts[i];
+                        cumulativePath += $"{part}/";
+                        var isLast = i == pathParts.Length - 1;
+                        var currentCumulativePath = cumulativePath.TrimEnd('/');
+
+                        <MudText Style="color: var(--text-secondary);">/</MudText>
+                        <span class="breadcrumb-item @(isLast ? "breadcrumb-current" : "")"
+                              @onclick="@(() => NavigateToPath(currentCumulativePath))">
+                            <MudIcon Icon="@Icons.Material.Filled.Folder" Size="Size.Small" Style="margin-right: 4px;" />
+                            📁 @part
+                        </span>
+                    }
+                }
+            </MudStack>
+        </div>
+    </div>
+
+    <!-- Repository Content -->
+    <div class="content-section">
+        <div class="section-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <MudIcon Icon="@Icons.Material.Filled.Folder" />
+                @GetCurrentFolderName()
+            </div>
+            <div style="margin-left: auto;">
+                @if (repositoryContents != null)
+                {
+                    <span class="item-badge">@repositoryContents.Count Items</span>
+                }
+            </div>
+        </div>
+
+        @if (repositoryContents == null)
+        {
+            <div class="loading-state">
+                <MudProgressCircular Size="Size.Medium" Indeterminate="true" />
+                <MudText Typo="Typo.body2" Style="margin-top: 12px;">Inhalte werden geladen...</MudText>
+            </div>
+        }
+        else if (!repositoryContents.Any())
+        {
+            <div class="empty-state">
+                <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Style="font-size: 64px; margin-bottom: 16px;" />
+                <MudText Typo="Typo.h6">📂 Ordner ist leer</MudText>
+                <MudText Typo="Typo.body2">Laden Sie Ihre erste Datei hoch oder erstellen Sie einen Ordner.</MudText>
+
+                <div class="upload-zone">
+                    <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Style="font-size: 48px; color: var(--schaeffler-green); margin-bottom: 12px;" />
+                    <MudText Typo="Typo.h6" Style="color: var(--schaeffler-green); margin-bottom: 8px;">Dateien hier ablegen</MudText>
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Upload"
+                               Style="background: var(--schaeffler-green);"
+                               OnClick="ShowUploadDialog">
+                        📤 Datei hochladen
+                    </MudButton>
+                </div>
+            </div>
+        }
+        else
+        {
+            <!-- Statistics Info -->
+            @if (repositoryContents.Any())
+            {
+                var folderCount = repositoryContents.Count(x => x.IsDirectory);
+                var fileCount = repositoryContents.Count(x => x.IsFile);
+                var totalSize = repositoryContents.Where(x => x.IsFile).Sum(x => x.Size);
+
+                <div class="stats-info">
+                    <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" />
+                    <MudText Typo="Typo.body2" Style="margin: 0;">
+                        <strong>📊 Statistik:</strong> @folderCount Ordner, @fileCount Dateien (@FormatFileSize(totalSize))
+                    </MudText>
+                </div>
+            }
+
+            <!-- File/Folder List -->
+            <MudStack Spacing="2">
+                @foreach (var item in repositoryContents.OrderBy(x => x.Type != "dir").ThenBy(x => x.Name))
+                {
+                    <div class="file-item" @onclick="@(() => HandleItemClick(item))">
+                        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <!-- File/Folder Icon -->
+                                @if (item.IsDirectory)
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.Folder"
+                                             Class="file-icon folder-icon" />
+                                }
+                                else
+                                {
+                                    <MudIcon Icon="@GetFileIcon(item.Name)"
+                                             Class="@($"file-icon {GetFileIconClass(item.Name)}")" />
+                                }
+
+                                <!-- File Info -->
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.body1" Style="font-weight: 500; color: var(--text-primary);">
+                                        @item.Name
+                                    </MudText>
+                                    @if (!item.IsDirectory)
+                                    {
+                                        <MudText Typo="Typo.caption" Class="file-size">
+                                            📊 @FormatFileSize(item.Size)
+                                        </MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudText Typo="Typo.caption" Class="file-size">
+                                            🗂️ Ordner
+                                        </MudText>
+                                    }
+                                </MudStack>
+                            </MudStack>
+
+                            <!-- Action Buttons -->
+                            <MudStack Row="true" Spacing="1">
+                                @if (item.IsDirectory)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Filled.ChevronRight"
+                                                   Size="Size.Small"
+                                                   Style="color: var(--schaeffler-green);"
+                                                   Title="Ordner öffnen" />
+                                }
+                                else
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Filled.Download"
+                                                   Size="Size.Small"
+                                                   Style="color: var(--schaeffler-green);"
+                                                   OnClick="@((e) => DownloadFile(item, e))"
+                                                   Title="Datei herunterladen" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.History"
+                                                   Size="Size.Small"
+                                                   Color="Color.Secondary"
+                                                   OnClick="@((e) => ShowFileVersions(item, e))"
+                                                   Title="Versionshistorie" />
+                                }
+                            </MudStack>
+                        </MudStack>
+                    </div>
+                }
+            </MudStack>
+
+            <!-- Upload Zone -->
+            <div class="upload-zone">
+                <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Style="font-size: 40px; color: var(--schaeffler-green); margin-bottom: 8px;" />
+                <MudText Typo="Typo.body1" Style="color: var(--schaeffler-green); margin-bottom: 8px;">
+                    Dateien in "@GetCurrentFolderName()" hochladen
+                </MudText>
+                <MudButton Variant="Variant.Filled"
+                           StartIcon="@Icons.Material.Filled.Upload"
+                           Style="background: var(--schaeffler-green); color: white;"
+                           OnClick="ShowUploadDialog">
+                    📤 Datei auswählen
+                </MudButton>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public Guid ProjectId { get; set; }
+    [Parameter] public string? CurrentPath { get; set; }
+
+    private DbProject? project;
+    private List<RepositoryContent>? repositoryContents;
+    private bool isLoading = true;
+    private string repositoryName = "";
+    private string repositoryOwner = "barwiaex"; // Default owner
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProject();
+        await LoadRepositoryContents();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!isLoading) // Avoid double loading on first load
+        {
+            await LoadRepositoryContents();
+        }
+    }
+
+    private async Task LoadProject()
+    {
+        project = await DbContext.Project.FirstOrDefaultAsync(p => p.Id == ProjectId);
+        if (project != null)
+        {
+            // Repository-Name aus Projekt ableiten (S-12345 -> repository name)
+            repositoryName = project.GitRepositoryName ?? project.ProjectNumber;
+        }
+    }
+
+    private async Task LoadRepositoryContents()
+    {
+        if (project?.GitEnabled != true || string.IsNullOrEmpty(repositoryName))
+        {
+            isLoading = false;
+            return;
+        }
+
+        try
+        {
+            repositoryContents = await GiteaService.GetRepositoryContentsAsync(
+                repositoryOwner,
+                repositoryName,
+                CurrentPath ?? "");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"❌ Fehler beim Laden des Repository: {ex.Message}", Severity.Error);
+            repositoryContents = new List<RepositoryContent>();
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task NavigateToPath(string path)
+    {
+        var url = string.IsNullOrEmpty(path)
+            ? $"/project/{ProjectId}/repository"
+            : $"/project/{ProjectId}/repository/{path}";
+
+        Navigation.NavigateTo(url);
+    }
+
+    private async Task NavigateBack()
+    {
+        if (!string.IsNullOrEmpty(CurrentPath))
+        {
+            var parentPath = GetParentPath(CurrentPath);
+            await NavigateToPath(parentPath);
+        }
+    }
+
+    private string GetParentPath(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return "";
+        var lastIndex = path.LastIndexOf('/');
+        return lastIndex > 0 ? path.Substring(0, lastIndex) : "";
+    }
+
+    private string GetCurrentFolderName()
+    {
+        if (string.IsNullOrEmpty(CurrentPath)) return "Root";
+        var parts = CurrentPath.Split('/');
+        return parts.LastOrDefault() ?? "Root";
+    }
+
+    private string GetFileIcon(string fileName)
+    {
+        var extension = Path.GetExtension(fileName).ToLower();
+        return extension switch
+        {
+            ".pdf" => Icons.Material.Filled.PictureAsPdf,
+            ".doc" or ".docx" => Icons.Material.Filled.Description,
+            ".xls" or ".xlsx" => Icons.Material.Filled.GridOn,
+            ".ppt" or ".pptx" => Icons.Material.Filled.Slideshow,
+            ".jpg" or ".jpeg" or ".png" or ".gif" => Icons.Material.Filled.Image,
+            ".mp4" or ".avi" or ".mov" => Icons.Material.Filled.VideoFile,
+            ".mp3" or ".wav" => Icons.Material.Filled.AudioFile,
+            ".zip" or ".rar" or ".7z" => Icons.Material.Filled.Archive,
+            ".cs" or ".js" or ".py" or ".html" => Icons.Material.Filled.Code,
+            ".txt" or ".md" => Icons.Material.Filled.TextSnippet,
+            _ => Icons.Material.Filled.InsertDriveFile
+        };
+    }
+
+    private string GetFileIconClass(string fileName)
+    {
+        var extension = Path.GetExtension(fileName).ToLower();
+        return extension switch
+        {
+            ".pdf" or ".doc" or ".docx" or ".txt" or ".md" => "file-icon-doc",
+            ".jpg" or ".jpeg" or ".png" or ".gif" => "file-icon-img",
+            ".cs" or ".js" or ".py" or ".html" => "file-icon-code",
+            ".zip" or ".rar" or ".7z" => "file-icon-archive",
+            _ => "file-icon-doc"
+        };
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024:F1} KB";
+        if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024 * 1024):F1} MB";
+        return $"{bytes / (1024 * 1024 * 1024):F1} GB";
+    }
+
+    private async Task HandleItemClick(RepositoryContent item)
+    {
+        if (item.IsDirectory)
+        {
+            await NavigateToItem(item);
+        }
+    }
+
+    private async Task NavigateToItem(RepositoryContent item)
+    {
+        if (item.IsDirectory)
+        {
+            var newPath = string.IsNullOrEmpty(CurrentPath) ? item.Name : $"{CurrentPath}/{item.Name}";
+            await NavigateToPath(newPath);
+        }
+    }
+
+    private async Task DownloadFile(RepositoryContent file, MouseEventArgs e)
+    {
+        @onclick="@(() => MethodName())";// Prevent row click
+
+        if (!string.IsNullOrEmpty(file.Download_Url))
+        {
+            // Direct download from Gitea
+            await JSRuntime.InvokeVoidAsync("open", file.Download_Url, "_blank");
+            Snackbar.Add($"📥 Download gestartet: {file.Name}", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("❌ Download-URL nicht verfügbar", Severity.Error);
+        }
+    }
+
+    private async Task ShowFileVersions(RepositoryContent file, MouseEventArgs e)
+    {
+        e.StopPropagation(); // Prevent row click
+
+        // Navigate to file detail page
+        var fileUrl = string.IsNullOrEmpty(CurrentPath)
+            ? $"/project/{ProjectId}/repository/file/{Uri.EscapeDataString(file.Path)}"
+            : $"/project/{ProjectId}/repository/file/{Uri.EscapeDataString(file.Path)}";
+
+        Navigation.NavigateTo(fileUrl);
+    }
+
+    private async Task ShowUploadDialog()
+    {
+        Snackbar.Add("🚧 Upload-Dialog wird implementiert...", Severity.Info);
+        // TODO: Implement upload dialog
+    }
+
+    private async Task ShowCreateFolderDialog()
+    {
+        Snackbar.Add("🚧 Ordner-Erstellung wird implementiert...", Severity.Info);
+        // TODO: Implement folder creation dialog
+    }
+
+    private async Task ShowCreateRepositoryDialog()
+    {
+        Snackbar.Add("🚧 Repository-Erstellung wird implementiert...", Severity.Info);
+        // TODO: Implement repository creation dialog
+    }
+}
