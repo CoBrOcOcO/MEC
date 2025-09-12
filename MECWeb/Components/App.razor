@@ -29,7 +29,7 @@
         // JavaScript für File-Download (Gitea-Integration)
         window.downloadFile = (filename, base64Content) => {
             try {
-                console.log(`📥 Download gestartet: ${filename}`);
+                console.log(`📥 Auschecken gestartet: ${filename}`);
 
                 // Base64 zu Blob konvertieren
                 const binaryString = atob(base64Content);
@@ -55,13 +55,26 @@
                 document.body.removeChild(link);
                 window.URL.revokeObjectURL(url);
 
-                console.log(`✅ Download erfolgreich: ${filename}`);
+                console.log(`✅ Auschecken erfolgreich: ${filename}`);
 
             } catch (error) {
-                console.error(`❌ Download-Fehler: ${error.message}`);
+                console.error(`❌ Auschecken-Fehler: ${error.message}`);
                 alert(`Download fehlgeschlagen: ${error.message}`);
             }
         };
+        
+             window.downloadFileFromStream = async (fileName, contentStreamReference) => {
+                const arrayBuffer = await contentStreamReference.arrayBuffer();
+                const blob = new Blob([arrayBuffer]);
+                const url = URL.createObjectURL(blob);
+                const anchorElement = document.createElement('a');
+                anchorElement.href = url;
+                anchorElement.download = fileName ?? '';
+                anchorElement.click();
+                anchorElement.remove();
+                URL.revokeObjectURL(url);
+    }
+
     </script>
 </body>
 </html>

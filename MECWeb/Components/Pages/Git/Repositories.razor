@@ -164,7 +164,7 @@
 </MudContainer>
 
 @code {
-    private List<Repository>? repositories;
+    private List<GiteaRepository>? repositories;
     private bool isLoading = false;
 
     protected override async Task OnInitializedAsync()
@@ -186,13 +186,13 @@
             else
             {
                 Snackbar.Add("❌ Fehler beim Laden der Repositories", Severity.Error);
-                repositories = new List<Repository>();
+                repositories = new List<GiteaRepository>();
             }
         }
         catch (Exception ex)
         {
             Snackbar.Add($"❌ Fehler: {ex.Message}", Severity.Error);
-            repositories = new List<Repository>();
+            repositories = new List<GiteaRepository>();
         }
         finally
         {
@@ -201,12 +201,12 @@
         }
     }
 
-    private void NavigateToRepository(Repository repo)
+    private void NavigateToRepository(GiteaRepository repo)
     {
         Navigation.NavigateTo($"/git/repository/{repo.Owner?.Login}/{repo.Name}");
     }
 
-    private Color GetRepoColor(Repository repo)
+    private Color GetRepoColor(GiteaRepository repo)
     {
         if (repo.Name.StartsWith("S-")) return Color.Primary;   // Schaeffler-Projekte
         if (repo.Private) return Color.Error;                   // Private Repos
@@ -214,7 +214,7 @@
         return Color.Secondary;                                 // Standard
     }
 
-    private string GetRepoIcon(Repository repo)
+    private string GetRepoIcon(GiteaRepository repo)
     {
         if (repo.Name.StartsWith("S-")) return Icons.Material.Filled.Engineering;  // Schaeffler-Projekte
         if (repo.Fork) return Icons.Material.Filled.CallSplit;                     // Fork

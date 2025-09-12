@@ -1,0 +1,164 @@
+﻿@using MECWeb.Models.Gitea
+@using MECWeb.Services
+@using System.IO
+@using Microsoft.JSInterop
+@inject GiteaService GiteaService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
+
+<style>
+    .latest-version-row {
+        background: linear-gradient(90deg, #E8F5E9 0%, #F1F8E9 100%) !important;
+        border-left: 4px solid #4CAF50 !important;
+        font-weight: 500 !important;
+    }
+    
+    .latest-version-badge {
+        background: #4CAF50;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        margin-left: 8px;
+    }
+</style>
+
+@if (isLoading)
+{
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
+}
+else if (commits == null || !commits.Any())
+{
+    <MudAlert Severity="Severity.Info">Für diese Datei wurde keine Versionshistorie gefunden.</MudAlert>
+}
+else
+{
+    <MudTable Items="@commits" Hover="true" Dense="true" Striped="true" RowStyleFunc="@HighlightLatestRow">
+        <HeaderContent>
+            <MudTh>Beschreibung</MudTh>
+            <MudTh>Autor</MudTh>
+            <MudTh>Datum</MudTh>
+            <MudTh>Aktionen</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Beschreibung">
+                <MudStack Row="true" AlignItems="AlignItems.Center">
+                    <MudStack Spacing="0">
+                        <MudText Typo="Typo.body2" Style="font-weight: 500;">
+                            @(context.Commit?.Message ?? "Keine Beschreibung")
+                        </MudText>
+                        <MudText Typo="Typo.caption">
+                            <code>@(context.Sha?.Substring(0, Math.Min(7, context.Sha.Length)) ?? "N/A")</code>
+                        </MudText>
+                    </MudStack>
+                    @if (IsLatestVersion(context))
+                    {
+                        <span class="latest-version-badge">Aktuell</span>
+                    }
+                </MudStack>
+            </MudTd>
+            <MudTd DataLabel="Autor">@(context.Commit?.Author?.Name ?? "Unbekannt")</MudTd>
+            <MudTd DataLabel="Datum">@(context.Commit?.Author?.Date.ToLocalTime().ToString("g") ?? "N/A")</MudTd>
+            <MudTd DataLabel="Aktionen">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.Download"
+                           OnClick="@(() => DownloadVersion(context))">
+                    Auschecken
+                </MudButton>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    [Parameter] public string RepositoryOwner { get; set; } = string.Empty;
+    [Parameter] public string RepositoryName { get; set; } = string.Empty;
+    [Parameter] public string FilePath { get; set; } = string.Empty;
+
+    private List<GitCommit>? commits;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            commits = await GiteaService.GetFileCommitsAsync(RepositoryOwner, RepositoryName, FilePath);
+            // Sicherstellen, dass die Commits nach Datum sortiert sind (neueste zuerst)
+            if (commits != null)
+            {
+                commits = commits.OrderByDescending(c => c.Commit?.Author?.Date ?? DateTime.MinValue).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Fehler beim Laden der Historie: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task DownloadVersion(GitCommit commit)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(commit.Sha))
+            {
+                Snackbar.Add("Fehler: Commit hat keine gültige SHA.", Severity.Error);
+                return;
+            }
+
+            var stream = await GiteaService.DownloadFileStreamAsync(RepositoryOwner, RepositoryName, FilePath, commit.Sha);
+            if (stream == null)
+            {
+                Snackbar.Add("Auschecken fehlgeschlagen. Datei konnte nicht vom Server geladen werden.", Severity.Error);
+                return;
+            }
+
+            using var streamRef = new DotNetStreamReference(stream);
+            await JSRuntime.InvokeVoidAsync("downloadFileFromStream", GetFileNameWithSha(commit), streamRef);
+            
+            var shortSha = commit.Sha.Substring(0, Math.Min(7, commit.Sha.Length));
+            Snackbar.Add($"Auschecken für Version {shortSha} gestartet.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Fehler beim Auschecken: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private string GetFileNameWithSha(GitCommit commit)
+    {
+        if (string.IsNullOrEmpty(FilePath) || string.IsNullOrEmpty(commit.Sha))
+        {
+            return "download.dat";
+        }
+        
+        var fileName = Path.GetFileNameWithoutExtension(FilePath);
+        var extension = Path.GetExtension(FilePath);
+        var shortSha = commit.Sha.Substring(0, Math.Min(7, commit.Sha.Length));
+        return $"{fileName}_{shortSha}{extension}";
+    }
+
+    private string HighlightLatestRow(GitCommit item, int index)
+    {
+        if (IsLatestVersion(item))
+        {
+            return "latest-version-row";
+        }
+        return string.Empty;
+    }
+
+    private bool IsLatestVersion(GitCommit commit)
+    {
+        if (commits == null || !commits.Any()) return false;
+        
+        // Der erste Commit in der sortierten Liste ist die neueste Version
+        return commits.First().Sha == commit.Sha;
+    }
+}

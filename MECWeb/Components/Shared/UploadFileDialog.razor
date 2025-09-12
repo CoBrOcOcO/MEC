@@ -1,4 +1,5 @@
 ﻿@using MECWeb.Models.Gitea
+@using MECWeb.Services
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.JSInterop
 @using System.IO
@@ -38,15 +39,22 @@
                     Datei auswählen
                 </MudText>
 
-                <!-- Vereinfachter Upload-Button ohne Drag & Drop Zone -->
-                <InputFile OnChange="OnFileSelected" id="fileInput" style="display: none;" />
-                <MudButton HtmlTag="label"
-                           Variant="Variant.Filled"
-                           Color="Color.Primary"
-                           StartIcon="@Icons.Material.Filled.AttachFile"
-                           for="fileInput">
-                    Datei auswählen...
-                </MudButton>
+                <MudPaper Style="border: 2px dashed var(--mud-palette-primary); border-radius: 8px; padding: 20px; text-align: center;">
+                    <InputFile OnChange="OnFileSelected"
+                               accept=".ap17,.s7p,.zap,.tsproj,.pro,.acd,.pdf,.doc,.docx,.txt,.jpg,.png,.zip,.cs,.py,.html,.json,.xml,.csv,.xlsx"
+                               style="display: none;"
+                               id="fileInput" />
+
+                    <label for="fileInput" style="cursor: pointer; display: block;">
+                        <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                            <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Large" Color="Color.Primary" />
+                            <MudText Typo="Typo.h6">Datei hier ablegen oder klicken</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                Unterstützt SPS-Projekte, Office, Archive, etc. (Große Dateien >1GB werden via LFS verarbeitet)
+                            </MudText>
+                        </MudStack>
+                    </label>
+                </MudPaper>
 
                 @if (selectedFile != null)
                 {
@@ -77,21 +85,42 @@
                     Commit-Nachricht *
                 </MudText>
                 <MudTextField @bind-Value="commitMessage"
+                              @oninput="OnCommitMessageInput"
                               Label="Beschreibung der Änderung"
                               Lines="2"
                               Placeholder="Beschreibe deine Änderung..."
+                              HelperText="Beschreibe was und warum du diese Datei eincheckst"
                               Adornment="Adornment.Start"
                               AdornmentIcon="@Icons.Material.Filled.Comment"
                               Error="@(hasTriedUpload && !IsValidCommitMessage())"
-                              ErrorText="Eigene Commit-Nachricht ist erforderlich" />
+                              ErrorText="Eigene Commit-Nachricht ist erforderlich (mind. 4 Zeichen)" />
+
+                @if (hasTriedUpload && !IsValidCommitMessage())
+                {
+                    <MudAlert Severity="Severity.Error" Dense="true">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudIcon Icon="@Icons.Material.Filled.Error" />
+                            <MudText Typo="Typo.body2">
+                                <strong>Commit-Nachricht fehlt:</strong> Bitte geben Sie eine eigene Beschreibung ein.
+                            </MudText>
+                        </MudStack>
+                    </MudAlert>
+                }
             </MudStack>
 
             @if (isUploading)
             {
                 <MudAlert Severity="Severity.Info" Dense="true">
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
-                        <MudText>@uploadStatus</MudText>
+                     <MudStack Spacing="2">
+                        <MudText Typo="Typo.body2" Style="font-weight: 500;">
+                            Upload läuft...
+                        </MudText>
+                        <MudProgressLinear Value="uploadProgress"
+                                           Color="Color.Primary"
+                                           Size="Size.Medium" />
+                        <MudText Typo="Typo.caption" Style="color: #4A5568;">
+                            @uploadStatus
+                        </MudText>
                     </MudStack>
                 </MudAlert>
             }
@@ -100,7 +129,9 @@
     </DialogContent>
 
     <DialogActions>
-        <MudButton OnClick="Cancel" Variant="Variant.Text">
+        <MudButton OnClick="Cancel"
+                   Variant="Variant.Text"
+                   Disabled="@isUploading">
             Abbrechen
         </MudButton>
         <MudButton OnClick="StartUpload"
@@ -130,29 +161,48 @@
     [Parameter] public EventCallback OnUploadSuccess { get; set; }
 
     private IBrowserFile? selectedFile;
+    private string customFileName = ""; // Wird aktuell nicht verwendet, aber für Vollständigkeit behalten
     private string commitMessage = "";
     private bool isUploading = false;
     private string uploadStatus = "";
     private bool hasTriedUpload = false;
+    
+    private double uploadProgress = 0;
 
+    private bool CanUpload => selectedFile != null &&
+                              !isUploading &&
+                              IsValidCommitMessage();
+    
     private bool IsValidCommitMessage()
     {
         if (string.IsNullOrWhiteSpace(commitMessage))
             return false;
-            
+
         var trimmed = commitMessage.Trim();
         return trimmed.Length > 3; // Mindestens 4 Zeichen
+    }
+
+    private void OnCommitMessageInput(ChangeEventArgs e)
+    {
+        commitMessage = e.Value?.ToString() ?? "";
+        if (hasTriedUpload)
+        {
+            hasTriedUpload = false;
+        }
+        StateHasChanged();
     }
 
     private void OnFileSelected(InputFileChangeEventArgs e)
     {
         selectedFile = e.File;
+        customFileName = "";
         StateHasChanged();
     }
 
     private void ClearFile()
     {
         selectedFile = null;
+        customFileName = "";
         StateHasChanged();
     }
 
@@ -161,13 +211,94 @@
         return string.IsNullOrEmpty(CurrentPath) ? "/" : $"/{CurrentPath}";
     }
 
-    private string GetFullTargetPath()
+    private string GetFinalFileName()
     {
         if (selectedFile == null) return "";
-        var fileName = selectedFile.Name;
+        return string.IsNullOrWhiteSpace(customFileName) ? selectedFile.Name : customFileName;
+    }
+
+    private string GetFullTargetPath()
+    {
+        var fileName = GetFinalFileName();
         if (string.IsNullOrEmpty(CurrentPath))
             return fileName;
         return $"{CurrentPath}/{fileName}";
+    }
+    
+    private async Task StartUpload()
+    {
+        hasTriedUpload = true;
+        StateHasChanged();
+
+        if (!CanUpload)
+        {
+             if (!IsValidCommitMessage())
+             {
+                 Snackbar.Add("Eigene Commit-Nachricht ist erforderlich", Severity.Error);
+             }
+             return;
+        }
+
+        isUploading = true;
+        await UpdateProgress(0, "Datei wird vorbereitet...");
+
+        try
+        {
+            var fileName = GetFinalFileName();
+            var fullPath = GetFullTargetPath();
+            var message = commitMessage.Trim();
+
+            await UpdateProgress(20, $"Lese {fileName}...");
+
+            long maxFileSize = 2_000_000_000; // 2GB
+            using var stream = selectedFile!.OpenReadStream(maxAllowedSize: maxFileSize);
+
+            await UpdateProgress(50, "Checke in Repository ein (via Git LFS)...");
+
+            var success = await GiteaService.UploadFileViaLfsAsync(
+                RepositoryOwner,
+                RepositoryName,
+                fullPath,
+                stream,
+                message);
+
+            if (success)
+            {
+                await UpdateProgress(100, "Erfolgreich eingecheckt!");
+                Snackbar.Add($"Datei '{fileName}' erfolgreich eingecheckt!", Severity.Success);
+                await Task.Delay(500);
+
+                if (OnUploadSuccess.HasDelegate)
+                {
+                    await OnUploadSuccess.InvokeAsync();
+                }
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                uploadStatus = "Einchecken fehlgeschlagen! Siehe Server-Logs für Details.";
+                Snackbar.Add("Einchecken fehlgeschlagen.", Severity.Error);
+                isUploading = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            uploadStatus = $"Fehler: {ex.Message}";
+            Snackbar.Add($"Upload-Fehler: {ex.Message}", Severity.Error);
+            isUploading = false;
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+    
+    private async Task UpdateProgress(double progress, string message)
+    {
+        uploadProgress = progress;
+        uploadStatus = message;
+        StateHasChanged();
+        await Task.Delay(150);
     }
 
     private string GetFileIcon(string fileName)
@@ -191,73 +322,6 @@
         return $"{bytes / (1024 * 1024 * 1024):F1} GB";
     }
 
-    private async Task StartUpload()
-    {
-        hasTriedUpload = true;
-        if (!IsValidCommitMessage())
-        {
-            Snackbar.Add("Bitte eine gültige Commit-Nachricht eingeben (mind. 4 Zeichen).", Severity.Error);
-            StateHasChanged();
-            return;
-        }
-        
-        if (selectedFile == null || isUploading) return;
-
-        isUploading = true;
-        uploadStatus = "Datei wird vorbereitet...";
-        StateHasChanged();
-
-        try
-        {
-            var fullPath = GetFullTargetPath();
-            var message = commitMessage.Trim();
-            
-            uploadStatus = $"Lade Datei hoch (kann bei großen Dateien dauern)...";
-            StateHasChanged();
-
-            long maxFileSize = 2_000_000_000; // 2GB Limit
-            
-            using var stream = selectedFile.OpenReadStream(maxAllowedSize: maxFileSize);
-
-            var success = await GiteaService.UploadFileViaLfsAsync(
-                RepositoryOwner,
-                RepositoryName,
-                fullPath,
-                stream,
-                message);
-
-            if (success)
-            {
-                uploadStatus = "Erfolgreich eingecheckt!";
-                Snackbar.Add($"Datei '{selectedFile.Name}' erfolgreich eingecheckt!", Severity.Success);
-                await Task.Delay(1000); 
-
-                if (OnUploadSuccess.HasDelegate)
-                {
-                    await OnUploadSuccess.InvokeAsync();
-                }
-                MudDialog.Close(DialogResult.Ok(true));
-            }
-            else
-            {
-                uploadStatus = "Einchecken fehlgeschlagen!";
-                Snackbar.Add("Einchecken fehlgeschlagen. Siehe Server-Logs für Details.", Severity.Error);
-                isUploading = false;
-                StateHasChanged();
-            }
-        }
-        catch (Exception ex)
-        {
-            uploadStatus = $"Fehler: {ex.Message}";
-            Snackbar.Add($"Upload-Fehler: {ex.Message}", Severity.Error);
-            isUploading = false;
-            StateHasChanged();
-        }
-    }
-
-    private void Cancel()
-    {
-        MudDialog.Cancel();
-    }
+    private void Cancel() => MudDialog.Cancel();
 }
 

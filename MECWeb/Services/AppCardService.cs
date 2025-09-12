@@ -80,7 +80,7 @@ namespace MECWeb.Services
                     Category = "Repository",
                     HeaderDescription = "Git Repository Management",
                     Image = "/assets/homePicture.png",
-                    Description = "Verwaltung von Software-Projekten, Dokumenten und Code-Repositories. Upload, Download, Versionskontrolle und Ordner-Management für alle Projektdateien.",
+                    Description = "Verwaltung von Software-Projekten, Dokumenten und Versionskontrolle .",
                     Href = $"project/{projectId}/repository"
                 },
 

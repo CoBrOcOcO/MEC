@@ -1,4 +1,6 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using MECWeb.DbModels.User;
+using MECWeb.DbModels.Workflow;
+using System.ComponentModel.DataAnnotations;
 
 namespace MECWeb.DbModels.Project
 {
@@ -60,6 +62,12 @@ namespace MECWeb.DbModels.Project
         /// Private/Public Repository Einstellung
         /// </summary>
         public bool GitIsPrivate { get; set; } = false;
+        // ✅ KORRIGIERT: DbWorkflow statt ProjectWorkflow verwenden
+        public ICollection<DbWorkflow> Workflows { get; set; } = new List<DbWorkflow>();
+
+        
+        public ICollection<DbUserProject> UserProjects { get; set; } = new List<DbUserProject>();
+        public ICollection<DbUserProjectFavorite> UserProjectFavorites { get; set; } = new List<DbUserProjectFavorite>();
 
         // Bestehende Properties (falls vorhanden)...
         // Weitere Properties hier hinzufügen je nach deinem bestehenden Model

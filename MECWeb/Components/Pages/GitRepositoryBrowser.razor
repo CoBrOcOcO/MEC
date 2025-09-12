@@ -1,6 +1,10 @@
 ﻿@using MECWeb.DbModels.Project
 @using MECWeb.Models.Gitea
 @using Microsoft.JSInterop
+@using MECWeb.Components.Shared
+@using System.IO
+@using Microsoft.EntityFrameworkCore
+
 @layout ProjectMainLayout
 @page "/project/{ProjectId:guid}/repository"
 @page "/project/{ProjectId:guid}/repository/{*CurrentPath}"
@@ -127,26 +131,6 @@
         gap: 8px;
     }
 
-    .action-button {
-        background: var(--schaeffler-green);
-        color: white;
-        border: none;
-        border-radius: 6px;
-        padding: 6px 12px;
-        font-size: 12px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        display: flex;
-        align-items: center;
-        gap: 4px;
-    }
-
-        .action-button:hover {
-            background: var(--schaeffler-green-light);
-            transform: translateY(-1px);
-        }
-
     .file-item {
         padding: 12px 16px;
         border-radius: 8px;
@@ -217,21 +201,6 @@
         text-transform: uppercase;
     }
 
-    .upload-zone {
-        border: 2px dashed var(--schaeffler-green);
-        border-radius: 12px;
-        padding: 24px;
-        text-align: center;
-        margin-top: 16px;
-        transition: all 0.2s ease;
-        background: rgba(0, 168, 107, 0.02);
-    }
-
-        .upload-zone:hover {
-            background: rgba(0, 168, 107, 0.05);
-            border-color: var(--schaeffler-green-dark);
-        }
-
     .stats-info {
         background: rgba(0, 168, 107, 0.1);
         border: 1px solid rgba(0, 168, 107, 0.2);
@@ -241,6 +210,12 @@
         display: flex;
         align-items: center;
         gap: 12px;
+    }
+
+    .file-action-buttons {
+        display: flex;
+        gap: 8px;
+        align-items: center;
     }
 </style>
 
@@ -256,16 +231,6 @@ else if (project == null)
     <MudAlert Severity="Severity.Error">
         <MudText Typo="Typo.h6">❌ Projekt nicht gefunden</MudText>
     </MudAlert>
-}
-else if (!project.GitEnabled)
-{
-    <div class="content-section">
-        <div class="empty-state">
-            <MudIcon Icon="@Icons.Material.Filled.CloudOff" Style="font-size: 64px; color: var(--text-secondary); margin-bottom: 16px;" />
-            <MudText Typo="Typo.h6">Kein Git-Repository aktiviert</MudText>
-            <MudText Typo="Typo.body2">Für dieses Projekt ist keine Git-Integration aktiviert.</MudText>
-        </div>
-    </div>
 }
 else
 {
@@ -293,7 +258,7 @@ else
                            StartIcon="@Icons.Material.Filled.Upload"
                            Style="background: rgba(255,255,255,0.2)"
                            OnClick="ShowUploadDialog">
-                    📤 Upload
+                    📤 Einchecken
                 </MudButton>
                 <MudButton Variant="Variant.Outlined"
                            StartIcon="@Icons.Material.Filled.CreateNewFolder"
@@ -301,22 +266,6 @@ else
                            OnClick="ShowCreateFolderDialog">
                     📁 Ordner
                 </MudButton>
-                <MudButton Variant="Variant.Outlined"
-                           StartIcon="@Icons.Material.Filled.Add"
-                           Style="border-color: rgba(255,255,255,0.3); color: white"
-                           OnClick="ShowCreateRepositoryDialog">
-                    🏗️ Repository
-                </MudButton>
-                @if (!string.IsNullOrEmpty(project.GitRepositoryUrl))
-                {
-                    <MudButton Variant="Variant.Outlined"
-                               StartIcon="@Icons.Material.Filled.Launch"
-                               Href="@project.GitRepositoryUrl"
-                               Target="_blank"
-                               Style="border-color: rgba(255,255,255,0.3); color: white">
-                        🔗 Git
-                    </MudButton>
-                }
             </MudStack>
         </MudStack>
     </div>
@@ -375,7 +324,7 @@ else
             <div style="margin-left: auto;">
                 @if (repositoryContents != null)
                 {
-                    <span class="item-badge">@repositoryContents.Count Items</span>
+                    <span class="item-badge">@GetFilteredRepositoryContents().Count Items</span>
                 }
             </div>
         </div>
@@ -387,34 +336,31 @@ else
                 <MudText Typo="Typo.body2" Style="margin-top: 12px;">Inhalte werden geladen...</MudText>
             </div>
         }
-        else if (!repositoryContents.Any())
+        else if (!GetFilteredRepositoryContents().Any())
         {
             <div class="empty-state">
                 <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Style="font-size: 64px; margin-bottom: 16px;" />
                 <MudText Typo="Typo.h6">📂 Ordner ist leer</MudText>
                 <MudText Typo="Typo.body2">Laden Sie Ihre erste Datei hoch oder erstellen Sie einen Ordner.</MudText>
-
-                <div class="upload-zone">
-                    <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Style="font-size: 48px; color: var(--schaeffler-green); margin-bottom: 12px;" />
-                    <MudText Typo="Typo.h6" Style="color: var(--schaeffler-green); margin-bottom: 8px;">Dateien hier ablegen</MudText>
-                    <MudButton Variant="Variant.Filled"
-                               Color="Color.Primary"
-                               StartIcon="@Icons.Material.Filled.Upload"
-                               Style="background: var(--schaeffler-green);"
-                               OnClick="ShowUploadDialog">
-                        📤 Datei hochladen
-                    </MudButton>
-                </div>
+                
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Upload"
+                           Style="background: var(--schaeffler-green); margin-top: 16px;"
+                           OnClick="ShowUploadDialog">
+                    📤 Datei Einchecken
+                </MudButton>
             </div>
         }
         else
         {
             <!-- Statistics Info -->
-            @if (repositoryContents.Any())
+            @if (GetFilteredRepositoryContents().Any())
             {
-                var folderCount = repositoryContents.Count(x => x.IsDirectory);
-                var fileCount = repositoryContents.Count(x => x.IsFile);
-                var totalSize = repositoryContents.Where(x => x.IsFile).Sum(x => x.Size);
+                var filteredContents = GetFilteredRepositoryContents();
+                var folderCount = filteredContents.Count(x => x.IsDirectory);
+                var fileCount = filteredContents.Count(x => x.IsFile);
+                var totalSize = filteredContents.Where(x => x.IsFile).Sum(x => x.Size);
 
                 <div class="stats-info">
                     <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" />
@@ -426,7 +372,7 @@ else
 
             <!-- File/Folder List -->
             <MudStack Spacing="2">
-                @foreach (var item in repositoryContents.OrderBy(x => x.Type != "dir").ThenBy(x => x.Name))
+                @foreach (var item in GetFilteredRepositoryContents())
                 {
                     <div class="file-item" @onclick="@(() => HandleItemClick(item))">
                         <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
@@ -457,53 +403,51 @@ else
                                     else
                                     {
                                         <MudText Typo="Typo.caption" Class="file-size">
-                                            🗂️ Ordner
+                                            🗂️ Ordner - @GetFolderStatusText(item.Name)
                                         </MudText>
                                     }
                                 </MudStack>
                             </MudStack>
 
                             <!-- Action Buttons -->
-                            <MudStack Row="true" Spacing="1">
+                            <div class="file-action-buttons">
                                 @if (item.IsDirectory)
                                 {
-                                    <MudIconButton Icon="@Icons.Material.Filled.ChevronRight"
-                                                   Size="Size.Small"
-                                                   Style="color: var(--schaeffler-green);"
-                                                   Title="Ordner öffnen" />
+                                    <MudButton Variant="Variant.Filled"
+                                               Color="Color.Primary"
+                                               Size="Size.Small"
+                                               StartIcon="@Icons.Material.Filled.ChevronRight"
+                                               Style="background: var(--schaeffler-green);">
+                                        Öffnen
+                                    </MudButton>
                                 }
                                 else
                                 {
-                                    <MudIconButton Icon="@Icons.Material.Filled.Download"
+                                    <span @onclick:stopPropagation="true">
+                                        <MudButton Variant="Variant.Filled"
+                                                   Color="Color.Primary"
                                                    Size="Size.Small"
-                                                   Style="color: var(--schaeffler-green);"
-                                                   OnClick="@((e) => DownloadFile(item, e))"
-                                                   Title="Datei herunterladen" />
-                                    <MudIconButton Icon="@Icons.Material.Filled.History"
-                                                   Size="Size.Small"
+                                                   StartIcon="@Icons.Material.Filled.Download"
+                                                   Style="background: var(--schaeffler-green);"
+                                                   OnClick="@((e) => DownloadFile(item, e))">
+                                            Auschecken
+                                        </MudButton>
+                                    </span>
+                                    <span @onclick:stopPropagation="true">
+                                        <MudButton Variant="Variant.Outlined"
                                                    Color="Color.Secondary"
-                                                   OnClick="@((e) => ShowFileVersions(item, e))"
-                                                   Title="Versionshistorie" />
+                                                   Size="Size.Small"
+                                                   StartIcon="@Icons.Material.Filled.History"
+                                                   OnClick="@((e) => ShowFileVersions(item, e))">
+                                            Historie
+                                        </MudButton>
+                                    </span>
                                 }
-                            </MudStack>
+                            </div>
                         </MudStack>
                     </div>
                 }
             </MudStack>
-
-            <!-- Upload Zone -->
-            <div class="upload-zone">
-                <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Style="font-size: 40px; color: var(--schaeffler-green); margin-bottom: 8px;" />
-                <MudText Typo="Typo.body1" Style="color: var(--schaeffler-green); margin-bottom: 8px;">
-                    Dateien in "@GetCurrentFolderName()" hochladen
-                </MudText>
-                <MudButton Variant="Variant.Filled"
-                           StartIcon="@Icons.Material.Filled.Upload"
-                           Style="background: var(--schaeffler-green); color: white;"
-                           OnClick="ShowUploadDialog">
-                    📤 Datei auswählen
-                </MudButton>
-            </div>
         }
     </div>
 }
@@ -518,18 +462,52 @@ else
     private string repositoryName = "";
     private string repositoryOwner = "barwiaex"; // Default owner
 
+    private List<BreadcrumbItem> _breadcrumbs = new();
+    private Dictionary<string, int> folderFileCounts = new();
+
+
     protected override async Task OnInitializedAsync()
     {
         await LoadProject();
         await LoadRepositoryContents();
+        BuildBreadcrumbs(); // Build breadcrumbs after data is loaded
     }
 
     protected override async Task OnParametersSetAsync()
     {
-        if (!isLoading) // Avoid double loading on first load
+        // Re-load data if the path changes
+        if (!isLoading)
         {
             await LoadRepositoryContents();
+            BuildBreadcrumbs();
         }
+    }
+
+    private List<RepositoryContent> GetFilteredRepositoryContents()
+    {
+        if (repositoryContents == null) return new List<RepositoryContent>();
+        
+        return repositoryContents
+            .Where(item => !ShouldHideFile(item.Name))
+            .OrderBy(x => !x.IsDirectory) // Directories first
+            .ThenBy(x => x.Name)
+            .ToList();
+    }
+
+    private bool ShouldHideFile(string fileName)
+    {
+        // List of files to hide from the user
+        string[] hiddenFiles = { 
+            ".gitkeep", 
+            ".DS_Store",      // macOS
+            "Thumbs.db",      // Windows
+            ".gitignore",     // Git ignore file
+            ".gitattributes", // Git attributes file
+            "README.md"       // README files in subfolders
+        };
+        
+        return hiddenFiles.Any(hidden => 
+            fileName.Equals(hidden, StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task LoadProject()
@@ -537,18 +515,25 @@ else
         project = await DbContext.Project.FirstOrDefaultAsync(p => p.Id == ProjectId);
         if (project != null)
         {
-            // Repository-Name aus Projekt ableiten (S-12345 -> repository name)
             repositoryName = project.GitRepositoryName ?? project.ProjectNumber;
         }
     }
 
     private async Task LoadRepositoryContents()
     {
-        if (project?.GitEnabled != true || string.IsNullOrEmpty(repositoryName))
+        if (project?.GitEnabled != true || string.IsNullOrEmpty(project.GitRepositoryName) || string.IsNullOrEmpty(project.GitOwner))
         {
+            repositoryContents = new List<RepositoryContent>();
             isLoading = false;
+            if(project != null && !project.GitEnabled)
+            {
+                Snackbar.Add("Git-Repository für dieses Projekt ist nicht aktiviert.", Severity.Info);
+            }
             return;
         }
+        
+        repositoryOwner = project.GitOwner;
+        repositoryName = project.GitRepositoryName;
 
         try
         {
@@ -556,6 +541,9 @@ else
                 repositoryOwner,
                 repositoryName,
                 CurrentPath ?? "");
+
+            // Load file counts for each subfolder
+            await LoadFolderFileCounts();
         }
         catch (Exception ex)
         {
@@ -569,7 +557,66 @@ else
         }
     }
 
-    private async Task NavigateToPath(string path)
+    private async Task LoadFolderFileCounts()
+    {
+        if (repositoryContents == null) return;
+
+        folderFileCounts.Clear();
+        
+        var folders = repositoryContents.Where(x => x.IsDirectory).ToList();
+        
+        foreach (var folder in folders)
+        {
+            try
+            {
+                var folderPath = string.IsNullOrEmpty(CurrentPath) ? folder.Name : $"{CurrentPath}/{folder.Name}";
+                var folderContents = await GiteaService.GetRepositoryContentsAsync(
+                    repositoryOwner,
+                    repositoryName,
+                    folderPath);
+
+                if (folderContents != null)
+                {
+                    // Count only visible files
+                    var fileCount = folderContents.Count(x => x.IsFile && !ShouldHideFile(x.Name));
+                    folderFileCounts[folder.Name] = fileCount;
+                }
+            }
+            catch
+            {
+                // Set to 0 on error
+                folderFileCounts[folder.Name] = 0;
+            }
+        }
+    }
+
+    private string GetFolderStatusText(string folderName)
+    {
+        var count = folderFileCounts.TryGetValue(folderName, out var fileCount) ? fileCount : 0;
+        return count switch
+        {
+            0 => "Leer",
+            1 => "1 Datei",
+            _ => $"{count} Dateien"
+        };
+    }
+
+    private void BuildBreadcrumbs()
+    {
+        _breadcrumbs = new List<BreadcrumbItem> { new("Root", $"/project/{ProjectId}/repository") };
+        if (!string.IsNullOrEmpty(CurrentPath))
+        {
+            var pathParts = CurrentPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var cumulativePath = "";
+            foreach (var part in pathParts)
+            {
+                cumulativePath += part + "/";
+                _breadcrumbs.Add(new BreadcrumbItem(part, $"/project/{ProjectId}/repository/{cumulativePath.TrimEnd('/')}"));
+            }
+        }
+    }
+
+    private void NavigateToPath(string path)
     {
         var url = string.IsNullOrEmpty(path)
             ? $"/project/{ProjectId}/repository"
@@ -578,12 +625,12 @@ else
         Navigation.NavigateTo(url);
     }
 
-    private async Task NavigateBack()
+    private void NavigateBack()
     {
         if (!string.IsNullOrEmpty(CurrentPath))
         {
             var parentPath = GetParentPath(CurrentPath);
-            await NavigateToPath(parentPath);
+            NavigateToPath(parentPath);
         }
     }
 
@@ -641,66 +688,85 @@ else
         return $"{bytes / (1024 * 1024 * 1024):F1} GB";
     }
 
-    private async Task HandleItemClick(RepositoryContent item)
+    private void HandleItemClick(RepositoryContent item)
     {
         if (item.IsDirectory)
         {
-            await NavigateToItem(item);
+            NavigateToItem(item);
         }
     }
 
-    private async Task NavigateToItem(RepositoryContent item)
+    private void NavigateToItem(RepositoryContent item)
     {
         if (item.IsDirectory)
         {
             var newPath = string.IsNullOrEmpty(CurrentPath) ? item.Name : $"{CurrentPath}/{item.Name}";
-            await NavigateToPath(newPath);
+            NavigateToPath(newPath);
         }
     }
 
     private async Task DownloadFile(RepositoryContent file, MouseEventArgs e)
     {
-        @onclick="@(() => MethodName())";// Prevent row click
-
         if (!string.IsNullOrEmpty(file.Download_Url))
         {
-            // Direct download from Gitea
             await JSRuntime.InvokeVoidAsync("open", file.Download_Url, "_blank");
-            Snackbar.Add($"📥 Download gestartet: {file.Name}", Severity.Success);
+            Snackbar.Add($"📥 Auschecken gestartet: {file.Name}", Severity.Success);
         }
         else
         {
-            Snackbar.Add("❌ Download-URL nicht verfügbar", Severity.Error);
+            Snackbar.Add("❌ Auschecken-URL nicht verfügbar", Severity.Error);
         }
     }
 
     private async Task ShowFileVersions(RepositoryContent file, MouseEventArgs e)
     {
-        e.StopPropagation(); // Prevent row click
+        var parameters = new DialogParameters
+            {
+                { "RepositoryOwner", repositoryOwner },
+                { "RepositoryName", repositoryName },
+                { "FilePath", file.Path }
+            };
 
-        // Navigate to file detail page
-        var fileUrl = string.IsNullOrEmpty(CurrentPath)
-            ? $"/project/{ProjectId}/repository/file/{Uri.EscapeDataString(file.Path)}"
-            : $"/project/{ProjectId}/repository/file/{Uri.EscapeDataString(file.Path)}";
+        var options = new DialogOptions
+            {
+                CloseButton = true,
+                MaxWidth = MaxWidth.Large,
+                FullWidth = true
+            };
 
-        Navigation.NavigateTo(fileUrl);
+        DialogService.Show<FileHistoryDialog>($"Versionsverlauf: {file.Name}", parameters, options);
     }
-
+    
     private async Task ShowUploadDialog()
     {
-        Snackbar.Add("🚧 Upload-Dialog wird implementiert...", Severity.Info);
-        // TODO: Implement upload dialog
+        var parameters = new DialogParameters
+        {
+            ["RepositoryOwner"] = repositoryOwner,
+            ["RepositoryName"] = repositoryName,
+            ["CurrentPath"] = CurrentPath ?? "",
+            ["OnUploadSuccess"] = EventCallback.Factory.Create(this, OnUploadComplete)
+        };
+
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true,
+            CloseOnEscapeKey = true
+        };
+
+        await DialogService.ShowAsync<UploadFileDialog>("📥 Datei einchecken", parameters, options);
+    }
+    
+    private async Task OnUploadComplete()
+    {
+        await LoadRepositoryContents();
+        Snackbar.Add("📂 Repository wurde aktualisiert", Severity.Success);
     }
 
-    private async Task ShowCreateFolderDialog()
+    private void ShowCreateFolderDialog()
     {
         Snackbar.Add("🚧 Ordner-Erstellung wird implementiert...", Severity.Info);
-        // TODO: Implement folder creation dialog
-    }
-
-    private async Task ShowCreateRepositoryDialog()
-    {
-        Snackbar.Add("🚧 Repository-Erstellung wird implementiert...", Severity.Info);
-        // TODO: Implement repository creation dialog
     }
 }
+

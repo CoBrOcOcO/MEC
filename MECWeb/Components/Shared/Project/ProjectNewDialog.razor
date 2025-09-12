@@ -1,7 +1,9 @@
 ﻿@using MECWeb.DbModels.Project
 @using Microsoft.EntityFrameworkCore
+@using MECWeb.Services
 @inject ApplicationDbContext DbContext
 @inject ISnackbar Snackbar
+@inject GiteaService GiteaService
 
 <EditForm Model="@project" OnValidSubmit="OnValidSubmit">
     <DataAnnotationsValidator />
@@ -45,9 +47,17 @@
             <MudButton OnClick="Cancel">Abbrechen</MudButton>
             <MudButton ButtonType="ButtonType.Submit"
                        Color="Color.Primary"
-                       Disabled="@(isSubmitting)"
-                       Loading="@isSubmitting">
-                Erstellen
+                       Disabled="@isSubmitting"
+                       Variant="Variant.Filled">
+                 @if (isSubmitting)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Wird erstellt...</span>
+                }
+                else
+                {
+                    <span>Erstellen</span>
+                }
             </MudButton>
         </DialogActions>
     </MudDialog>
@@ -56,20 +66,20 @@
 @code {
     [CascadingParameter]
     private IMudDialogInstance MudDialog { get; set; } = null!;
+    
+    // Das [Inject] Attribut hier war redundant und wurde entfernt.
 
     private DbProject project = new();
     private string numericPartOfProjectNumber = string.Empty;
     private string errorMessage = string.Empty;
     private bool isSubmitting = false;
 
-    // Property with setter to automatically update project.ProjectNumber
     private string NumericPartOfProjectNumber
     {
         get => numericPartOfProjectNumber;
         set
         {
             numericPartOfProjectNumber = value;
-            // Update the project number immediately for validation
             if (string.IsNullOrWhiteSpace(value))
             {
                 project.ProjectNumber = string.Empty;
@@ -85,28 +95,21 @@
     private async Task<IEnumerable<string>> ValidateProjectNumberAsync(string number)
     {
         var errors = new List<string>();
-
-        // Required validation
         if (string.IsNullOrWhiteSpace(number))
         {
-            return errors; // Let Required attribute handle empty validation
+            return errors; 
         }
-
-        // Numeric validation
         if (!int.TryParse(number, out _))
         {
             errors.Add("Projektnummer darf nur Zahlen enthalten.");
             return errors;
         }
-
-        // Uniqueness validation
         var fullNumber = $"S-{number}";
         bool exists = await DbContext.Project.AnyAsync(p => p.ProjectNumber == fullNumber);
         if (exists)
         {
             errors.Add($"Projektnummer {fullNumber} existiert bereits.");
         }
-
         return errors;
     }
 
@@ -114,46 +117,69 @@
     {
         isSubmitting = true;
         errorMessage = string.Empty;
+        StateHasChanged();
 
         try
         {
-            // Project number is already set via the property setter
+            // Schritt 1: Projekt in der lokalen Datenbank erstellen
             project.ProjectNumber = $"S-{numericPartOfProjectNumber}";
-
-            // Set creation and modification dates
             project.CreationDate = DateTime.UtcNow;
             project.LastChange = DateTime.UtcNow;
 
-            // Add project
             DbContext.Project.Add(project);
             await DbContext.SaveChangesAsync();
 
-            Snackbar.Add($"Projekt {project.Name} wurde erfolgreich erstellt!", Severity.Success);
-            MudDialog.Close(DialogResult.Ok(project));
-        }
-        catch (DbUpdateException ex)
-        {
-            // Specific error handling for database update problems
-            if (ex.InnerException?.Message.Contains("IX_Project_ProjectNumber") == true)
+            // Schritt 2: Gitea Repository erstellen
+            try
             {
-                errorMessage = $"Projektnummer {project.ProjectNumber} existiert bereits in der Datenbank.";
+                var repoName = project.ProjectNumber;
+                var repoDescription = $"Archiv für Projekt: {project.Name}";
+                var owner = "barwiaex"; 
+
+                var newRepo = await GiteaService.CreateRepositoryAsync(repoName, repoDescription);
+
+                if (newRepo != null)
+                {
+                    // Schritt 3: Projekt mit Gitea-Infos aktualisieren
+                    project.GitEnabled = true;
+                    project.GitRepositoryName = newRepo.Name;
+                    project.GitOwner = owner;
+                    project.GitRepositoryUrl = newRepo.Html_Url;
+                    
+                    await DbContext.SaveChangesAsync();
+
+                    // Schritt 4: Standard-Ordnerstruktur erstellen
+                    var foldersToCreate = new List<string> { "Camera", "Software", "Hardware", "Abnahmen" };
+                    foreach (var folder in foldersToCreate)
+                    {
+                        var placeholderPath = $"{folder}/.gitkeep";
+                        await GiteaService.UploadFileAsync(owner, repoName, placeholderPath, new byte[0], $"Initial commit: Create {folder} folder");
+                    }
+
+                    Snackbar.Add($"Projekt und Git-Repo '{newRepo.Name}' mit Ordnerstruktur erfolgreich erstellt!", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add($"Projekt erstellt, aber Gitea-Repo konnte nicht angelegt werden!", Severity.Warning);
+                }
             }
-            else
+            catch (Exception giteaEx)
             {
-                errorMessage = $"Datenbankfehler: {ex.Message}";
+                Snackbar.Add($"Projekt wurde erstellt, aber die Gitea-Anbindung schlug fehl: {giteaEx.Message}", Severity.Warning);
+                Console.WriteLine($"Gitea Exception: {giteaEx}");
             }
 
-            Console.WriteLine($"DbUpdateException beim Erstellen des Projekts: {ex}");
+            MudDialog.Close(DialogResult.Ok(project));
         }
         catch (Exception ex)
         {
-            // General error handling
             errorMessage = $"Fehler beim Erstellen des Projekts: {ex.Message}";
             Console.WriteLine($"Exception beim Erstellen des Projekts: {ex}");
         }
         finally
         {
             isSubmitting = false;
+            StateHasChanged();
         }
     }
 
@@ -161,26 +187,16 @@
 
     private async Task OnValidSubmit(EditContext context)
     {
-        // Additional validation for numeric part
-        if (string.IsNullOrWhiteSpace(numericPartOfProjectNumber))
+        if (string.IsNullOrWhiteSpace(numericPartOfProjectNumber) || string.IsNullOrWhiteSpace(project.Name))
         {
-            errorMessage = "Projektnummer ist erforderlich.";
+            errorMessage = "Projektnummer und Name sind erforderlich.";
             return;
         }
-
-        if (string.IsNullOrWhiteSpace(project.Name))
-        {
-            errorMessage = "Name ist erforderlich.";
-            return;
-        }
-
         if (!int.TryParse(numericPartOfProjectNumber, out _))
         {
             errorMessage = "Projektnummer darf nur Zahlen enthalten.";
             return;
         }
-
-        // Check for duplicate project number
         var fullNumber = $"S-{numericPartOfProjectNumber}";
         bool exists = await DbContext.Project.AnyAsync(p => p.ProjectNumber == fullNumber);
         if (exists)
@@ -188,7 +204,7 @@
             errorMessage = $"Projektnummer {fullNumber} existiert bereits.";
             return;
         }
-
         await Submit();
     }
 }
+

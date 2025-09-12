@@ -190,7 +190,7 @@
 </MudContainer>
 
 @code {
-    private List<Repository>? recentRepositories;
+    private List<GiteaRepository> recentRepositories;
     private int repositoryCount = 0;
     private int todayUploads = 12; // Placeholder
     private int totalCommits = 0;
@@ -247,7 +247,7 @@
         Snackbar.Add("Dashboard-Daten aktualisiert", Severity.Info);
     }
 
-    private void NavigateToRepository(Repository repo)
+    private void NavigateToRepository(GiteaRepository repo)
     {
         if (repo?.Owner?.Login != null && !string.IsNullOrEmpty(repo.Name))
         {

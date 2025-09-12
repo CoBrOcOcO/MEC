@@ -19,8 +19,21 @@ using System.IdentityModel.Tokens.Jwt;
 
 var builder = WebApplication.CreateBuilder(args);
 
+
+// =====================================================================
+// HIER DEN CODE ZUM ERHÖHEN DES UPLOAD-LIMITS EINFÜGEN
+// =====================================================================
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    // Erhöhe das Limit für den Request-Body auf ca. 2 GB
+    serverOptions.Limits.MaxRequestBodySize = 2_000_000_000;
+});
+// =====================================================================
+
 // Add MudBlazor services
 builder.Services.AddMudServices();
+
+// ... der Rest der Datei geht hier weiter ...
 
 // This is required to be instantiated before the OpenIdConnectOptions starts getting configured.
 JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
@@ -78,7 +91,7 @@ builder.Services.AddScoped<AppCardService>();
 builder.Services.AddScoped<PurchaseCardService>();
 
 // ✅ KORRIGIERT: EnhancedProjectService nur hinzufügen wenn vorhanden
-// builder.Services.AddScoped<EnhancedProjectService>(); // Auskommentiert da Service möglicherweise nicht existiert
+builder.Services.AddScoped<EnhancedProjectService>();
 
 builder.Services.AddSingleton(new ProjectFileService(
     builder.Configuration.GetValue<string>("ProjectBaseFolder") ??
@@ -127,6 +140,7 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     try
     {
+        
         dbContext.Database.EnsureCreated();
         // dbContext.Database.Migrate(); // Uncomment if using migrations
     }

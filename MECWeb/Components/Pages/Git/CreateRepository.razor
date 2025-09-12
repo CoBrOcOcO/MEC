@@ -36,9 +36,15 @@
                     </MudText>
                 </MudStack>
                 <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Beschreibung</MudText>
+                    <MudText Typo="Typo.body2" Color="@(IsValidDescription() ? Color.Success : Color.Default)">
+                        @(IsValidDescription() ? $"{description.Length} Zeichen" : "Nicht ausgefüllt")
+                    </MudText>
+                </MudStack>
+                <MudStack AlignItems="AlignItems.Center" Spacing="1">
                     <MudText Typo="Typo.caption" Color="Color.Secondary">Validierung</MudText>
-                    <MudChip T="string" Size="Size.Small" Color="@(string.IsNullOrEmpty(repositoryName) ? Color.Default : Color.Success)" Icon="@Icons.Material.Filled.CheckCircle">
-                        @(string.IsNullOrEmpty(repositoryName) ? "Wartet" : "Gültig")
+                    <MudChip T="string" Size="Size.Small" Color="@(canCreate ? Color.Success : Color.Default)" Icon="@(canCreate ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Cancel)">
+                        @(canCreate ? "Gültig" : "Fehlend")
                     </MudChip>
                 </MudStack>
                 <MudStack AlignItems="AlignItems.Center" Spacing="1">
@@ -93,12 +99,27 @@
             <MudStack Spacing="2">
                 <MudText Typo="Typo.subtitle1">📝 Beschreibung *</MudText>
                 <MudTextField @bind-Value="description"
+                              @oninput="OnDescriptionInput"
                               Label="Projekt-Beschreibung"
                               Lines="3"
                               Placeholder="Beschreibung des Projekts und seines Zwecks..."
                               HelperText="Beschreibung des Repository-Zwecks"
                               Adornment="Adornment.Start"
-                              AdornmentIcon="@Icons.Material.Filled.Description" />
+                              AdornmentIcon="@Icons.Material.Filled.Description"
+                              Error="@(hasTriedCreate && !IsValidDescription())"
+                              ErrorText="Bitte geben Sie eine eigene Beschreibung ein" />
+
+                @if (hasTriedCreate && !IsValidDescription())
+                {
+                    <MudAlert Severity="Severity.Error" Dense="true">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudIcon Icon="@Icons.Material.Filled.Error" />
+                            <MudText Typo="Typo.body2">
+                                <strong>Beschreibung fehlt:</strong> Bitte geben Sie eine eigene Beschreibung ein (nicht den Placeholder-Text)
+                            </MudText>
+                        </MudStack>
+                    </MudAlert>
+                }
             </MudStack>
 
             @* Repository Settings *@
@@ -221,11 +242,12 @@
     // Status-Properties
     private bool isCreating = false;
     private bool isTestingConnection = false;
+    private bool hasTriedCreate = false;
     private List<LogMessage> debugLogs = new();
 
-    // Vereinfachte Validierung
+    // Validierung - echte Eingabe erforderlich
     private bool canCreate => !string.IsNullOrWhiteSpace(repositoryName) &&
-                             !string.IsNullOrWhiteSpace(description);
+                             IsValidDescription();
 
     protected override void OnInitialized()
     {
@@ -237,6 +259,24 @@
     {
         repositoryName = e.Value?.ToString() ?? "";
         Log($"Repository-Name eingegeben: {repositoryName}");
+        
+        // Reset validation state wenn Benutzer tippt
+        if (hasTriedCreate)
+        {
+            hasTriedCreate = false;
+        }
+    }
+
+    private void OnDescriptionInput(ChangeEventArgs e)
+    {
+        description = e.Value?.ToString() ?? "";
+        Log($"Beschreibung eingegeben: {(string.IsNullOrWhiteSpace(description) ? "leer" : $"{description.Length} Zeichen")}");
+        
+        // Reset validation state wenn Benutzer tippt
+        if (hasTriedCreate)
+        {
+            hasTriedCreate = false;
+        }
     }
 
     private string GetFinalRepositoryName()
@@ -255,6 +295,18 @@
         return $"S-{cleanName}";
     }
 
+    private bool IsValidDescription()
+    {
+        if (string.IsNullOrWhiteSpace(description))
+            return false;
+            
+        var trimmedDesc = description.Trim();
+        
+        // Prüfe gegen den Placeholder-Text und Mindestlänge
+        return trimmedDesc != "Beschreibung des Projekts und seines Zwecks..." &&
+               trimmedDesc.Length > 3; // Mindestens 4 Zeichen für eine echte Beschreibung
+    }
+
     private async Task TestConnectionAsync()
     {
         Log("=== VERBINDUNGSTEST GESTARTET ===");
@@ -262,7 +314,7 @@
 
         try
         {
-            var repositories = await GiteaService.GetUserRepositoriesAsync();
+            List<GiteaRepository>? repositories = await GiteaService.GetUserRepositoriesAsync();
 
             if (repositories != null)
             {
@@ -295,7 +347,32 @@
 
     private async Task CreateRepositoryAsync()
     {
-        if (!canCreate) return;
+        Log($"=== CREATE REPOSITORY BUTTON GEKLICKT ===");
+        Log($"Repository Name: '{repositoryName}'");
+        Log($"Description: '{description}'");
+        Log($"Can Create: {canCreate}");
+        
+        // Validierung anzeigen, auch wenn Button eigentlich disabled sein sollte
+        hasTriedCreate = true;
+        StateHasChanged();
+
+        if (!canCreate)
+        {
+            Log("❌ Validierung fehlgeschlagen - Pflichtfelder nicht ausgefüllt");
+            
+            if (string.IsNullOrWhiteSpace(repositoryName))
+            {
+                Log("❌ Repository-Name fehlt");
+                Snackbar.Add("❌ Repository-Name ist erforderlich", Severity.Error);
+            }
+            if (!IsValidDescription())
+            {
+                Log("❌ Beschreibung ungültig");
+                Snackbar.Add("❌ Eigene Beschreibung ist erforderlich", Severity.Error);
+            }
+            
+            return;
+        }
 
         Log("=== REPOSITORY-ERSTELLUNG GESTARTET ===");
         isCreating = true;
