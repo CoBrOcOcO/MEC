@@ -65,6 +65,11 @@
             </MudPaper>
         }
 
+        <!-- PROJECT STATUS OVERVIEW - Wiederverwendbare Komponente -->
+        <ProjectStatusOverview ProjectId="@ProjectId"
+                               IsLoading="@loading"
+                               @ref="statusOverview" />
+
         <!-- Loading -->
         @if (loading)
         {
@@ -211,7 +216,7 @@
                 }
             }
 
-            <!-- BV Section Header -->
+            <!-- BV Section Header und Forms - Fortsetzung... -->
             @if (bvWorkflows.Any())
             {
                 <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Class="mt-6">
@@ -400,18 +405,25 @@
             </MudPaper>
         }
 
-        <!-- Back Button -->
+        <!-- Back -Button -->
         <MudButton Variant="Variant.Text"
                    Size="Size.Small"
                    Color="Color.Primary"
                    StartIcon="@Icons.Material.Filled.ArrowBack"
                    FullWidth="true"
-                   OnClick="GoBack">Zurück zur Bestellübersicht</MudButton>
+                   OnClick="NavigateBack"
+                   Class="px-3 py-1">
+            Zurück zur Übersicht
+        </MudButton>
     </MudStack>
 </MudContainer>
 
 @code {
     [Parameter] public Guid ProjectId { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string? ReturnPath { get; set; }
 
     [Parameter]
     [SupplyParameterFromQuery(Name = "readOnly")]
@@ -434,6 +446,9 @@
     private bool loading = true;
     private bool isForwarding = false;
     private bool isReleasingForCorrection = false;
+
+    // Reference to the status overview component for refreshing
+    private ProjectStatusOverview? statusOverview;
 
     // Comment fields
     private Dictionary<Guid, string> workflowComments = new();
@@ -497,6 +512,12 @@
 
             // Load detailed hardware/software data
             await LoadDetailedData();
+
+            // Refresh the status overview component
+            if (statusOverview != null)
+            {
+                await statusOverview.RefreshAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -928,11 +949,23 @@
     }
 
     /// <summary>
-    /// Navigate back to purchase orders
+    /// Navigiert zurück zur vorherigen Seite
     /// </summary>
-    private void GoBack()
+    private void NavigateBack()
     {
-        Navigation.NavigateTo("/purchase/orders");
+        if (ReturnPath == "overview")
+        {
+            Navigation.NavigateTo("/purchase/orders");
+        }
+        else if (ReturnPath == "project")
+        {
+            Navigation.NavigateTo($"/project/{ProjectId}");
+        }
+        else
+        {
+            // Wenn kein ReturnPath gesetzt ist, zur Projektübersicht navigieren
+            Navigation.NavigateTo($"/project/{ProjectId}");
+        }
     }
 
     // Comment handling methods

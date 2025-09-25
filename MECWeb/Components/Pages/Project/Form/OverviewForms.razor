@@ -15,7 +15,7 @@
     <MudStack Spacing="1">
 
         <!--Header -->
-        <MudStack  Class="mb-1">
+        <MudStack Class="mb-1">
             <MudText Typo="Typo.h4" Align="Align.Center">
                 BDR & BV Rechner Formulare
             </MudText>
@@ -28,93 +28,10 @@
             }
         </MudStack>
 
-        <!-- PROJECT STATUS -->
-        @if (workflows.Any())
-        {
-            <MudPaper Class="pa-4 mb-4" Elevation="1" Style="background-color: var(--mud-palette-background-grey);">
-                <MudStack Spacing="3">
-                    <MudText Typo="Typo.h6" Color="Color.Primary">
-                        <MudIcon Icon="@Icons.Material.Filled.Dashboard" Class="mr-2" />
-                        Projekt-Status Übersicht
-                    </MudText>
-
-                    <!-- Status Progress Bar -->
-                    <MudStack Row Spacing="4" AlignItems="AlignItems.Center" Justify="Justify.Center">
-                        <!-- Hardware Status -->
-                        <MudStack AlignItems="AlignItems.Center" Spacing="1">
-                            <MudChip T="string"
-                                     Size="Size.Medium"
-                                     Color="@GetHardwareStatusColor()"
-                                     Variant="Variant.Filled"
-                                     Icon="@Icons.Material.Filled.Computer"
-                                     Class="px-3 font-weight-bold text-caption"
-                                     Style="min-width: 80px;">
-                                Hardware
-                            </MudChip>
-                        </MudStack>
-
-                        <!-- Arrow -->
-                        <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Color="Color.Secondary" />
-
-                        <!-- Software Status -->
-                        <MudStack AlignItems="AlignItems.Center" Spacing="1">
-                            <MudChip T="string"
-                                     Size="Size.Medium"
-                                     Color="@GetSoftwareStatusColor()"
-                                     Variant="Variant.Filled"
-                                     Icon="@Icons.Material.Filled.Build"
-                                     Class="px-3 font-weight-bold text-caption"
-                                     Style="min-width: 80px;">
-                                Software
-                            </MudChip>
-                        </MudStack>
-
-                        <!-- Arrow -->
-                        <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Color="Color.Secondary" />
-
-                        <!-- Purchase Status -->
-                        <MudStack AlignItems="AlignItems.Center" Spacing="1">
-                            <MudChip T="string"
-                                     Size="Size.Medium"
-                                     Color="@GetPurchaseStatusColor()"
-                                     Variant="Variant.Filled"
-                                     Icon="@Icons.Material.Filled.ShoppingCart"
-                                     Class="px-3 font-weight-bold text-caption"
-                                     Style="min-width: 80px;">
-                                Einkauf
-                            </MudChip>
-                        </MudStack>
-
-                        <!-- Arrow -->
-                        <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Color="Color.Secondary" />
-
-                        <!-- Installation Status -->
-                        <MudStack AlignItems="AlignItems.Center" Spacing="1">
-                            <MudChip T="string"
-                                     Size="Size.Medium"
-                                     Color="@GetInstallationStatusColor()"
-                                     Variant="Variant.Filled"
-                                     Icon="@Icons.Material.Filled.Construction"
-                                     Class="px-3 font-weight-bold text-caption"
-                                     Style="min-width: 80px;">
-                                Installation
-                            </MudChip>
-                        </MudStack>
-                    </MudStack>
-
-                    <!-- Overall Progress Information -->
-                    <MudDivider />
-                    <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-                        <MudText Typo="Typo.body2" Color="Color.Secondary">
-                            Gesamt: @workflows.Count Formulare (@workflows.Count(w => w.WorkflowType == WorkflowType.BDR) BDR, @workflows.Count(w => w.WorkflowType == WorkflowType.BV) BV)
-                        </MudText>
-                        <MudText Typo="Typo.body2" Color="Color.Success">
-                            @GetCompletionPercentage()% abgeschlossen
-                        </MudText>
-                    </MudStack>
-                </MudStack>
-            </MudPaper>
-        }
+        <!-- PROJECT STATUS OVERVIEW - Now using the reusable component -->
+        <ProjectStatusOverview ProjectId="@ProjectId"
+                               IsLoading="@loading"
+                               @ref="statusOverview" />
 
         <!-- Create-Buttons  -->
         <MudStack Row Justify="Justify.FlexEnd" AlignItems="AlignItems.Center" Class="mt-4 mb-4">
@@ -309,7 +226,7 @@
                Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.ArrowBack"
                FullWidth="true"
-               Href= "@($"/project/{ProjectId}")"
+               Href="@($"/project/{ProjectId}")"
                Class="px-3 py-1">
         Zurück zur Projektübersicht
     </MudButton>
@@ -322,6 +239,9 @@
     private DbProject? currentProject;
     private bool loading = false;
     private bool isForwarding = false;
+
+    // Reference to the status overview component for refreshing
+    private ProjectStatusOverview? statusOverview;
 
     // Hardware-Typ Cache for better Performance
     private Dictionary<Guid, string> hardwareTypeCache = new();
@@ -366,6 +286,12 @@
 
             // Hardware-Typen Loading and caching
             await LoadHardwareTypes();
+
+            // Refresh the status overview component
+            if (statusOverview != null)
+            {
+                await statusOverview.RefreshAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -416,76 +342,6 @@
         }
     }
 
-    // PROJECT STATUS METHODS
-    private Color GetHardwareStatusColor()
-    {
-        if (!workflows.Any()) return Color.Default;
-
-        var allHaveHardware = workflows.All(w => w.Status >= WorkflowStatus.SoftwareInProgress);
-        var someHaveHardware = workflows.Any(w => w.Status >= WorkflowStatus.SoftwareInProgress);
-
-        if (allHaveHardware) return Color.Success;   // Green - completed
-        if (someHaveHardware) return Color.Warning;  // Yellow - in progress
-        return Color.Default;                        // Gray - not started
-    }
-
-    private Color GetSoftwareStatusColor()
-    {
-        if (!workflows.Any()) return Color.Default;
-
-        var allHaveSoftware = workflows.All(w => w.Status >= WorkflowStatus.SoftwareCompleted);
-        var someHaveSoftware = workflows.Any(w => w.Status >= WorkflowStatus.SoftwareCompleted);
-
-        if (allHaveSoftware) return Color.Success;
-        if (someHaveSoftware) return Color.Warning;
-        return Color.Default;
-    }
-
-    private Color GetPurchaseStatusColor()
-    {
-        if (!workflows.Any()) return Color.Default;
-
-        var allAtPurchase = workflows.All(w => w.Status >= WorkflowStatus.Completed);
-        var someAtPurchase = workflows.Any(w => w.Status >= WorkflowStatus.Completed);
-
-        if (allAtPurchase) return Color.Success;
-        if (someAtPurchase) return Color.Warning;
-        return Color.Default;
-    }
-
-    private Color GetInstallationStatusColor()
-    {
-        if (!workflows.Any()) return Color.Default;
-
-        var allForwarded = workflows.All(w => w.Status >= WorkflowStatus.ForwardedToInstallation);
-        var someForwarded = workflows.Any(w => w.Status >= WorkflowStatus.ForwardedToInstallation);
-
-        if (allForwarded) return Color.Success;
-        if (someForwarded) return Color.Warning;
-        return Color.Default;
-    }
-
-    /// <summary>
-    /// Calculate overall project completion percentage
-    /// </summary>
-    private int GetCompletionPercentage()
-    {
-        if (!workflows.Any()) return 0;
-
-        var totalSteps = workflows.Count * 4; // 4 steps per workflow (HW, SW, Purchase, Installation)
-        var completedSteps = 0;
-
-        foreach (var workflow in workflows)
-        {
-            if (workflow.Status >= WorkflowStatus.SoftwareInProgress) completedSteps++; // Hardware
-            if (workflow.Status >= WorkflowStatus.SoftwareCompleted) completedSteps++; // Software
-            if (workflow.Status >= WorkflowStatus.Completed) completedSteps++; // Purchase
-            if (workflow.Status >= WorkflowStatus.ForwardedToInstallation) completedSteps++; // Installation
-        }
-
-        return (int)Math.Round((double)completedSteps / totalSteps * 100);
-    }
-
     /// <summary>
     /// Create a new workflow for the current project
     /// </summary>
@@ -513,7 +369,7 @@
 
             DbContext.Workflow.Add(newWorkflow);
             await DbContext.SaveChangesAsync();
-            await LoadWorkflows(); // Also reloads hardware types
+            await LoadWorkflows(); // Also reloads hardware types and refreshes status overview
 
             Snackbar.Add($"{workflowType} Workflow erfolgreich erstellt!", Severity.Success);
         }
@@ -555,7 +411,7 @@
             // Delete workflow itself
             DbContext.Workflow.Remove(workflow);
             await DbContext.SaveChangesAsync();
-            await LoadWorkflows(); // Reloads hardware types
+            await LoadWorkflows(); // Reloads hardware types and refreshes status overview
 
             Snackbar.Add($"Workflow {workflow.Name} erfolgreich gelöscht!", Severity.Success);
         }

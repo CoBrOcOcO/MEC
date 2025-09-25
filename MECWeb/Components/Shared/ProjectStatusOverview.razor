@@ -1,0 +1,242 @@
+﻿@using MECWeb.DbModels.Workflow
+@using MECWeb.DbModels.Project
+@using Microsoft.EntityFrameworkCore
+
+@inject ApplicationDbContext DbContext
+
+<!-- PROJECT STATUS OVERVIEW COMPONENT -->
+@if (workflows.Any())
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="1" Style="background-color: var(--mud-palette-background-grey);">
+        <MudStack Spacing="3">
+            <MudText Typo="Typo.h6" Color="Color.Primary">
+                <MudIcon Icon="@Icons.Material.Filled.Dashboard" Class="mr-2" />
+                Projekt-Status Übersicht
+            </MudText>
+
+            <!-- Status Progress Bar -->
+            <MudStack Row Spacing="4" AlignItems="AlignItems.Center" Justify="Justify.Center">
+                <!-- Hardware Status -->
+                <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                    <MudChip T="string"
+                             Size="Size.Medium"
+                             Color="@GetHardwareStatusColor()"
+                             Variant="Variant.Filled"
+                             Icon="@Icons.Material.Filled.Computer"
+                             Class="px-3 font-weight-bold text-caption"
+                             Style="min-width: 80px;">
+                        Hardware
+                    </MudChip>
+                </MudStack>
+
+                <!-- Arrow -->
+                <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Color="Color.Secondary" />
+
+                <!-- Software Status -->
+                <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                    <MudChip T="string"
+                             Size="Size.Medium"
+                             Color="@GetSoftwareStatusColor()"
+                             Variant="Variant.Filled"
+                             Icon="@Icons.Material.Filled.Build"
+                             Class="px-3 font-weight-bold text-caption"
+                             Style="min-width: 80px;">
+                        Software
+                    </MudChip>
+                </MudStack>
+
+                <!-- Arrow -->
+                <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Color="Color.Secondary" />
+
+                <!-- Purchase Status -->
+                <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                    <MudChip T="string"
+                             Size="Size.Medium"
+                             Color="@GetPurchaseStatusColor()"
+                             Variant="Variant.Filled"
+                             Icon="@Icons.Material.Filled.ShoppingCart"
+                             Class="px-3 font-weight-bold text-caption"
+                             Style="min-width: 80px;">
+                        Einkauf
+                    </MudChip>
+                </MudStack>
+
+                <!-- Arrow -->
+                <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Color="Color.Secondary" />
+
+                <!-- Installation Status -->
+                <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                    <MudChip T="string"
+                             Size="Size.Medium"
+                             Color="@GetInstallationStatusColor()"
+                             Variant="Variant.Filled"
+                             Icon="@Icons.Material.Filled.Construction"
+                             Class="px-3 font-weight-bold text-caption"
+                             Style="min-width: 80px;">
+                        Installation
+                    </MudChip>
+                </MudStack>
+            </MudStack>
+
+            <!-- Overall Progress Information -->
+            <MudDivider />
+            <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    Gesamt: @workflows.Count Formulare (@workflows.Count(w => w.WorkflowType == WorkflowType.BDR) BDR, @workflows.Count(w => w.WorkflowType == WorkflowType.BV) BV)
+                </MudText>
+                <MudText Typo="Typo.body2" Color="Color.Success">
+                    @GetCompletionPercentage()% abgeschlossen
+                </MudText>
+            </MudStack>
+        </MudStack>
+    </MudPaper>
+}
+else if (IsLoading)
+{
+    <!-- Loading State -->
+    <MudPaper Class="pa-4 mb-4" Elevation="1" Style="background-color: var(--mud-palette-background-grey);">
+        <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+            <MudProgressCircular Color="Color.Primary" Size="Size.Small" Indeterminate="true" />
+            <MudText Typo="Typo.body2" Color="Color.Secondary">Projekt-Status wird geladen...</MudText>
+        </MudStack>
+    </MudPaper>
+}
+else
+{
+    <!-- No Workflows State -->
+    <MudPaper Class="pa-4 mb-4" Elevation="1" Style="background-color: var(--mud-palette-background-grey);">
+        <MudStack AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Info" Color="Color.Secondary" />
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
+                Noch keine Formulare für dieses Projekt erstellt.
+            </MudText>
+        </MudStack>
+    </MudPaper>
+}
+
+@code {
+    // Parameters from parent component
+    [Parameter] public Guid ProjectId { get; set; }
+    [Parameter] public bool ShowFormsLink { get; set; } = true;
+    [Parameter] public bool IsLoading { get; set; } = false;
+
+    // Internal state
+    private List<DbWorkflow> workflows = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadWorkflows();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Reload workflows when ProjectId changes
+        if (ProjectId != Guid.Empty)
+        {
+            await LoadWorkflows();
+        }
+    }
+
+    /// <summary>
+    /// Load all workflows for the current project
+    /// </summary>
+    private async Task LoadWorkflows()
+    {
+        try
+        {
+            workflows = await DbContext.Workflow
+                .Where(w => w.ProjectId == ProjectId)
+                .OrderBy(w => w.WorkflowType == WorkflowType.BDR ? 0 : 1) // BDR First
+                .ThenBy(w => w.Name)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading workflows in ProjectStatusOverview: {ex.Message}");
+            workflows = new List<DbWorkflow>();
+        }
+    }
+
+    /// <summary>
+    /// Public method to refresh the component data
+    /// </summary>
+    public async Task RefreshAsync()
+    {
+        await LoadWorkflows();
+        StateHasChanged();
+    }
+
+    // PROJECT STATUS COLOR METHODS
+    private Color GetHardwareStatusColor()
+    {
+        if (!workflows.Any()) return Color.Default;
+
+        var allHaveHardware = workflows.All(w => w.Status >= WorkflowStatus.SoftwareInProgress);
+        var someHaveHardware = workflows.Any(w => w.Status >= WorkflowStatus.SoftwareInProgress);
+
+        if (allHaveHardware) return Color.Success;   // Grün - alle abgeschlossen
+        if (someHaveHardware) return Color.Warning;  // Gelb - einige in Bearbeitung
+        return Color.Default;                        // Grau - nicht begonnen
+    }
+
+    private Color GetSoftwareStatusColor()
+    {
+        if (!workflows.Any()) return Color.Default;
+
+        var allHaveSoftware = workflows.All(w => w.Status >= WorkflowStatus.SoftwareCompleted);
+        var someHaveSoftware = workflows.Any(w => w.Status >= WorkflowStatus.SoftwareInProgress);
+
+        if (allHaveSoftware) return Color.Success;   // Grün - alle Software abgeschlossen
+        if (someHaveSoftware) return Color.Warning;  // Gelb - einige in Software-Bearbeitung
+        return Color.Default;                        // Grau - noch nicht bei Software
+    }
+
+    private Color GetPurchaseStatusColor()
+    {
+        if (!workflows.Any()) return Color.Default;
+
+        // Grün: Alle Workflows wurden an Installation weitergeleitet
+        var allForwardedToInstallation = workflows.All(w => w.Status >= WorkflowStatus.ForwardedToInstallation);
+        // Gelb: Einige Workflows sind beim Einkauf (in Bearbeitung)
+        var someAtPurchase = workflows.Any(w => w.Status >= WorkflowStatus.Completed);
+
+        if (allForwardedToInstallation) return Color.Success; // Grün - Einkauf abgeschlossen, an Installation gesendet
+        if (someAtPurchase) return Color.Warning;             // Gelb - beim Einkauf in Bearbeitung
+        return Color.Default;                                 // Grau - noch nicht beim Einkauf
+    }
+
+    private Color GetInstallationStatusColor()
+    {
+        if (!workflows.Any()) return Color.Default;
+
+        // Grün: Alle Workflows wurden archiviert (Installation abgeschlossen)
+        var allArchived = workflows.All(w => w.Status >= WorkflowStatus.Archived);
+        // Gelb: Einige Workflows sind bei Installation (in Bearbeitung)
+        var someAtInstallation = workflows.Any(w => w.Status >= WorkflowStatus.ForwardedToInstallation);
+
+        if (allArchived) return Color.Success;        // Grün - Installation komplett abgeschlossen
+        if (someAtInstallation) return Color.Warning; // Gelb - bei Installation in Bearbeitung
+        return Color.Default;                         // Grau - noch nicht bei Installation
+    }
+
+    /// <summary>
+    /// Calculate overall project completion percentage
+    /// </summary>
+    private int GetCompletionPercentage()
+    {
+        if (!workflows.Any()) return 0;
+
+        var totalSteps = workflows.Count * 4; // 4 steps per workflow (HW, SW, Purchase, Installation)
+        var completedSteps = 0;
+
+        foreach (var workflow in workflows)
+        {
+            if (workflow.Status >= WorkflowStatus.SoftwareInProgress) completedSteps++; // Hardware
+            if (workflow.Status >= WorkflowStatus.SoftwareCompleted) completedSteps++; // Software
+            if (workflow.Status >= WorkflowStatus.Completed) completedSteps++; // Purchase
+            if (workflow.Status >= WorkflowStatus.ForwardedToInstallation) completedSteps++; // Installation
+        }
+
+        return (int)Math.Round((double)completedSteps / totalSteps * 100);
+    }
+}

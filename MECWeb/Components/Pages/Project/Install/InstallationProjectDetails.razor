@@ -39,7 +39,7 @@
                                    Disabled="@isSavingNetworkConfig">
                             Netzwerk-Konfiguration speichern
                         </MudButton>
-                        
+
                         <MudButton Color="Color.Secondary"
                                    Variant="Variant.Filled"
                                    Size="Size.Medium"
@@ -75,6 +75,11 @@
                 </MudStack>
             </MudPaper>
         }
+
+        <!-- PROJECT STATUS OVERVIEW - Wiederverwendbare Komponente -->
+        <ProjectStatusOverview ProjectId="@ProjectId"
+                               IsLoading="@loading"
+                               @ref="statusOverview" />
 
         <!-- Loading -->
         @if (loading)
@@ -119,10 +124,10 @@
                 {
                     var orderDetails = GetOrderDetailsForWorkflow(workflow);
                     var networkConfig = GetNetworkConfiguration(workflow.Id);
-                    
+
                     <MudPaper Class="pa-6" Elevation="2" Style="border-left: 4px solid var(--mud-palette-primary);">
                         <MudStack Spacing="4">
-                            
+
                             <!-- Form Header -->
                             <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
                                 <MudText Typo="Typo.h5" Color="Color.Primary">
@@ -253,7 +258,7 @@
                                 <MudText Typo="Typo.h6" Style="border-bottom: 2px solid var(--mud-palette-warning); padding-bottom: 8px;">
                                     Kommentare & Bemerkungen
                                 </MudText>
-                                
+
                                 <!-- Purchase Comments (Read-only) -->
                                 @if (!string.IsNullOrEmpty(GetWorkflowComment(workflow.Id)))
                                 {
@@ -289,7 +294,7 @@
                 }
             }
 
-            <!-- BV Section Header -->
+            <!-- BV Section -->
             @if (bvWorkflows.Any())
             {
                 <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Class="mt-6">
@@ -313,10 +318,10 @@
                     var orderDetails = GetOrderDetailsForWorkflow(workflow);
                     var contactPerson = GetContactPersonForBvWorkflow(workflow);
                     var networkConfig = GetNetworkConfiguration(workflow.Id);
-                    
+
                     <MudPaper Class="pa-6" Elevation="2" Style="border-left: 4px solid var(--mud-palette-secondary);">
                         <MudStack Spacing="4">
-                            
+
                             <!-- Form Header -->
                             <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
                                 <MudText Typo="Typo.h5" Color="Color.Secondary">
@@ -449,8 +454,6 @@
                                                       Placeholder="192.168.1.100"
                                                       Variant="Variant.Outlined"
                                                       Margin="Margin.Dense" />
-
-     
                                     </MudStack>
                                 </MudItem>
                             </MudGrid>
@@ -461,7 +464,7 @@
                                 <MudText Typo="Typo.h6" Style="border-bottom: 2px solid var(--mud-palette-warning); padding-bottom: 8px;">
                                     Kommentare & Bemerkungen
                                 </MudText>
-                                
+
                                 <!-- Purchase Comments (Read-only) -->
                                 @if (!string.IsNullOrEmpty(GetWorkflowComment(workflow.Id)))
                                 {
@@ -527,19 +530,24 @@
                    Color="Color.Primary"
                    StartIcon="@Icons.Material.Filled.ArrowBack"
                    FullWidth="true"
-                   OnClick="GoBack">Zurück zur Installations-Übersicht</MudButton>
+                   OnClick="NavigateBack"
+                   Class="mt-4">
+            Zurück zur Übersicht
+        </MudButton>
     </MudStack>
 </MudContainer>
 
 @code {
     [Parameter] public Guid ProjectId { get; set; }
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string? ReturnPath { get; set; }
 
     // Network Configuration Data Structure
     public class NetworkConfiguration
     {
         public string MacAddress { get; set; } = string.Empty;
         public string IpAddress { get; set; } = string.Empty;
-
     }
 
     // Order Details Data Structure (reused from Purchase)
@@ -563,12 +571,15 @@
     private bool isSavingNetworkConfig = false;
     private HashSet<Guid> exportingWorkflowIds = new();
 
+    // Reference to the status overview component for refreshing
+    private ProjectStatusOverview? statusOverview;
+
     // Comments from purchase (read-only)
     private Dictionary<Guid, string> workflowComments = new();
-    
+
     // Installation comments
     private Dictionary<Guid, string> installationComments = new();
-    
+
     // Network configurations
     private Dictionary<Guid, NetworkConfiguration> networkConfigurations = new();
 
@@ -604,7 +615,7 @@
 
             // Get workflows that are either forwarded to installation or archived
             forwardedWorkflows = currentProject.Workflows
-                .Where(w => w.Status == WorkflowStatus.ForwardedToInstallation || 
+                .Where(w => w.Status == WorkflowStatus.ForwardedToInstallation ||
                            w.Status == WorkflowStatus.Archived)
                 .OrderBy(w => w.WorkflowType)
                 .ThenBy(w => w.Name)
@@ -621,6 +632,12 @@
             await LoadNetworkConfigurations();
             LoadWorkflowComments();
             LoadInstallationComments();
+
+            // Refresh the status overview component
+            if (statusOverview != null)
+            {
+                await statusOverview.RefreshAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -707,7 +724,7 @@
         try
         {
             var workflowIds = forwardedWorkflows.Select(w => w.Id).ToList();
-            
+
             var configs = await DbContext.InstallationConfiguration
                 .Where(c => workflowIds.Contains(c.WorkflowId))
                 .ToListAsync();
@@ -715,7 +732,7 @@
             foreach (var workflow in forwardedWorkflows)
             {
                 var config = configs.FirstOrDefault(c => c.WorkflowId == workflow.Id);
-                
+
                 if (config != null)
                 {
                     networkConfigurations[workflow.Id] = new NetworkConfiguration
@@ -841,7 +858,6 @@
         var config = networkConfigurations[workflowId];
         config.MacAddress = macAddress ?? "";
         config.IpAddress = ipAddress ?? "";
-
     }
 
     /// <summary>
@@ -884,7 +900,7 @@
 
                 // Save installation comment to workflow description
                 var existingDescription = workflow.Description ?? "";
-                
+
                 // Remove old installation comment
                 if (existingDescription.Contains("INSTALLATION_COMMENT:"))
                 {
@@ -1117,17 +1133,17 @@
                 if (!string.IsNullOrWhiteSpace(softwareType))
                 {
                     var softwareEntry = softwareType;
-                    
+
                     if (!string.IsNullOrEmpty(note))
                     {
                         softwareEntry += $" (Version: {note})";
                     }
-                    
+
                     if (isBdr && licenseRequired)
                     {
                         softwareEntry += " [Lizenz erforderlich]";
                     }
-                    
+
                     items.Add(softwareEntry);
                 }
             }
@@ -1195,7 +1211,7 @@
             await DbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            Snackbar.Add("Projekt erfolgreich zur Korrektur freigegeben!", Severity.Success);
+            Snackbar.Add("Projekt erfolgreich zur Korrektur freigeben!", Severity.Success);
 
             await Task.Delay(1500);
             Navigation.NavigateTo("/installation/orders");
@@ -1406,9 +1422,24 @@
         }
     }
 
-    private void GoBack()
+    /// <summary>
+    /// Navigiert zurück zur vorherigen Seite
+    /// </summary>
+    private void NavigateBack()
     {
-        Navigation.NavigateTo("/installation/orders");
+        if (ReturnPath == "overview")
+        {
+            Navigation.NavigateTo("/installation/orders");
+        }
+        else if (ReturnPath == "project")
+        {
+            Navigation.NavigateTo($"/project/{ProjectId}");
+        }
+        else
+        {
+            // Wenn kein ReturnPath gesetzt ist, zur Projektübersicht navigieren
+            Navigation.NavigateTo($"/project/{ProjectId}");
+        }
     }
 
     private bool isProjectArchived => forwardedWorkflows.All(w => w.Status == WorkflowStatus.Archived);

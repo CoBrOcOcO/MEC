@@ -100,7 +100,7 @@
         <!-- Empty State -->
         @if (!loading && !filteredActiveProjects.Any() && !filteredCompletedProjects.Any())
         {
-            <MudStack Align="AlignItems.Center" Class="mt-6">
+            <MudStack AlignItems="AlignItems.Center" Class="mt-6">
                 <MudImage Src="assets/systemstatus/empty_state_V1.png" Alt="Empty" Width="150" Class="ma-6" />
                 <MudText Typo="Typo.h6" Color="Color.Secondary">Keine Installationen gefunden</MudText>
             </MudStack>
@@ -120,6 +120,10 @@
 </MudContainer>
 
 @code {
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
     private List<DbProject> activeProjects = new();
     private List<DbProject> completedProjects = new();
     private List<DbProject> filteredActiveProjects = new();
@@ -206,7 +210,7 @@
     /// </summary>
     private void ViewProjectDetails(Guid projectId)
     {
-        Navigation.NavigateTo($"/installation/project/{projectId}");
+        Navigation.NavigateTo($"/installation/project/{projectId}?returnPath=overview");
     }
 
     /// <summary>
@@ -214,6 +218,13 @@
     /// </summary>
     private void GoBack()
     {
-        Navigation.NavigateTo("/");
+        if (!string.IsNullOrEmpty(ReturnUrl))
+        {
+            Navigation.NavigateTo(ReturnUrl);
+        }
+        else
+        {
+            Navigation.NavigateTo("/");
+        }
     }
 }

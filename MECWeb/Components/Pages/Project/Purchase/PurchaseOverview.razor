@@ -118,7 +118,7 @@
         <!-- Empty State -->
         @if (!loading && !filteredActiveProjects.Any() && !filteredForwardedProjects.Any())
         {
-            <MudStack Align="AlignItems.Center" Class="mt-6">
+            <MudStack AlignItems="AlignItems.Center" Class="mt-6">
                 <MudImage Src="assets/systemstatus/empty_state_V1.png" Alt="Empty" Width="150" Class="ma-6" />
                 <MudText Typo="Typo.h6" Color="Color.Secondary">Keine Bestellungen gefunden</MudText>
             </MudStack>
@@ -149,6 +149,10 @@
     [Parameter]
     [SupplyParameterFromQuery(Name = "readOnly")]
     public bool ReadOnly { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -235,6 +239,8 @@
             queryParams.Add("readOnly", "true");
         }
 
+        queryParams.Add("returnPath", "overview");
+
         var url = QueryHelpers.AddQueryString($"/purchase/project/{projectId}", queryParams);
         Navigation.NavigateTo(url);
     }
@@ -286,10 +292,17 @@
     }
 
     /// <summary>
-    /// Navigate back to home page
+    /// Navigiert zurück zur vorherigen Seite
     /// </summary>
     private void GoBack()
     {
-        Navigation.NavigateTo("/");
+        if (!string.IsNullOrEmpty(ReturnUrl))
+        {
+            Navigation.NavigateTo(ReturnUrl);
+        }
+        else
+        {
+            Navigation.NavigateTo("/");
+        }
     }
 }

@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace MECWeb.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250824123834_UpdateInstallationConfigurationFields")]
-    partial class UpdateInstallationConfigurationFields
+    [Migration("20250925070334_FreshStart")]
+    partial class FreshStart
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -61,20 +61,46 @@ namespace MECWeb.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("GitCreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("GitDescription")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<bool>("GitEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("GitIsPrivate")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("GitOwner")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("GitRepositoryName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("GitRepositoryUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<DateTime>("LastChange")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("ProjectNumber")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
 
@@ -82,7 +108,7 @@ namespace MECWeb.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_Project_ProjectNumber");
 
-                    b.ToTable("mec_project");
+                    b.ToTable("Project");
                 });
 
             modelBuilder.Entity("MECWeb.DbModels.Translate.DbTranslateDictionary", b =>
@@ -529,15 +555,7 @@ namespace MECWeb.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("AdditionalPorts")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
                     b.Property<string>("ComputerName")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("ConfiguredBy")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
@@ -547,35 +565,6 @@ namespace MECWeb.Migrations
 
                     b.Property<DateTime>("CreationDate")
                         .HasColumnType("datetime2");
-
-                    b.Property<string>("DnsServer1")
-                        .HasMaxLength(15)
-                        .HasColumnType("nvarchar(15)");
-
-                    b.Property<string>("DnsServer2")
-                        .HasMaxLength(15)
-                        .HasColumnType("nvarchar(15)");
-
-                    b.Property<string>("Domain")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<bool>("EnableFirewall")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("EnableRemoteDesktop")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("EnableVpnAccess")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("FirewallRules")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("Gateway")
-                        .HasMaxLength(15)
-                        .HasColumnType("nvarchar(15)");
 
                     b.Property<string>("IpAddress")
                         .HasMaxLength(15)
@@ -594,38 +583,12 @@ namespace MECWeb.Migrations
                         .HasMaxLength(17)
                         .HasColumnType("nvarchar(17)");
 
-                    b.Property<string>("NetworkAdapterName")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<DateTime?>("NetworkConfiguredDate")
-                        .HasColumnType("datetime2");
-
                     b.Property<string>("NetworkNotes")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<string>("SubnetMask")
-                        .HasMaxLength(15)
-                        .HasColumnType("nvarchar(15)");
-
-                    b.Property<bool>("UseDhcp")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("VlanId")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("VpnConfiguration")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
                     b.Property<Guid>("WorkflowId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Workgroup")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
 
@@ -634,55 +597,6 @@ namespace MECWeb.Migrations
                         .HasDatabaseName("IX_InstallationConfiguration_WorkflowId");
 
                     b.ToTable("mec_installation_configuration");
-                });
-
-            modelBuilder.Entity("MECWeb.DbModels.Workflow.DbInstallationPdf", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.Property<string>("FilePath")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<long>("FileSize")
-                        .HasColumnType("bigint");
-
-                    b.Property<bool>("IsAvailable")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("PdfType")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<Guid>("WorkflowId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("WorkflowId", "PdfType")
-                        .HasDatabaseName("IX_InstallationPdf_WorkflowId_PdfType");
-
-                    b.ToTable("mec_installation_pdf");
                 });
 
             modelBuilder.Entity("MECWeb.DbModels.Workflow.DbSoftwareComponent", b =>
@@ -781,7 +695,7 @@ namespace MECWeb.Migrations
             modelBuilder.Entity("MECWeb.DbModels.Machine.DbMachine", b =>
                 {
                     b.HasOne("MECWeb.DbModels.Project.DbProject", "Project")
-                        .WithMany("Machines")
+                        .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -803,7 +717,7 @@ namespace MECWeb.Migrations
             modelBuilder.Entity("MECWeb.DbModels.Translate.DbTranslateProject", b =>
                 {
                     b.HasOne("MECWeb.DbModels.Project.DbProject", "Project")
-                        .WithMany("TranslateProjects")
+                        .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -934,17 +848,6 @@ namespace MECWeb.Migrations
                     b.Navigation("Workflow");
                 });
 
-            modelBuilder.Entity("MECWeb.DbModels.Workflow.DbInstallationPdf", b =>
-                {
-                    b.HasOne("MECWeb.DbModels.Workflow.DbWorkflow", "Workflow")
-                        .WithMany()
-                        .HasForeignKey("WorkflowId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Workflow");
-                });
-
             modelBuilder.Entity("MECWeb.DbModels.Workflow.DbSoftwareComponent", b =>
                 {
                     b.HasOne("MECWeb.DbModels.Workflow.DbHardwareComputer", "HardwareComputer")
@@ -969,10 +872,6 @@ namespace MECWeb.Migrations
 
             modelBuilder.Entity("MECWeb.DbModels.Project.DbProject", b =>
                 {
-                    b.Navigation("Machines");
-
-                    b.Navigation("TranslateProjects");
-
                     b.Navigation("UserProjectFavorites");
 
                     b.Navigation("UserProjects");

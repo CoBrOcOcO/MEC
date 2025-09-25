@@ -58,20 +58,46 @@ namespace MECWeb.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("GitCreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("GitDescription")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<bool>("GitEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("GitIsPrivate")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("GitOwner")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("GitRepositoryName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("GitRepositoryUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<DateTime>("LastChange")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("ProjectNumber")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
 
@@ -79,7 +105,7 @@ namespace MECWeb.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_Project_ProjectNumber");
 
-                    b.ToTable("mec_project");
+                    b.ToTable("Project");
                 });
 
             modelBuilder.Entity("MECWeb.DbModels.Translate.DbTranslateDictionary", b =>
@@ -666,7 +692,7 @@ namespace MECWeb.Migrations
             modelBuilder.Entity("MECWeb.DbModels.Machine.DbMachine", b =>
                 {
                     b.HasOne("MECWeb.DbModels.Project.DbProject", "Project")
-                        .WithMany("Machines")
+                        .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -688,7 +714,7 @@ namespace MECWeb.Migrations
             modelBuilder.Entity("MECWeb.DbModels.Translate.DbTranslateProject", b =>
                 {
                     b.HasOne("MECWeb.DbModels.Project.DbProject", "Project")
-                        .WithMany("TranslateProjects")
+                        .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -843,10 +869,6 @@ namespace MECWeb.Migrations
 
             modelBuilder.Entity("MECWeb.DbModels.Project.DbProject", b =>
                 {
-                    b.Navigation("Machines");
-
-                    b.Navigation("TranslateProjects");
-
                     b.Navigation("UserProjectFavorites");
 
                     b.Navigation("UserProjects");
