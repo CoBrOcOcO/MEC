@@ -319,7 +319,7 @@ else
     }
 
     // Modifizierte Methode zur Animation des Fortschritts
-    private async Task AnimateProgress(int targetPercentage)
+    private Task AnimateProgress(int targetPercentage)
     {
         // Aufräumen des alten Timers, falls vorhanden
         _progressTimer?.Dispose();
@@ -345,6 +345,8 @@ else
                 await InvokeAsync(StateHasChanged);
             }
         }, null, 0, updateIntervalMs);
+
+        return Task.CompletedTask;
     }
 
     protected override async Task OnParametersSetAsync()

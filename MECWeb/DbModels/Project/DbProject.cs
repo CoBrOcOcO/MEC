@@ -23,7 +23,10 @@ namespace MECWeb.DbModels.Project
         public DateTime CreationDate { get; set; } = DateTime.UtcNow;
         public DateTime LastChange { get; set; } = DateTime.UtcNow;
 
-        // ✅ NEUE GIT-INTEGRATION PROPERTIES
+        [StringLength(200)]
+        public string? Location { get; set; }
+
+        // GIT-INTEGRATION PROPERTIES
         /// <summary>
         /// Git-Integration für dieses Projekt aktiviert
         /// </summary>
@@ -59,10 +62,11 @@ namespace MECWeb.DbModels.Project
         public DateTime? GitCreatedAt { get; set; }
 
         /// <summary>
-        /// Private/Public Repository Einstellung
+        /// Private/Public Repository 
         /// </summary>
         public bool GitIsPrivate { get; set; } = false;
-        // ✅ KORRIGIERT: DbWorkflow statt ProjectWorkflow verwenden
+        
+
         public ICollection<DbWorkflow> Workflows { get; set; } = new List<DbWorkflow>();
 
         
