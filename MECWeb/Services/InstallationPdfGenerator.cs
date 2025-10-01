@@ -190,10 +190,7 @@ namespace MECWeb.Services
                     table.Cell().Border(1).Padding(5).Text("Projektname:").Bold();
                     table.Cell().Border(1).Padding(5).Text(data.Project?.Name ?? "-");
 
-                    table.Cell().Border(1).Padding(5).Text("Workflow:").Bold();
-                    table.Cell().Border(1).Padding(5).Text(data.Workflow?.Name ?? "-");
-
-                    table.Cell().Border(1).Padding(5).Text("Typ:").Bold();
+                    table.Cell().Border(1).Padding(5).Text("Standort:").Bold();
                     table.Cell().Border(1).Padding(5).Text(data.Workflow?.WorkflowType.ToString() ?? "-");
 
                     table.Cell().Border(1).Padding(5).Text("Erstellt am:").Bold();
@@ -222,18 +219,13 @@ namespace MECWeb.Services
                             columns.RelativeColumn();
                         });
 
-                        table.Cell().Border(1).Padding(5).Text("Name:").Bold();
+                        table.Cell().Border(1).Padding(5).Text("Rechner-Typ:").Bold();
                         table.Cell().Border(1).Padding(5).Text(data.BdrHardware.Name ?? "-");
 
-                        table.Cell().Border(1).Padding(5).Text("Seriennummer:").Bold();
-                        table.Cell().Border(1).Padding(5).Text(data.BdrHardware.SerialNumber ?? "-");
-
-                        table.Cell().Border(1).Padding(5).Text("Standort:").Bold();
-                        table.Cell().Border(1).Padding(5).Text(data.BdrHardware.Location ?? "-");
 
                         if (!string.IsNullOrEmpty(data.BdrHardware.Description))
                         {
-                            table.Cell().Border(1).Padding(5).Text("Beschreibung:").Bold();
+                            table.Cell().Border(1).Padding(5).Text("Kommentar:").Bold();
                             table.Cell().Border(1).Padding(5).Text(data.BdrHardware.Description);
                         }
                     });
@@ -254,7 +246,7 @@ namespace MECWeb.Services
 
                             table.Header(header =>
                             {
-                                header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Feld").Bold();
+                                header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Zusätzliche Hardware").Bold();
                                 header.Cell().Border(1).Background(Colors.Grey.Lighten3).Padding(5).Text("Wert").Bold();
                             });
 
@@ -293,21 +285,16 @@ namespace MECWeb.Services
                             columns.RelativeColumn();
                         });
 
-                        table.Cell().Border(1).Padding(5).Text("PC-Typ:").Bold();
-                        table.Cell().Border(1).Padding(5).Text(data.BvHardware.PcType ?? "-");
-
-                        table.Cell().Border(1).Padding(5).Text("Name:").Bold();
-                        table.Cell().Border(1).Padding(5).Text(data.BvHardware.Name ?? "-");
-
-                        table.Cell().Border(1).Padding(5).Text("Seriennummer:").Bold();
-                        table.Cell().Border(1).Padding(5).Text(data.BvHardware.SerialNumber ?? "-");
-
                         table.Cell().Border(1).Padding(5).Text("Ansprechpartner:").Bold();
                         table.Cell().Border(1).Padding(5).Text(data.BvHardware.ContactPerson ?? "-");
 
+                        table.Cell().Border(1).Padding(5).Text("Rechner-Typ:").Bold();
+                        table.Cell().Border(1).Padding(5).Text(data.BvHardware.PcType ?? "-");
+
+
                         if (!string.IsNullOrEmpty(data.BvHardware.Description))
                         {
-                            table.Cell().Border(1).Padding(5).Text("Beschreibung:").Bold();
+                            table.Cell().Border(1).Padding(5).Text("Kommentar:").Bold();
                             table.Cell().Border(1).Padding(5).Text(data.BvHardware.Description);
                         }
                     });
@@ -424,11 +411,6 @@ namespace MECWeb.Services
                         table.Cell().Border(1).Padding(5).Text("IP-Adresse:").Bold();
                         table.Cell().Border(1).Padding(5).Text(data.InstallationConfig.IpAddress ?? "Nicht konfiguriert");
 
-                        if (!string.IsNullOrEmpty(data.InstallationConfig.ComputerName))
-                        {
-                            table.Cell().Border(1).Padding(5).Text("Computername:").Bold();
-                            table.Cell().Border(1).Padding(5).Text(data.InstallationConfig.ComputerName);
-                        }
 
                         if (!string.IsNullOrEmpty(data.InstallationConfig.NetworkNotes))
                         {

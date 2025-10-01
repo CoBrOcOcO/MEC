@@ -22,18 +22,17 @@ namespace MECWeb.Services
     {
         private readonly ApplicationDbContext _dbContext;
         private readonly InstallationPdfGenerator _pdfGenerator;
-        private readonly PdfStorageService _pdfStorageService;
+       
         private readonly ILogger<InstallationPdfService> _logger;
 
         public InstallationPdfService(
             ApplicationDbContext dbContext,
             InstallationPdfGenerator pdfGenerator,
-            PdfStorageService pdfStorageService,
+         
             ILogger<InstallationPdfService> logger)
         {
             _dbContext = dbContext;
-            _pdfGenerator = pdfGenerator;
-            _pdfStorageService = pdfStorageService;
+            _pdfGenerator = pdfGenerator; 
             _logger = logger;
         }
 
@@ -142,8 +141,6 @@ namespace MECWeb.Services
                 var pdfData = await _pdfGenerator.GenerateBdrInstallationPdfAsync(workflowId);
                 var fileName = $"BDR_Installation_{workflow.Name}_{DateTime.Now:yyyyMMdd_HHmm}.pdf";
 
-                // Store PDF for download
-                await _pdfStorageService.StorePdfAsync(workflowId, pdfData, fileName);
 
                 _logger.LogInformation("Successfully generated BDR PDF for workflow {WorkflowId}", workflowId);
 
@@ -183,9 +180,6 @@ namespace MECWeb.Services
 
                 var pdfData = await _pdfGenerator.GenerateBvInstallationPdfAsync(workflowId);
                 var fileName = $"BV_Installation_{workflow.Name}_{DateTime.Now:yyyyMMdd_HHmm}.pdf";
-
-                // Store PDF for download
-                await _pdfStorageService.StorePdfAsync(workflowId, pdfData, fileName);
 
                 _logger.LogInformation("Successfully generated BV PDF for workflow {WorkflowId}", workflowId);
 

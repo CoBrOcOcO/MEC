@@ -1,5 +1,4 @@
 ﻿using MECWeb.Services;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace MECWeb.Controllers
@@ -9,16 +8,13 @@ namespace MECWeb.Controllers
     public class PdfController : ControllerBase
     {
         private readonly InstallationPdfService _pdfService;
-        private readonly PdfStorageService _pdfStorageService;
         private readonly ILogger<PdfController> _logger;
 
         public PdfController(
             InstallationPdfService pdfService,
-            PdfStorageService pdfStorageService,
             ILogger<PdfController> logger)
         {
             _pdfService = pdfService;
-            _pdfStorageService = pdfStorageService;
             _logger = logger;
         }
 
@@ -28,6 +24,7 @@ namespace MECWeb.Controllers
             try
             {
                 PdfResult result;
+
                 if (type.Equals("BDR", StringComparison.OrdinalIgnoreCase))
                 {
                     result = await _pdfService.GenerateBdrPdfAsync(workflowId);
@@ -60,15 +57,8 @@ namespace MECWeb.Controllers
         {
             try
             {
-                var fileName = $"{type}_Installation_{projectId}_{DateTime.Now:yyyyMMdd}.pdf";
-                var storedPdf = await _pdfStorageService.GetPdfAsync(projectId, fileName);
-
-                if (storedPdf != null)
-                {
-                    return File(storedPdf, "application/pdf", fileName);
-                }
-
                 PdfResult result;
+
                 if (type.Equals("BDR", StringComparison.OrdinalIgnoreCase))
                 {
                     result = await _pdfService.GenerateAllBdrPdfsAsync(projectId);

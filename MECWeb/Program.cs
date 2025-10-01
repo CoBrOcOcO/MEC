@@ -19,7 +19,6 @@ using System.IdentityModel.Tokens.Jwt;
 
 var builder = WebApplication.CreateBuilder(args);
 
-
 // =====================================================================
 // HIER DEN CODE ZUM ERHÖHEN DES UPLOAD-LIMITS EINFÜGEN
 // =====================================================================
@@ -33,8 +32,6 @@ builder.WebHost.ConfigureKestrel(serverOptions =>
 // Add MudBlazor services
 builder.Services.AddMudServices();
 
-// ... der Rest der Datei geht hier weiter ...
-
 // This is required to be instantiated before the OpenIdConnectOptions starts getting configured.
 JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
 
@@ -42,14 +39,8 @@ JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
 QuestPDF.Settings.License = LicenseType.Community;
 QuestPDF.Settings.CheckIfAllTextGlyphsAreAvailable = false;
 
-// Configure PDF storage folder
-var pdfStoragePath = builder.Configuration.GetValue<string>("PdfStorageFolder") ??
-    Path.Combine(Directory.GetCurrentDirectory(), "Storage", "PDFs");
-if (!Directory.Exists(pdfStoragePath))
-{
-    Directory.CreateDirectory(pdfStoragePath);
-}
-builder.Configuration["PdfStorageFolder"] = pdfStoragePath;
+// ⚠️ ENTFERNT: PDF Storage wird nicht mehr benötigt
+// PDFs werden nur noch on-the-fly generiert ohne Speicherung
 
 // Database Context
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -76,34 +67,24 @@ builder.Services.AddControllersWithViews()
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// ✅ GITEA SERVICES - NEU HINZUGEFÜGT
-// HttpClient für GiteaService
+// ✅ GITEA SERVICES
 builder.Services.AddHttpClient();
-
-// GiteaService als Scoped registrieren
 builder.Services.AddScoped<GiteaService>();
-
-// Repository Validation Service für S-[Zahlen] Validierung
 builder.Services.AddScoped<RepositoryValidationService>();
 
-// Application Services (Bestehend)
+// Application Services
 builder.Services.AddScoped<AppCardService>();
 builder.Services.AddScoped<PurchaseCardService>();
-
-// ✅ KORRIGIERT: EnhancedProjectService nur hinzufügen wenn vorhanden
 builder.Services.AddScoped<EnhancedProjectService>();
 
 builder.Services.AddSingleton(new ProjectFileService(
     builder.Configuration.GetValue<string>("ProjectBaseFolder") ??
     Path.Combine(Directory.GetCurrentDirectory(), "Projects")));
 
-// PDF Services for Installation (Bestehend)
-builder.Services.AddScoped<PdfStorageService>();
+// PDF Services for Installation - ONLY GENERATION, NO STORAGE
+// ⚠️ PdfStorageService ENTFERNT - wird nicht mehr benötigt
 builder.Services.AddScoped<InstallationPdfGenerator>();
 builder.Services.AddScoped<InstallationPdfService>();
-
-// QuestPDF License (Community) - Bereits oben definiert
-// QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
 // Add Blazor Server Side with Microsoft Identity
 builder.Services.AddServerSideBlazor()
@@ -140,7 +121,6 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     try
     {
-        
         dbContext.Database.EnsureCreated();
         // dbContext.Database.Migrate(); // Uncomment if using migrations
     }

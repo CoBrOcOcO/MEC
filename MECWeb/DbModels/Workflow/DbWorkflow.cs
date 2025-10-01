@@ -7,17 +7,16 @@ namespace MECWeb.DbModels.Workflow
     public enum WorkflowType
     {
         BDR = 0,  // BDR PC
-        BV = 1    // ´BV PC
+        BV = 1    // BV PC
     }
 
-    
     public enum WorkflowStatus
     {
         Created = 0,
-        HardwareInProgress = 1,          // Hardware is being 
+        HardwareInProgress = 1,          // Hardware is being configured
         HardwareCompleted = 2,           // Hardware is ready for Purchase
         SoftwareInProgress = 3,          // Software is being installed
-        SoftwareCompleted = 4,           //Software is ready for Purchase
+        SoftwareCompleted = 4,           // Software is ready for Purchase
         Completed = 5,                   // Ready for purchase
         ForwardedToInstallation = 6,     // Forwarded to installation by purchase
         InstallationInProgress = 7,      // Installation is working on it
@@ -58,6 +57,22 @@ namespace MECWeb.DbModels.Workflow
 
         [MaxLength(100)]
         public string? CreatedBy { get; set; }
+
+        // Purchase department fields
+        /// <summary>
+        /// Indicates if the purchase department has completed processing this workflow
+        /// </summary>
+        public bool PurchaseCompleted { get; set; } = false;
+
+        /// <summary>
+        /// Comment from purchase department for installation
+        /// </summary>
+        public string? PurchaseComment { get; set; }
+
+        /// <summary>
+        /// Date when purchase marked this workflow as completed
+        /// </summary>
+        public DateTime? PurchaseCompletedDate { get; set; }
 
         public ICollection<DbHardwareComputer> HardwareComputers { get; set; } = [];
     }

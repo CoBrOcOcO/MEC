@@ -721,20 +721,20 @@ else
     private async Task ShowFileVersions(RepositoryContent file, MouseEventArgs e)
     {
         var parameters = new DialogParameters
-            {
-                { "RepositoryOwner", repositoryOwner },
-                { "RepositoryName", repositoryName },
-                { "FilePath", file.Path }
-            };
+        {
+            { "RepositoryOwner", repositoryOwner },
+            { "RepositoryName", repositoryName },
+            { "FilePath", file.Path }
+        };
 
         var options = new DialogOptions
-            {
-                CloseButton = true,
-                MaxWidth = MaxWidth.Large,
-                FullWidth = true
-            };
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true
+        };
 
-        DialogService.Show<FileHistoryDialog>($"Versionsverlauf: {file.Name}", parameters, options);
+        await DialogService.ShowAsync<FileHistoryDialog>($"Versionsverlauf: {file.Name}", parameters, options);
     }
     
     private async Task ShowUploadDialog()

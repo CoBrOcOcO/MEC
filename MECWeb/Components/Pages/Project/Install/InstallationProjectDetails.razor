@@ -7,7 +7,6 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject InstallationPdfService PdfService
-@inject PdfStorageService PdfStorageService
 @inject IJSRuntime JSRuntime
 @layout MainLayout
 
@@ -20,8 +19,8 @@
             <MudPaper Class="pa-4" Elevation="2">
                 <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
                     <MudStack Spacing="1">
-                        <MudText Typo="Typo.h4" Color="Color.Primary">@currentProject.ProjectNumber</MudText>
-                        <MudText Typo="Typo.h6" Color="Color.Secondary">@currentProject.Name</MudText>
+                        <MudText Typo="Typo.h4" Color="Color.Primary">@currentProject.ProjectNumber </MudText>
+                        <MudText Typo="Typo.h4" Color="Color.Secondary">@currentProject.Name</MudText>
                         @if (!string.IsNullOrWhiteSpace(currentProject.Description))
                         {
                             <MudText Typo="Typo.body2" Color="Color.Tertiary">@currentProject.Description</MudText>
@@ -30,56 +29,52 @@
 
                     <!-- Action Buttons -->
                     <MudStack Row Spacing="3">
-                        <MudButton Color="Color.Success"
+                        <MudButton Color="Color.Primary"
                                    Variant="Variant.Filled"
                                    Size="Size.Medium"
-                                   StartIcon="@Icons.Material.Filled.Save"
-                                   OnClick="SaveAllNetworkConfiguration"
-                                   Loading="@isSavingNetworkConfig"
-                                   Disabled="@isSavingNetworkConfig">
-                            Netzwerk-Konfiguration speichern
+                                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                                   OnClick="NavigateBack">
+                            Zurück
                         </MudButton>
 
-                        <MudButton Color="Color.Secondary"
-                                   Variant="Variant.Filled"
-                                   Size="Size.Medium"
-                                   StartIcon="@Icons.Material.Filled.Edit"
-                                   OnClick="ReleaseForCorrection"
-                                   Loading="@isReleasingForCorrection"
-                                   Disabled="@(!forwardedWorkflows.Any() || isReleasingForCorrection)">
-                            Zur Korrektur freigeben
-                        </MudButton>
+                        @if (!isProjectArchived)
+                        {
+                            <MudButton Color="Color.Secondary"
+                                       Variant="Variant.Filled"
+                                       Size="Size.Medium"
+                                       StartIcon="@Icons.Material.Filled.Assignment"
+                                       OnClick="ReleaseForCorrection"
+                                       Loading="@isReleasingForCorrection"
+                                       Disabled="@(!forwardedWorkflows.Any() || isReleasingForCorrection)">
+                                Zur Korrektur freigeben
+                            </MudButton>
 
-                        <MudButton Color="Color.Success"
-                                   Variant="Variant.Filled"
-                                   Size="Size.Medium"
-                                   StartIcon="@Icons.Material.Filled.CheckCircle"
-                                   OnClick="CompleteInstallation"
-                                   Loading="@isCompletingInstallation"
-                                   Disabled="@(!forwardedWorkflows.Any() || isCompletingInstallation)">
-                            Installation abgeschlossen
-                        </MudButton>
-
-                        <MudStack Row Spacing="3">
+                            <MudButton Color="Color.Success"
+                                       Variant="Variant.Filled"
+                                       Size="Size.Medium"
+                                       StartIcon="@Icons.Material.Filled.CheckCircle"
+                                       OnClick="CompleteInstallation"
+                                       Loading="@isCompletingInstallation"
+                                       Disabled="@(!forwardedWorkflows.Any() || isCompletingInstallation)">
+                                Installation abgeschlossen
+                            </MudButton>
+                        }
+                        else
+                        {
                             <MudButton Color="Color.Warning"
                                        Variant="Variant.Filled"
                                        Size="Size.Medium"
                                        StartIcon="@Icons.Material.Filled.Edit"
                                        OnClick="ReopenForEditing"
                                        Loading="@isReopening"
-                                       Disabled="@(!isProjectArchived || isReopening)">
+                                       Disabled="@isReopening">
                                 Zur Bearbeitung öffnen
                             </MudButton>
-                        </MudStack>
+                        }
                     </MudStack>
                 </MudStack>
             </MudPaper>
         }
-
-        <!-- PROJECT STATUS OVERVIEW - Wiederverwendbare Komponente -->
-        <ProjectStatusOverview ProjectId="@ProjectId"
-                               IsLoading="@loading"
-                               @ref="statusOverview" />
 
         <!-- Loading -->
         @if (loading)
@@ -101,407 +96,403 @@
             var bdrWorkflows = forwardedWorkflows.Where(w => w.WorkflowType == WorkflowType.BDR).OrderBy(w => w.Name).ToList();
             var bvWorkflows = forwardedWorkflows.Where(w => w.WorkflowType == WorkflowType.BV).OrderBy(w => w.Name).ToList();
 
+            <!-- PROJECT STATUS OVERVIEW -->
+            <ProjectStatusOverview ProjectId="@ProjectId"
+                                   IsLoading="@loading" />
             <!-- BDR Section Header -->
-            @if (bdrWorkflows.Any())
-            {
+    @if (bdrWorkflows.Any())
+    {
                 <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Class="mt-2">
                     <MudIcon Icon="@Icons.Material.Filled.Computer" Color="Color.Primary" Size="Size.Large" />
                     <MudText Typo="Typo.h5" Color="Color.Primary">BDR - Bedienungsrechner (@bdrWorkflows.Count)</MudText>
                     <MudSpacer />
-                    <!-- PDF Export Button for all BDR -->
-                    <MudButton Color="Color.Primary"
-                               Variant="Variant.Outlined"
-                               StartIcon="@Icons.Material.Filled.PictureAsPdf"
-                               OnClick="ExportAllBdrToPdf"
-                               Loading="@isExportingPdf"
-                               Disabled="@isExportingPdf">
-                        Alle BDR als PDF
-                    </MudButton>
+            
                 </MudStack>
 
                 <!-- BDR Installation Forms -->
-                @foreach (var workflow in bdrWorkflows)
-                {
-                    var orderDetails = GetOrderDetailsForWorkflow(workflow);
-                    var networkConfig = GetNetworkConfiguration(workflow.Id);
+        @foreach (var workflow in bdrWorkflows)
+        {
+            var orderDetails = GetOrderDetailsForWorkflow(workflow);
 
-                    <MudPaper Class="pa-6" Elevation="2" Style="border-left: 4px solid var(--mud-palette-primary);">
-                        <MudStack Spacing="4">
+                    <MudPaper Class="pa-4 mb-4" Elevation="2" Style="border-block-end: 4px solid var(--mud-palette-primary);">
+                        <MudStack Spacing="3">
 
-                            <!-- Form Header -->
-                            <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
-                                <MudText Typo="Typo.h5" Color="Color.Primary">
-                                    <MudIcon Icon="@Icons.Material.Filled.Computer" Class="mr-2" />
-                                    @workflow.Name - Installation
-                                </MudText>
-                                <MudStack Row Spacing="2">
-                                    <MudChip T="string" Color="Color.Primary" Size="Size.Medium" Icon="@Icons.Material.Filled.CheckCircle">
-                                        BDR Hardware + Software
-                                    </MudChip>
-                                    <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf"
-                                                   Color="Color.Primary"
-                                                   Size="Size.Medium"
-                                                   OnClick="@(() => ExportSingleBdrToPdf(workflow.Id))"
-                                                   Title="BDR Installations-PDF"
-                                                   Loading="@exportingWorkflowIds.Contains(workflow.Id)"
-                                                   Disabled="@exportingWorkflowIds.Contains(workflow.Id)" />
+
+                            <!-- Workflow Header mit PDF Button -->
+
+                            <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                <MudStack Spacing="2">
+
+                                    <MudButton Color="Color.Primary"
+                                               Variant="Variant.Outlined"
+                                               StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                                               OnClick="ExportAllBdrToPdf"
+                                               Loading="@isExportingPdf"
+                                               Disabled="@isExportingPdf">
+                                        Alle BDR als PDF
+                                    </MudButton>
                                 </MudStack>
+
+                                <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf"
+                                               Color="Color.Primary"
+                                               Size="Size.Medium"
+                                               OnClick="@(() => ExportSingleBdrToPdf(workflow.Id))"
+                                               Title="BDR Installations-PDF"
+                                               Loading="@exportingWorkflowIds.Contains(workflow.Id)"
+                                               Disabled="@exportingWorkflowIds.Contains(workflow.Id)" />
                             </MudStack>
 
-                            <MudGrid Spacing="4">
-                                <!-- Hardware Section -->
-                                <MudItem xs="12" md="4">
-                                    <MudStack Spacing="3">
-                                        <MudText Typo="Typo.h6" Class="mb-2" Style="border-bottom: 2px solid var(--mud-palette-primary); padding-bottom: 8px;">
-                                            Hardware-Konfiguration
-                                        </MudText>
+                            <WorkflowDetailsCard WorkflowName="@workflow.Name"
+                                                 WorkflowType="BDR - Bedienungsrechner"
+                                                 WorkflowIcon="@Icons.Material.Filled.Computer"
+                                                 MainHardware="@orderDetails.MainHardware"
+                                                 HardwareItems="@orderDetails.HardwareDetails"
+                                                 SoftwareItems="@orderDetails.Software"
+                                                 Notes="@orderDetails.Notes"
+                                                 HardwareRemarks="@orderDetails.HardwareRemarks"
+                                                 SoftwareRemarks="@orderDetails.SoftwareRemarks"
+                                                 ShowComments="false">
+                            </WorkflowDetailsCard>
 
-                                        <!-- Hardware Type -->
-                                        <MudStack Spacing="1">
-                                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Hardware Rechner Typ:</MudText>
-                                            @if (!string.IsNullOrEmpty(orderDetails.MainHardware))
-                                            {
-                                                <MudText Typo="Typo.body1" Color="Color.Success" Class="ml-4">✓ @orderDetails.MainHardware</MudText>
-                                            }
-                                            else
-                                            {
-                                                <MudText Typo="Typo.body1" Color="Color.Secondary" Class="ml-4">Nicht konfiguriert</MudText>
-                                            }
-                                        </MudStack>
 
-                                        <!-- Hardware Details -->
-                                        <MudStack Spacing="1">
-                                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Hardware-Details:</MudText>
-                                            @if (orderDetails.HardwareDetails.Any())
-                                            {
-                                                @foreach (var detail in orderDetails.HardwareDetails)
-                                                {
-                                                    <MudText Typo="Typo.body1" Color="Color.Success" Class="ml-4">✓ @detail</MudText>
-                                                }
-                                            }
-                                            else
-                                            {
-                                                <MudText Typo="Typo.body1" Color="Color.Secondary" Class="ml-4">Keine Hardware-Details</MudText>
-                                            }
-                                        </MudStack>
 
-                                        <!-- Additional Hardware -->
-                                        <MudStack Spacing="1">
-                                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Zusatzhardware:</MudText>
-                                            @if (orderDetails.AdditionalHardware.Any())
-                                            {
-                                                @foreach (var additional in orderDetails.AdditionalHardware)
-                                                {
-                                                    <MudText Typo="Typo.body1" Color="Color.Success" Class="ml-4">✓ @additional</MudText>
-                                                }
-                                            }
-                                            else
-                                            {
-                                                <MudText Typo="Typo.body1" Color="Color.Secondary" Class="ml-4">Keine Zusatzhardware</MudText>
-                                            }
-                                        </MudStack>
-                                    </MudStack>
-                                </MudItem>
+                  <!-- Network Configuration Integration -->
 
-                                <!-- Software Section -->
-                                <MudItem xs="12" md="4">
-                                    <MudStack Spacing="3">
-                                        <MudText Typo="Typo.h6" Class="mb-2" Style="border-bottom: 2px solid var(--mud-palette-info); padding-bottom: 8px;">
-                                            Software-Konfiguration
-                                        </MudText>
-
-                                        <MudStack Spacing="1">
-                                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Ausgewählte Software:</MudText>
-                                            @if (orderDetails.Software.Any())
-                                            {
-                                                @foreach (var software in orderDetails.Software)
-                                                {
-                                                    <MudText Typo="Typo.body1" Color="Color.Info" Class="ml-4">✓ @software</MudText>
-                                                }
-                                            }
-                                            else
-                                            {
-                                                <MudText Typo="Typo.body1" Color="Color.Secondary" Class="ml-4">Keine Software konfiguriert</MudText>
-                                            }
-                                        </MudStack>
-                                    </MudStack>
-                                </MudItem>
-
-                                <!-- Network Configuration Section -->
-                                <MudItem xs="12" md="4">
-                                    <MudStack Spacing="3">
-                                        <MudText Typo="Typo.h6" Class="mb-2" Style="border-bottom: 2px solid var(--mud-palette-success); padding-bottom: 8px;">
+                            <MudPaper Elevation="1" Class="pa-4 mt-3" Style="background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%); border-left: 4px solid #4caf50; border-radius: 8px;">
+                                <MudStack Spacing="3">
+                                    <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                                        <MudIcon Icon="@Icons.Material.Filled.NetworkCheck" Color="Color.Success" Size="Size.Medium" />
+                                        <MudText Typo="Typo.h6" Style="color: #4caf50; font-weight: 600;">
                                             Netzwerk-Konfiguration
                                         </MudText>
+                                    </MudStack>
 
-                                        <MudTextField Label="MAC-Adresse"
-                                                      Value="@networkConfig.MacAddress"
-                                                      ValueChanged="@((string value) => UpdateNetworkConfig(workflow.Id, value, networkConfig.IpAddress))"
-                                                      Placeholder="00:00:00:00:00:00"
+                                    <MudDivider />
+
+                                    <MudGrid Spacing="3">
+                                        <MudItem xs="12" md="6">
+                                            <MudStack Spacing="1">
+                                                <MudText Typo="Typo.body2" Style="color: #666; font-weight: 500;">
+                                                    <MudIcon Icon="@Icons.Material.Filled.Router" Size="Size.Small" Class="mr-1" />
+                                                    MAC-Adresse
+                                                </MudText>
+                                                <MudTextField @bind-Value="@networkConfigurations[workflow.Id].MacAddress"
+                                                              Placeholder="00:00:00:00:00:00"
+                                                              Variant="Variant.Outlined"
+                                                              Margin="Margin.Dense"
+                                                              Mask="@(new PatternMask("HH:HH:HH:HH:HH:HH") { MaskChars = new[] { new MaskChar('H', @"[0-9A-Fa-f]") } })"
+                                                              HelperText="Format: XX:XX:XX:XX:XX:XX" />
+                                            </MudStack>
+                                        </MudItem>
+                                        <MudItem xs="12" md="6">
+                                            <MudStack Spacing="1">
+                                                <MudText Typo="Typo.body2" Style="color: #666; font-weight: 500;">
+                                                    <MudIcon Icon="@Icons.Material.Filled.Language" Size="Size.Small" Class="mr-1" />
+                                                    IP-Adresse
+                                                </MudText>
+                                                <MudTextField @bind-Value="@networkConfigurations[workflow.Id].IpAddress"
+                                                              Placeholder="192.168.1.100"
+                                                              Variant="Variant.Outlined"
+                                                              Margin="Margin.Dense"
+                                                              Mask="@(new PatternMask("DDD.DDD.DDD.DDD") { MaskChars = new[] { new MaskChar('D', @"[0-9]") } })"
+                                                              HelperText="Format: XXX.XXX.XXX.XXX" />
+                                            </MudStack>
+                                        </MudItem>
+                                    </MudGrid>
+
+
+                                    <MudStack Row Spacing="2" AlignItems="AlignItems.Center" Justify="Justify.FlexEnd" Class="mt-2">
+                                        @if (networkConfigSaveStatus.TryGetValue(workflow.Id, out var status))
+                                        {
+                                            <MudChip T="string"
+                                                     Icon="@(status.IsSuccess ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Error)"
+                                                     Size="Size.Small"
+                                                     Color="@(status.IsSuccess ? Color.Success : Color.Error)"
+                                                     OnClose="@(() => ClearSaveStatus(workflow.Id))">
+                                                @if (status.IsSuccess)
+                                                {
+                                                    <text>Gespeichert @status.SaveTime.ToString("HH:mm")</text>
+                                                }
+                                                else
+                                                {
+                                                    <text>@status.ErrorMessage</text>
+                                                }
+                                            </MudChip>
+                                        }
+
+                                        <MudButton Color="Color.Success"
+                                                   Variant="Variant.Filled"
+                                                   Size="Size.Medium"
+                                                   StartIcon="@Icons.Material.Filled.Save"
+                                                   OnClick="@(() => SaveIndividualNetworkConfig(workflow.Id))"
+                                                   Loading="@savingWorkflowIds.Contains(workflow.Id)"
+                                                   Disabled="@savingWorkflowIds.Contains(workflow.Id)">
+                                            Speichern
+                                        </MudButton>
+                                    </MudStack>
+                                </MudStack>
+                            </MudPaper>
+
+                            <!-- Comments Section für BDR -->
+                            <MudPaper Elevation="1" Class="pa-4 mt-3" Style="background: linear-gradient(135deg, #fafafa 0%, #ffffff 100%); border-radius: 8px;">
+                                <MudStack Spacing="3">
+                                    <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                                        <MudIcon Icon="@Icons.Material.Filled.Comment" Color="Color.Default" Size="Size.Medium" />
+                                        <MudText Typo="Typo.h6" Style="color: #616161; font-weight: 600;">
+                                            Kommentare & Bemerkungen
+                                        </MudText>
+                                    </MudStack>
+
+                                    <MudDivider />
+
+                                    @if (!string.IsNullOrEmpty(GetWorkflowComment(workflow.Id)))
+                                    {
+                                        <MudStack Spacing="2">
+                                            <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
+                                                <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Size="Size.Small" Color="Color.Default" />
+                                                <MudText Typo="Typo.subtitle2" Style="color: #757575; font-weight: 600;">
+                                                    Kommentar vom Einkauf:
+                                                </MudText>
+                                            </MudStack>
+                                            <MudPaper Class="pa-3" Elevation="0" Style="background-color: #f5f5f5; border-left: 4px solid #9e9e9e; border-radius: 4px;">
+                                                <MudText Typo="Typo.body2" Style="color: #424242; line-height: 1.6;">
+                                                    @GetWorkflowComment(workflow.Id)
+                                                </MudText>
+                                            </MudPaper>
+                                        </MudStack>
+                                    }
+
+                                    <MudStack Spacing="2">
+                                        <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
+                                            <MudIcon Icon="@Icons.Material.Filled.Build" Size="Size.Small" Color="Color.Success" />
+                                            <MudText Typo="Typo.subtitle2" Style="color: #4caf50; font-weight: 600;">
+                                                Installations-Notizen:
+                                            </MudText>
+                                        </MudStack>
+                                        <MudTextField Value="@GetInstallationComment(workflow.Id)"
+                                                      ValueChanged="@((string value) => UpdateInstallationComment(workflow.Id, value))"
+                                                      Placeholder="Besondere Vorkommnisse, Probleme, Lösungen während der Installation..."
                                                       Variant="Variant.Outlined"
-                                                      Margin="Margin.Dense" />
+                                                      Lines="4"
+                                                      AutoGrow />
 
-                                        <MudTextField Label="IP-Adresse"
-                                                      Value="@networkConfig.IpAddress"
-                                                      ValueChanged="@((string value) => UpdateNetworkConfig(workflow.Id, networkConfig.MacAddress, value))"
-                                                      Placeholder="192.168.1.100"
-                                                      Variant="Variant.Outlined"
-                                                      Margin="Margin.Dense" />
-
+                                        <MudStack Row Justify="Justify.FlexEnd">
+                                            <MudButton Color="Color.Success"
+                                                       Variant="Variant.Filled"
+                                                       Size="Size.Medium"
+                                                       StartIcon="@Icons.Material.Filled.Save"
+                                                       OnClick="@(() => SaveInstallationNotes(workflow.Id))"
+                                                       Loading="@savingWorkflowIds.Contains(workflow.Id)"
+                                                       Disabled="@savingWorkflowIds.Contains(workflow.Id)">
+                                                Speichern
+                                            </MudButton>
+                                        </MudStack>
                                     </MudStack>
-                                </MudItem>
-                            </MudGrid>
-
-                            <!-- Comments Section -->
-                            <MudDivider Class="my-3" />
-                            <MudStack Spacing="2">
-                                <MudText Typo="Typo.h6" Style="border-bottom: 2px solid var(--mud-palette-warning); padding-bottom: 8px;">
-                                    Kommentare & Bemerkungen
-                                </MudText>
-
-                                <!-- Purchase Comments (Read-only) -->
-                                @if (!string.IsNullOrEmpty(GetWorkflowComment(workflow.Id)))
-                                {
-                                    <MudStack Spacing="1">
-                                        <MudText Typo="Typo.subtitle2" Color="Color.Info">Kommentar vom Einkauf:</MudText>
-                                        <MudPaper Class="pa-2" Style="background-color: #f0f8ff; border-left: 3px solid var(--mud-palette-info);">
-                                            <MudText Typo="Typo.body2">@GetWorkflowComment(workflow.Id)</MudText>
-                                        </MudPaper>
-                                    </MudStack>
-                                }
-
-                                <!-- Hardware Notes -->
-                                @if (!string.IsNullOrEmpty(orderDetails.Notes))
-                                {
-                                    <MudStack Spacing="1">
-                                        <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Hardware-Bemerkungen:</MudText>
-                                        <MudPaper Class="pa-2" Style="background-color: #f5f5f5; border-left: 3px solid var(--mud-palette-secondary);">
-                                            <MudText Typo="Typo.body2">@orderDetails.Notes</MudText>
-                                        </MudPaper>
-                                    </MudStack>
-                                }
-
-                                <!-- Installation Notes -->
-                                <MudTextField Value="@GetInstallationComment(workflow.Id)"
-                                              ValueChanged="@((string value) => UpdateInstallationComment(workflow.Id, value))"
-                                              Label="Installations-Hinweise"
-                                              Placeholder="Besondere Installations-Hinweise, Probleme, etc..."
-                                              Variant="Variant.Outlined"
-                                              Lines="3" />
-                            </MudStack>
+                                </MudStack>
+                            </MudPaper>
                         </MudStack>
                     </MudPaper>
-                }
-            }
+        }
+    }
 
             <!-- BV Section -->
-            @if (bvWorkflows.Any())
-            {
+
+
+    @if (bvWorkflows.Any())
+    {
                 <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Class="mt-6">
                     <MudIcon Icon="@Icons.Material.Filled.CameraAlt" Color="Color.Secondary" Size="Size.Large" />
                     <MudText Typo="Typo.h5" Color="Color.Secondary">BV - Bildverarbeitungsrechner (@bvWorkflows.Count)</MudText>
                     <MudSpacer />
-                    <!-- PDF Export Button for all BV -->
-                    <MudButton Color="Color.Secondary"
-                               Variant="Variant.Outlined"
-                               StartIcon="@Icons.Material.Filled.PictureAsPdf"
-                               OnClick="ExportAllBvToPdf"
-                               Loading="@isExportingPdf"
-                               Disabled="@isExportingPdf">
-                        Alle BV als PDF
-                    </MudButton>
+
                 </MudStack>
 
                 <!-- BV Installation Forms -->
-                @foreach (var workflow in bvWorkflows)
-                {
-                    var orderDetails = GetOrderDetailsForWorkflow(workflow);
-                    var contactPerson = GetContactPersonForBvWorkflow(workflow);
-                    var networkConfig = GetNetworkConfiguration(workflow.Id);
+        @foreach (var workflow in bvWorkflows)
+        {
+            var orderDetails = GetOrderDetailsForWorkflow(workflow);
+            var contactPerson = GetContactPersonForBvWorkflow(workflow);
 
-                    <MudPaper Class="pa-6" Elevation="2" Style="border-left: 4px solid var(--mud-palette-secondary);">
-                        <MudStack Spacing="4">
+                    <MudPaper Class="pa-4 mb-4" Elevation="2" Style="border-left: 4px solid var(--mud-palette-secondary);">
+                        <MudStack Spacing="3">
 
-                            <!-- Form Header -->
-                            <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
-                                <MudText Typo="Typo.h5" Color="Color.Secondary">
-                                    <MudIcon Icon="@Icons.Material.Filled.CameraAlt" Class="mr-2" />
-                                    @workflow.Name - Installation
-                                </MudText>
-                                <MudStack Row Spacing="2">
-                                    <MudChip T="string" Color="Color.Secondary" Size="Size.Medium" Icon="@Icons.Material.Filled.CheckCircle">
-                                        BV Hardware + Software
-                                    </MudChip>
-                                    <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf"
-                                                   Color="Color.Secondary"
-                                                   Size="Size.Medium"
-                                                   OnClick="@(() => ExportSingleBvToPdf(workflow.Id))"
-                                                   Title="BV Installations-PDF"
-                                                   Loading="@exportingWorkflowIds.Contains(workflow.Id)"
-                                                   Disabled="@exportingWorkflowIds.Contains(workflow.Id)" />
-                                </MudStack>
+
+
+                            <!-- Workflow Header mit PDF Button -->
+
+
+                            <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                <!-- ALL PDF Button -->
+                                <MudButton Color="Color.Secondary"
+                                           Variant="Variant.Outlined"
+                                           StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                                           OnClick="ExportAllBvToPdf"
+                                           Loading="@isExportingPdf"
+                                           Disabled="@isExportingPdf"> Alle BV als PDF
+                                </MudButton>
+
+
+                                <!-- Single PDF Button -->
+                                <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf"
+                                               Color="Color.Secondary"
+                                               Size="Size.Medium"
+                                               OnClick="@(() => ExportSingleBvToPdf(workflow.Id))"
+                                               Title="BV Installations-PDF"
+                                               Loading="@exportingWorkflowIds.Contains(workflow.Id)"
+                                               Disabled="@exportingWorkflowIds.Contains(workflow.Id)" />
                             </MudStack>
 
-                            <MudGrid Spacing="4">
-                                <!-- Hardware Section -->
-                                <MudItem xs="12" md="4">
-                                    <MudStack Spacing="3">
-                                        <MudText Typo="Typo.h6" Class="mb-2" Style="border-bottom: 2px solid var(--mud-palette-secondary); padding-bottom: 8px;">
-                                            Hardware-Konfiguration
-                                        </MudText>
+                            <WorkflowDetailsCard WorkflowName="@workflow.Name"
+                                                 WorkflowType="BV - Bildverarbeitungsrechner"
+                                                 WorkflowIcon="@Icons.Material.Filled.CameraAlt"
+                                                 MainHardware="@orderDetails.MainHardware"
+                                                 HardwareItems="@orderDetails.HardwareDetails"
+                                                 SoftwareItems="@orderDetails.Software"
+                                                 Notes="@orderDetails.Notes"
+                                                 ContactPerson="@contactPerson"
+                                                 HardwareRemarks="@orderDetails.HardwareRemarks"
+                                                 SoftwareRemarks="@orderDetails.SoftwareRemarks"
+                                                 ShowComments="false">
+                            </WorkflowDetailsCard>
 
-                                        <!-- PC Type -->
-                                        <MudStack Spacing="1">
-                                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">PC-Typ:</MudText>
-                                            @if (!string.IsNullOrEmpty(orderDetails.MainHardware))
-                                            {
-                                                <MudText Typo="Typo.body1" Color="Color.Success" Class="ml-4">✓ @orderDetails.MainHardware</MudText>
-                                            }
-                                            else
-                                            {
-                                                <MudText Typo="Typo.body1" Color="Color.Secondary" Class="ml-4">Nicht konfiguriert</MudText>
-                                            }
-                                        </MudStack>
-
-                                        <!-- Contact Person -->
-                                        <MudStack Spacing="1">
-                                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Ansprechpartner:</MudText>
-                                            @if (!string.IsNullOrEmpty(contactPerson))
-                                            {
-                                                <MudText Typo="Typo.body1" Color="Color.Success" Class="ml-4">✓ @contactPerson</MudText>
-                                            }
-                                            else
-                                            {
-                                                <MudText Typo="Typo.body1" Color="Color.Secondary" Class="ml-4">Nicht angegeben</MudText>
-                                            }
-                                        </MudStack>
-
-                                        <!-- PC Details -->
-                                        <MudStack Spacing="1">
-                                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">PC-Konfiguration:</MudText>
-                                            @if (orderDetails.PcDetails.Any())
-                                            {
-                                                @foreach (var detail in orderDetails.PcDetails)
-                                                {
-                                                    <MudText Typo="Typo.body1" Color="Color.Success" Class="ml-4">✓ @detail</MudText>
-                                                }
-                                            }
-                                            else
-                                            {
-                                                <MudText Typo="Typo.body1" Color="Color.Secondary" Class="ml-4">Keine besonderen Anforderungen</MudText>
-                                            }
-                                        </MudStack>
-
-                                        <!-- Hardware Components -->
-                                        <MudStack Spacing="1">
-                                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Hardware-Komponenten:</MudText>
-                                            @if (orderDetails.HardwareDetails.Any())
-                                            {
-                                                @foreach (var component in orderDetails.HardwareDetails)
-                                                {
-                                                    <MudText Typo="Typo.body1" Color="Color.Success" Class="ml-4">✓ @component</MudText>
-                                                }
-                                            }
-                                            else
-                                            {
-                                                <MudText Typo="Typo.body1" Color="Color.Secondary" Class="ml-4">Keine besonderen Komponenten</MudText>
-                                            }
-                                        </MudStack>
-                                    </MudStack>
-                                </MudItem>
-
-                                <!-- Software Section -->
-                                <MudItem xs="12" md="4">
-                                    <MudStack Spacing="3">
-                                        <MudText Typo="Typo.h6" Class="mb-2" Style="border-bottom: 2px solid var(--mud-palette-info); padding-bottom: 8px;">
-                                            Software-Konfiguration
-                                        </MudText>
-
-                                        <MudStack Spacing="1">
-                                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Ausgewählte Software:</MudText>
-                                            @if (orderDetails.Software.Any())
-                                            {
-                                                @foreach (var software in orderDetails.Software)
-                                                {
-                                                    <MudText Typo="Typo.body1" Color="Color.Info" Class="ml-4">✓ @software</MudText>
-                                                }
-                                            }
-                                            else
-                                            {
-                                                <MudText Typo="Typo.body1" Color="Color.Secondary" Class="ml-4">Keine Software konfiguriert</MudText>
-                                            }
-                                        </MudStack>
-                                    </MudStack>
-                                </MudItem>
-
-                                <!-- Network Configuration Section -->
-                                <MudItem xs="12" md="4">
-                                    <MudStack Spacing="3">
-                                        <MudText Typo="Typo.h6" Class="mb-2" Style="border-bottom: 2px solid var(--mud-palette-success); padding-bottom: 8px;">
+                            <!-- Network Configuration Integration -->
+                            <MudPaper Elevation="1" Class="pa-4 mt-3" Style="background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%); border-left: 4px solid #4caf50; border-radius: 8px;">
+                                <MudStack Spacing="3">
+                                    <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                                        <MudIcon Icon="@Icons.Material.Filled.NetworkCheck" Color="Color.Success" Size="Size.Medium" />
+                                        <MudText Typo="Typo.h6" Style="color: #4caf50; font-weight: 600;">
                                             Netzwerk-Konfiguration
                                         </MudText>
+                                    </MudStack>
 
-                                        <MudTextField Label="MAC-Adresse"
-                                                      Value="@networkConfig.MacAddress"
-                                                      ValueChanged="@((string value) => UpdateNetworkConfig(workflow.Id, value, networkConfig.IpAddress))"
-                                                      Placeholder="00:00:00:00:00:00"
+                                    <MudDivider />
+
+                                    <MudGrid Spacing="3">
+                                        <MudItem xs="12" md="6">
+                                            <MudStack Spacing="1">
+                                                <MudText Typo="Typo.body2" Style="color: #666; font-weight: 500;">
+                                                    <MudIcon Icon="@Icons.Material.Filled.Router" Size="Size.Small" Class="mr-1" />
+                                                    MAC-Adresse
+                                                </MudText>
+                                                <MudTextField @bind-Value="@networkConfigurations[workflow.Id].MacAddress"
+                                                              Placeholder="00:00:00:00:00:00"
+                                                              Variant="Variant.Outlined"
+                                                              Margin="Margin.Dense"
+                                                              Mask="@(new PatternMask("HH:HH:HH:HH:HH:HH") { MaskChars = new[] { new MaskChar('H', @"[0-9A-Fa-f]") } })"
+                                                              HelperText="Format: XX:XX:XX:XX:XX:XX" />
+                                            </MudStack>
+                                        </MudItem>
+                                        <MudItem xs="12" md="6">
+                                            <MudStack Spacing="1">
+                                                <MudText Typo="Typo.body2" Style="color: #666; font-weight: 500;">
+                                                    <MudIcon Icon="@Icons.Material.Filled.Language" Size="Size.Small" Class="mr-1" />
+                                                    IP-Adresse
+                                                </MudText>
+                                                <MudTextField @bind-Value="@networkConfigurations[workflow.Id].IpAddress"
+                                                              Placeholder="192.168.1.100"
+                                                              Variant="Variant.Outlined"
+                                                              Margin="Margin.Dense"
+                                                              Mask="@(new PatternMask("DDD.DDD.DDD.DDD") { MaskChars = new[] { new MaskChar('D', @"[0-9]") } })"
+                                                              HelperText="Format: XXX.XXX.XXX.XXX" />
+                                            </MudStack>
+                                        </MudItem>
+                                    </MudGrid>
+
+                                    <MudStack Row Spacing="2" AlignItems="AlignItems.Center" Justify="Justify.FlexEnd" Class="mt-2">
+                                        @if (networkConfigSaveStatus.TryGetValue(workflow.Id, out var bvStatus))
+                                        {
+                                            <MudChip T="string"
+                                                     Icon="@(bvStatus.IsSuccess ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Error)"
+                                                     Size="Size.Small"
+                                                     Color="@(bvStatus.IsSuccess ? Color.Success : Color.Error)"
+                                                     OnClose="@(() => ClearSaveStatus(workflow.Id))">
+                                                @if (bvStatus.IsSuccess)
+                                                {
+                                                    <text>Gespeichert @bvStatus.SaveTime.ToString("HH:mm")</text>
+                                                }
+                                                else
+                                                {
+                                                    <text>@bvStatus.ErrorMessage</text>
+                                                }
+                                            </MudChip>
+                                        }
+
+                                        <MudButton Color="Color.Success"
+                                                   Variant="Variant.Filled"
+                                                   Size="Size.Medium"
+                                                   StartIcon="@Icons.Material.Filled.Save"
+                                                   OnClick="@(() => SaveIndividualNetworkConfig(workflow.Id))"
+                                                   Loading="@savingWorkflowIds.Contains(workflow.Id)"
+                                                   Disabled="@savingWorkflowIds.Contains(workflow.Id)">
+                                            Speichern
+                                        </MudButton>
+                                    </MudStack>
+                                </MudStack>
+                            </MudPaper>
+
+                            <!-- Comments Section für BV -->
+                            <MudPaper Elevation="1" Class="pa-4 mt-3" Style="background: linear-gradient(135deg, #fafafa 0%, #ffffff 100%); border-radius: 8px;">
+                                <MudStack Spacing="3">
+                                    <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                                        <MudIcon Icon="@Icons.Material.Filled.Comment" Color="Color.Default" Size="Size.Medium" />
+                                        <MudText Typo="Typo.h6" Style="color: #616161; font-weight: 600;">
+                                            Kommentare & Bemerkungen
+                                        </MudText>
+                                    </MudStack>
+
+                                    <MudDivider />
+
+                                    @if (!string.IsNullOrEmpty(GetWorkflowComment(workflow.Id)))
+                                    {
+                                        <MudStack Spacing="2">
+                                            <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
+                                                <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Size="Size.Small" Color="Color.Default" />
+                                                <MudText Typo="Typo.subtitle2" Style="color: #757575; font-weight: 600;">
+                                                    Kommentar vom Einkauf:
+                                                </MudText>
+                                            </MudStack>
+                                            <MudPaper Class="pa-3" Elevation="0" Style="background-color: #f5f5f5; border-left: 4px solid #9e9e9e; border-radius: 4px;">
+                                                <MudText Typo="Typo.body2" Style="color: #424242; line-height: 1.6;">
+                                                    @GetWorkflowComment(workflow.Id)
+                                                </MudText>
+                                            </MudPaper>
+                                        </MudStack>
+                                    }
+
+                                    <MudStack Spacing="2">
+                                        <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
+                                            <MudIcon Icon="@Icons.Material.Filled.Build" Size="Size.Small" Color="Color.Success" />
+                                            <MudText Typo="Typo.subtitle2" Style="color: #4caf50; font-weight: 600;">
+                                                Installations-Notizen:
+                                            </MudText>
+                                        </MudStack>
+                                        <MudTextField Value="@GetInstallationComment(workflow.Id)"
+                                                      ValueChanged="@((string value) => UpdateInstallationComment(workflow.Id, value))"
+                                                      Placeholder="Besondere Vorkommnisse, Probleme, Lösungen während der Installation..."
                                                       Variant="Variant.Outlined"
-                                                      Margin="Margin.Dense" />
+                                                      Lines="4"
+                                                      AutoGrow />
 
-                                        <MudTextField Label="IP-Adresse"
-                                                      Value="@networkConfig.IpAddress"
-                                                      ValueChanged="@((string value) => UpdateNetworkConfig(workflow.Id, networkConfig.MacAddress, value))"
-                                                      Placeholder="192.168.1.100"
-                                                      Variant="Variant.Outlined"
-                                                      Margin="Margin.Dense" />
+                                        <MudStack Row Justify="Justify.FlexEnd">
+                                            <MudButton Color="Color.Success"
+                                                       Variant="Variant.Filled"
+                                                       Size="Size.Medium"
+                                                       StartIcon="@Icons.Material.Filled.Save"
+                                                       OnClick="@(() => SaveInstallationNotes(workflow.Id))"
+                                                       Loading="@savingWorkflowIds.Contains(workflow.Id)"
+                                                       Disabled="@savingWorkflowIds.Contains(workflow.Id)">
+                                                Speichern
+                                            </MudButton>
+                                        </MudStack>
                                     </MudStack>
-                                </MudItem>
-                            </MudGrid>
-
-                            <!-- Comments Section -->
-                            <MudDivider Class="my-3" />
-                            <MudStack Spacing="2">
-                                <MudText Typo="Typo.h6" Style="border-bottom: 2px solid var(--mud-palette-warning); padding-bottom: 8px;">
-                                    Kommentare & Bemerkungen
-                                </MudText>
-
-                                <!-- Purchase Comments (Read-only) -->
-                                @if (!string.IsNullOrEmpty(GetWorkflowComment(workflow.Id)))
-                                {
-                                    <MudStack Spacing="1">
-                                        <MudText Typo="Typo.subtitle2" Color="Color.Info">Kommentar vom Einkauf:</MudText>
-                                        <MudPaper Class="pa-2" Style="background-color: #f0f8ff; border-left: 3px solid var(--mud-palette-info);">
-                                            <MudText Typo="Typo.body2">@GetWorkflowComment(workflow.Id)</MudText>
-                                        </MudPaper>
-                                    </MudStack>
-                                }
-
-                                <!-- Hardware Notes -->
-                                @if (!string.IsNullOrEmpty(orderDetails.Notes))
-                                {
-                                    <MudStack Spacing="1">
-                                        <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Hardware-Bemerkungen:</MudText>
-                                        <MudPaper Class="pa-2" Style="background-color: #f5f5f5; border-left: 3px solid var(--mud-palette-secondary);">
-                                            <MudText Typo="Typo.body2">@orderDetails.Notes</MudText>
-                                        </MudPaper>
-                                    </MudStack>
-                                }
-
-                                <!-- Installation Notes -->
-                                <MudTextField Value="@GetInstallationComment(workflow.Id)"
-                                              ValueChanged="@((string value) => UpdateInstallationComment(workflow.Id, value))"
-                                              Label="Installations-Hinweise"
-                                              Placeholder="Besondere Installations-Hinweise, Probleme, etc..."
-                                              Variant="Variant.Outlined"
-                                              Lines="3" />
-                            </MudStack>
+                                </MudStack>
+                            </MudPaper>
                         </MudStack>
                     </MudPaper>
-                }
-            }
-
-            <!-- Summary -->
-            <MudPaper Class="pa-4" Elevation="1" Style="background-color: var(--mud-palette-background-grey);">
+        }
+        }
+    <!-- Summary -->
+            <MudPaper Class="pa-4 mt-4 mb-4" Elevation="1" Style="background-color: var(--mud-palette-background-grey);">
                 <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
                     <MudStack Row AlignItems="AlignItems.Center" Spacing="4">
                         <MudStack AlignItems="AlignItems.Center" Spacing="1">
@@ -550,7 +541,7 @@
         public string IpAddress { get; set; } = string.Empty;
     }
 
-    // Order Details Data Structure (reused from Purchase)
+    // Order Details Data Structure
     public class OrderDetails
     {
         public string MainHardware { get; set; } = string.Empty;
@@ -559,6 +550,16 @@
         public List<string> PcDetails { get; set; } = new();
         public List<string> Software { get; set; } = new();
         public string Notes { get; set; } = string.Empty;
+        public string HardwareRemarks { get; set; } = string.Empty;
+        public string SoftwareRemarks { get; set; } = string.Empty;
+    }
+
+    // Save Status Class
+    public class SaveStatus
+    {
+        public bool IsSuccess { get; set; }
+        public DateTime SaveTime { get; set; }
+        public string ErrorMessage { get; set; } = "";
     }
 
     // Component state
@@ -568,11 +569,9 @@
     private bool isCompletingInstallation = false;
     private bool isReleasingForCorrection = false;
     private bool isExportingPdf = false;
-    private bool isSavingNetworkConfig = false;
     private HashSet<Guid> exportingWorkflowIds = new();
-
-    // Reference to the status overview component for refreshing
-    private ProjectStatusOverview? statusOverview;
+    private HashSet<Guid> savingWorkflowIds = new();
+    private Dictionary<Guid, SaveStatus> networkConfigSaveStatus = new();
 
     // Comments from purchase (read-only)
     private Dictionary<Guid, string> workflowComments = new();
@@ -602,7 +601,6 @@
         loading = true;
         try
         {
-            // Load project with both forwarded and archived workflows
             currentProject = await DbContext.Project
                 .Include(p => p.Workflows)
                 .FirstOrDefaultAsync(p => p.Id == ProjectId);
@@ -613,7 +611,6 @@
                 return;
             }
 
-            // Get workflows that are either forwarded to installation or archived
             forwardedWorkflows = currentProject.Workflows
                 .Where(w => w.Status == WorkflowStatus.ForwardedToInstallation ||
                            w.Status == WorkflowStatus.Archived)
@@ -627,17 +624,10 @@
                 return;
             }
 
-            // Load all detailed data
             await LoadDetailedData();
             await LoadNetworkConfigurations();
             LoadWorkflowComments();
             LoadInstallationComments();
-
-            // Refresh the status overview component
-            if (statusOverview != null)
-            {
-                await statusOverview.RefreshAsync();
-            }
         }
         catch (Exception ex)
         {
@@ -651,13 +641,117 @@
     }
 
     /// <summary>
+    /// Save network configuration for individual workflow
+    /// </summary>
+    private async Task SaveIndividualNetworkConfig(Guid workflowId)
+    {
+        networkConfigSaveStatus.Remove(workflowId);
+        savingWorkflowIds.Add(workflowId);
+        StateHasChanged();
+
+        try
+        {
+            using var transaction = await DbContext.Database.BeginTransactionAsync();
+
+            var workflow = forwardedWorkflows.FirstOrDefault(w => w.Id == workflowId);
+            if (workflow == null)
+            {
+                throw new Exception("Workflow nicht gefunden");
+            }
+
+            var config = await DbContext.InstallationConfiguration
+                .FirstOrDefaultAsync(c => c.WorkflowId == workflowId);
+
+            var networkConfig = networkConfigurations[workflowId];
+
+            if (config == null)
+            {
+                config = new DbInstallationConfiguration
+                {
+                    Id = Guid.NewGuid(),
+                    WorkflowId = workflowId,
+                    MacAddress = networkConfig.MacAddress,
+                    IpAddress = networkConfig.IpAddress,
+                    CreationDate = DateTime.UtcNow,
+                    LastChange = DateTime.UtcNow
+                };
+                DbContext.InstallationConfiguration.Add(config);
+            }
+            else
+            {
+                config.MacAddress = networkConfig.MacAddress;
+                config.IpAddress = networkConfig.IpAddress;
+                config.LastChange = DateTime.UtcNow;
+            }
+
+            var existingDescription = workflow.Description ?? "";
+
+            if (existingDescription.Contains("INSTALLATION_COMMENT:"))
+            {
+                var startIndex = existingDescription.IndexOf("INSTALLATION_COMMENT:");
+                var endIndex = existingDescription.IndexOf("ENDMEC:", startIndex);
+                if (endIndex > startIndex)
+                {
+                    existingDescription = existingDescription.Remove(startIndex, endIndex - startIndex + 7);
+                }
+                else
+                {
+                    existingDescription = existingDescription.Substring(0, startIndex);
+                }
+            }
+
+            var installComment = GetInstallationComment(workflowId);
+            if (!string.IsNullOrWhiteSpace(installComment))
+            {
+                workflow.Description = existingDescription + $"INSTALLATION_COMMENT:{installComment.Trim()}ENDMEC:";
+            }
+
+            workflow.LastChange = DateTime.UtcNow;
+
+            await DbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            networkConfigSaveStatus[workflowId] = new SaveStatus
+            {
+                IsSuccess = true,
+                SaveTime = DateTime.Now
+            };
+
+            Snackbar.Add($"Netzwerk-Konfiguration für {workflow.Name} gespeichert!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            networkConfigSaveStatus[workflowId] = new SaveStatus
+            {
+                IsSuccess = false,
+                ErrorMessage = ex.Message
+            };
+
+            Snackbar.Add($"Fehler beim Speichern: {ex.Message}", Severity.Error);
+            Console.WriteLine($"SaveIndividualNetworkConfig Error: {ex}");
+        }
+        finally
+        {
+            savingWorkflowIds.Remove(workflowId);
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Clear save status for workflow
+    /// </summary>
+    private void ClearSaveStatus(Guid workflowId)
+    {
+        networkConfigSaveStatus.Remove(workflowId);
+    }
+
+    /// <summary>
     /// Load hardware/software details from database
     /// </summary>
     private async Task LoadDetailedData()
     {
         try
         {
-            // Load BDR hardware data
             var bdrWorkflowIds = forwardedWorkflows
                 .Where(w => w.WorkflowType == WorkflowType.BDR)
                 .Select(w => w.Id)
@@ -665,26 +759,22 @@
 
             if (bdrWorkflowIds.Any())
             {
-                var bdrHardware = await DbContext.HardwareComputer
+                var bdrHardwareWithFields = await DbContext.HardwareComputer
+                    .Include(h => h.HardwareFields.Where(f => f.IsActive))
                     .Where(h => bdrWorkflowIds.Contains(h.WorkflowId))
                     .ToListAsync();
 
-                foreach (var hardware in bdrHardware)
+                foreach (var hardware in bdrHardwareWithFields)
                 {
                     bdrHardwareCache[hardware.WorkflowId] = hardware;
-
-                    // Load dynamic hardware fields
-                    var fields = await DbContext.HardwareField
-                        .Where(f => f.HardwareComputerId == hardware.Id && f.IsActive)
+                    var fields = hardware.HardwareFields
                         .OrderBy(f => f.DisplayOrder)
                         .ThenBy(f => f.DisplayName)
-                        .ToListAsync();
-
+                        .ToList();
                     bdrFieldsCache[hardware.WorkflowId] = fields;
                 }
             }
 
-            // Load BV hardware data
             var bvWorkflowIds = forwardedWorkflows
                 .Where(w => w.WorkflowType == WorkflowType.BV)
                 .Select(w => w.Id)
@@ -692,19 +782,16 @@
 
             if (bvWorkflowIds.Any())
             {
-                var bvHardware = await DbContext.BvHardwareComputer
+                var bvHardwareList = await DbContext.BvHardwareComputer
                     .Where(h => bvWorkflowIds.Contains(h.WorkflowId))
                     .ToListAsync();
 
-                foreach (var hardware in bvHardware)
+                foreach (var hardware in bvHardwareList)
                 {
                     bvHardwareCache[hardware.WorkflowId] = hardware;
-
-                    // Load hardware components
                     var components = await DbContext.BvHardwareComponent
                         .Where(c => c.BvHardwareComputerId == hardware.Id && c.IsActive && c.IsSelected)
                         .ToListAsync();
-
                     bvComponentsCache[hardware.WorkflowId] = components;
                 }
             }
@@ -724,7 +811,6 @@
         try
         {
             var workflowIds = forwardedWorkflows.Select(w => w.Id).ToList();
-
             var configs = await DbContext.InstallationConfiguration
                 .Where(c => workflowIds.Contains(c.WorkflowId))
                 .ToListAsync();
@@ -732,7 +818,6 @@
             foreach (var workflow in forwardedWorkflows)
             {
                 var config = configs.FirstOrDefault(c => c.WorkflowId == workflow.Id);
-
                 if (config != null)
                 {
                     networkConfigurations[workflow.Id] = new NetworkConfiguration
@@ -743,7 +828,6 @@
                 }
                 else
                 {
-                    // Initialize empty network configuration
                     networkConfigurations[workflow.Id] = new NetworkConfiguration();
                 }
             }
@@ -751,7 +835,6 @@
         catch (Exception ex)
         {
             Console.WriteLine($"LoadNetworkConfigurations Error: {ex}");
-            // Initialize empty configurations for all workflows
             foreach (var workflow in forwardedWorkflows)
             {
                 networkConfigurations[workflow.Id] = new NetworkConfiguration();
@@ -838,14 +921,6 @@
     }
 
     /// <summary>
-    /// Get network configuration for workflow
-    /// </summary>
-    private NetworkConfiguration GetNetworkConfiguration(Guid workflowId)
-    {
-        return networkConfigurations.TryGetValue(workflowId, out var config) ? config : new NetworkConfiguration();
-    }
-
-    /// <summary>
     /// Update network configuration
     /// </summary>
     private void UpdateNetworkConfig(Guid workflowId, string macAddress, string ipAddress)
@@ -860,308 +935,7 @@
         config.IpAddress = ipAddress ?? "";
     }
 
-    /// <summary>
-    /// Save all network configurations and installation comments
-    /// </summary>
-    private async Task SaveAllNetworkConfiguration()
-    {
-        isSavingNetworkConfig = true;
-        try
-        {
-            using var transaction = await DbContext.Database.BeginTransactionAsync();
-
-            foreach (var workflow in forwardedWorkflows)
-            {
-                // Save network configuration
-                var config = await DbContext.InstallationConfiguration
-                    .FirstOrDefaultAsync(c => c.WorkflowId == workflow.Id);
-
-                var networkConfig = GetNetworkConfiguration(workflow.Id);
-
-                if (config == null)
-                {
-                    config = new DbInstallationConfiguration
-                    {
-                        Id = Guid.NewGuid(),
-                        WorkflowId = workflow.Id,
-                        MacAddress = networkConfig.MacAddress,
-                        IpAddress = networkConfig.IpAddress,
-                        CreationDate = DateTime.UtcNow,
-                        LastChange = DateTime.UtcNow
-                    };
-                    DbContext.InstallationConfiguration.Add(config);
-                }
-                else
-                {
-                    config.MacAddress = networkConfig.MacAddress;
-                    config.IpAddress = networkConfig.IpAddress;
-                    config.LastChange = DateTime.UtcNow;
-                }
-
-                // Save installation comment to workflow description
-                var existingDescription = workflow.Description ?? "";
-
-                // Remove old installation comment
-                if (existingDescription.Contains("INSTALLATION_COMMENT:"))
-                {
-                    var startIndex = existingDescription.IndexOf("INSTALLATION_COMMENT:");
-                    var endIndex = existingDescription.IndexOf("ENDMEC:", startIndex);
-                    if (endIndex > startIndex)
-                    {
-                        existingDescription = existingDescription.Remove(startIndex, endIndex - startIndex + 7);
-                    }
-                    else
-                    {
-                        existingDescription = existingDescription.Substring(0, startIndex);
-                    }
-                }
-
-                // Add new installation comment
-                var installComment = GetInstallationComment(workflow.Id);
-                if (!string.IsNullOrWhiteSpace(installComment))
-                {
-                    workflow.Description = existingDescription + $"INSTALLATION_COMMENT:{installComment.Trim()}ENDMEC:";
-                }
-
-                workflow.LastChange = DateTime.UtcNow;
-            }
-
-            await DbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            Snackbar.Add("Netzwerk-Konfiguration und Kommentare erfolgreich gespeichert!", Severity.Success);
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Fehler beim Speichern: {ex.Message}", Severity.Error);
-            Console.WriteLine($"SaveAllNetworkConfiguration Error: {ex}");
-        }
-        finally
-        {
-            isSavingNetworkConfig = false;
-        }
-    }
-
-    // Copy methods from original installation page for hardware/software processing
-    private OrderDetails GetOrderDetailsForWorkflow(DbWorkflow workflow)
-    {
-        var orderData = new OrderDetails();
-
-        try
-        {
-            if (workflow.WorkflowType == WorkflowType.BDR)
-            {
-                ProcessBdrHardware(workflow, orderData);
-            }
-            else
-            {
-                ProcessBvHardware(workflow, orderData);
-            }
-
-            ProcessWorkflowSoftware(workflow, orderData);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"GetOrderDetailsForWorkflow Error: {ex.Message}");
-            orderData.Notes = $"Fehler beim Laden der Details: {ex.Message}";
-        }
-
-        return orderData;
-    }
-
-    private void ProcessBdrHardware(DbWorkflow workflow, OrderDetails orderData)
-    {
-        if (bdrHardwareCache.TryGetValue(workflow.Id, out var bdrHardware) && bdrHardware != null)
-        {
-            if (!string.IsNullOrEmpty(bdrHardware.HardwareSpecs))
-            {
-                orderData.MainHardware = bdrHardware.HardwareSpecs;
-            }
-
-            if (!string.IsNullOrEmpty(bdrHardware.Description))
-            {
-                orderData.Notes = $"Hardware-Bemerkung: {bdrHardware.Description}";
-            }
-
-            if (bdrFieldsCache.TryGetValue(workflow.Id, out var fields))
-            {
-                var hardwareFields = fields.Where(f => f.FieldType == "Hardware" && !string.IsNullOrWhiteSpace(f.FieldValue)).ToList();
-                foreach (var field in hardwareFields)
-                {
-                    var displayName = !string.IsNullOrEmpty(field.DisplayName) ? field.DisplayName : field.FieldName;
-                    var value = field.FieldValue?.Trim() ?? string.Empty;
-                    if (!string.IsNullOrEmpty(value))
-                    {
-                        orderData.HardwareDetails.Add($"{displayName}: {value}");
-                    }
-                }
-
-                var additionalFields = fields.Where(f => f.FieldType == "Additional" && !string.IsNullOrWhiteSpace(f.FieldValue)).ToList();
-                foreach (var field in additionalFields)
-                {
-                    var displayName = !string.IsNullOrEmpty(field.DisplayName) ? field.DisplayName : field.FieldName;
-                    var value = field.FieldValue?.Trim() ?? string.Empty;
-                    if (!string.IsNullOrEmpty(value))
-                    {
-                        orderData.AdditionalHardware.Add($"{displayName}: {value}");
-                    }
-                }
-            }
-        }
-    }
-
-    private void ProcessBvHardware(DbWorkflow workflow, OrderDetails orderData)
-    {
-        if (bvHardwareCache.TryGetValue(workflow.Id, out var bvHardware) && bvHardware != null)
-        {
-            if (!string.IsNullOrEmpty(bvHardware.PcType))
-            {
-                orderData.MainHardware = bvHardware.PcType;
-            }
-
-            if (!string.IsNullOrEmpty(bvHardware.PcTypeDetails))
-            {
-                var parts = bvHardware.PcTypeDetails.Split('|');
-                var allNotes = new List<string>();
-
-                if (parts.Length > 0 && !string.IsNullOrWhiteSpace(parts[0]))
-                {
-                    orderData.PcDetails.Add($"PC-Details: {parts[0].Trim()}");
-                }
-
-                if (parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1]))
-                {
-                    var requirements = parts[1].Split(';', StringSplitOptions.RemoveEmptyEntries);
-                    foreach (var req in requirements)
-                    {
-                        orderData.PcDetails.Add($"Anforderung: {req.Trim()}");
-                    }
-                }
-
-                if (parts.Length > 2 && !string.IsNullOrWhiteSpace(parts[2]))
-                {
-                    allNotes.Add($"Bemerkung: {parts[2].Trim()}");
-                }
-
-                if (parts.Length > 3 && !string.IsNullOrWhiteSpace(parts[3]))
-                {
-                    allNotes.Add($"PC-Bemerkung: {parts[3].Trim()}");
-                }
-
-                if (parts.Length > 4 && !string.IsNullOrWhiteSpace(parts[4]))
-                {
-                    allNotes.Add($"Zusätzlich: {parts[4].Trim()}");
-                }
-
-                if (allNotes.Any())
-                {
-                    orderData.Notes = string.Join(" | ", allNotes);
-                }
-            }
-
-            if (bvComponentsCache.TryGetValue(workflow.Id, out var components) && components.Any())
-            {
-                foreach (var component in components)
-                {
-                    var componentText = component.ComponentName ?? "Unbekannte Komponente";
-                    var details = new List<string>();
-
-                    if (!string.IsNullOrEmpty(component.Quantity) && component.Quantity != "1")
-                    {
-                        details.Add($"{component.Quantity}x");
-                    }
-
-                    if (!string.IsNullOrEmpty(component.ComponentType))
-                    {
-                        details.Add(component.ComponentType);
-                    }
-
-                    if (!string.IsNullOrEmpty(component.Category))
-                    {
-                        details.Add($"Bem: {component.Category}");
-                    }
-
-                    if (details.Any())
-                    {
-                        orderData.HardwareDetails.Add($"{componentText} ({string.Join(", ", details)})");
-                    }
-                    else
-                    {
-                        orderData.HardwareDetails.Add(componentText);
-                    }
-                }
-            }
-        }
-    }
-
-    private void ProcessWorkflowSoftware(DbWorkflow workflow, OrderDetails orderData)
-    {
-        var description = workflow.Description ?? "";
-        string softwarePrefix = workflow.WorkflowType == WorkflowType.BDR ? "BDRSOFTWARE:" : "BVSOFTWARE:";
-
-        if (description.Contains(softwarePrefix))
-        {
-            var startIndex = description.IndexOf(softwarePrefix) + softwarePrefix.Length;
-            var endIndex = description.IndexOf("ENDMEC:", startIndex);
-
-            string softwareData = endIndex > startIndex
-                ? description.Substring(startIndex, endIndex - startIndex)
-                : description.Substring(startIndex);
-
-            var softwareItems = ParseSoftwareData(softwareData, workflow.WorkflowType == WorkflowType.BDR);
-            var uniqueSoftware = softwareItems.Distinct().ToList();
-            orderData.Software.AddRange(uniqueSoftware);
-        }
-    }
-
-    private List<string> ParseSoftwareData(string softwareData, bool isBdr)
-    {
-        var items = new List<string>();
-        if (string.IsNullOrEmpty(softwareData)) return items;
-
-        var entries = softwareData.Split(';');
-        foreach (var entry in entries)
-        {
-            if (!string.IsNullOrEmpty(entry))
-            {
-                var parts = entry.Split('|');
-                var softwareType = parts.Length > 0 ? parts[0].Replace("PIPE", "|").Replace("SEMICOLON", ";") : "";
-                var note = parts.Length > 1 ? parts[1].Replace("PIPE", "|").Replace("SEMICOLON", ";") : "";
-                var licenseStr = parts.Length > 2 ? parts[2] : "false";
-                var licenseRequired = isBdr && licenseStr.Equals("true", StringComparison.OrdinalIgnoreCase);
-
-                if (!string.IsNullOrWhiteSpace(softwareType))
-                {
-                    var softwareEntry = softwareType;
-
-                    if (!string.IsNullOrEmpty(note))
-                    {
-                        softwareEntry += $" (Version: {note})";
-                    }
-
-                    if (isBdr && licenseRequired)
-                    {
-                        softwareEntry += " [Lizenz erforderlich]";
-                    }
-
-                    items.Add(softwareEntry);
-                }
-            }
-        }
-
-        return items;
-    }
-
-    private string GetContactPersonForBvWorkflow(DbWorkflow workflow)
-    {
-        if (bvHardwareCache.TryGetValue(workflow.Id, out var bvHardware) && bvHardware != null)
-        {
-            return bvHardware.ContactPerson ?? "";
-        }
-        return "";
-    }
-
-    // Copy PDF and workflow management methods from original
+    // Workflow management methods
     private async Task ReleaseForCorrection()
     {
         if (!forwardedWorkflows.Any())
@@ -1211,7 +985,7 @@
             await DbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            Snackbar.Add("Projekt erfolgreich zur Korrektur freigeben!", Severity.Success);
+            Snackbar.Add("Projekt erfolgreich zur Korrektur freigegeben!", Severity.Success);
 
             await Task.Delay(1500);
             Navigation.NavigateTo("/installation/orders");
@@ -1265,9 +1039,6 @@
         isCompletingInstallation = true;
         try
         {
-            // Save network config before completing
-            await SaveAllNetworkConfiguration();
-
             using var transaction = await DbContext.Database.BeginTransactionAsync();
 
             foreach (var workflow in forwardedWorkflows)
@@ -1295,97 +1066,62 @@
         }
     }
 
-    // PDF Export Methods (copied from original)
+    // PDF Export Methods - Direct Generation without Storage
     private async Task ExportAllBdrToPdf()
     {
-        if (isExportingPdf)
-            return;
-
+        if (isExportingPdf) return;
         isExportingPdf = true;
+
         try
         {
-            var result = await PdfService.GenerateAllBdrPdfsAsync(ProjectId);
-
-            if (result.IsSuccess && result.PdfData != null && !string.IsNullOrWhiteSpace(result.FileName))
-            {
-                await PdfStorageService.StorePdfAsync(ProjectId, result.PdfData, result.FileName!);
-                Snackbar.Add("Alle BDR PDFs erfolgreich erstellt!", Severity.Success);
-                var downloadUrl = $"/api/pdf/download-project/{ProjectId}/BDR";
-                await JSRuntime.InvokeVoidAsync("window.open", downloadUrl, "_blank");
-            }
-            else
-            {
-                Snackbar.Add($"Fehler beim Erstellen der BDR PDFs: {result.ErrorMessage}", Severity.Error);
-            }
+            var downloadUrl = $"/api/pdf/download-project/{ProjectId}/BDR";
+            await JSRuntime.InvokeVoidAsync("window.open", downloadUrl, "_blank");
+            Snackbar.Add("BDR PDFs werden generiert...", Severity.Info);
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Unerwarteter Fehler: {ex.Message}", Severity.Error);
-            Console.WriteLine($"ExportAllBdrToPdf Error: {ex}");
+            Snackbar.Add($"Fehler: {ex.Message}", Severity.Error);
         }
         finally
         {
             isExportingPdf = false;
-            StateHasChanged();
         }
     }
 
     private async Task ExportAllBvToPdf()
     {
-        if (isExportingPdf)
-            return;
-
+        if (isExportingPdf) return;
         isExportingPdf = true;
+
         try
         {
-            var result = await PdfService.GenerateAllBvPdfsAsync(ProjectId);
-
-            if (result.IsSuccess && result.PdfData != null && !string.IsNullOrWhiteSpace(result.FileName))
-            {
-                await PdfStorageService.StorePdfAsync(ProjectId, result.PdfData, result.FileName!);
-                Snackbar.Add("Alle BV PDFs erfolgreich erstellt!", Severity.Success);
-                var downloadUrl = $"/api/pdf/download-project/{ProjectId}/BV";
-                await JSRuntime.InvokeVoidAsync("window.open", downloadUrl, "_blank");
-            }
-            else
-            {
-                Snackbar.Add($"Fehler beim Erstellen der BV PDFs: {result.ErrorMessage}", Severity.Error);
-            }
+            var downloadUrl = $"/api/pdf/download-project/{ProjectId}/BV";
+            await JSRuntime.InvokeVoidAsync("window.open", downloadUrl, "_blank");
+            Snackbar.Add("BV PDFs werden generiert...", Severity.Info);
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Unerwarteter Fehler: {ex.Message}", Severity.Error);
-            Console.WriteLine($"ExportAllBvToPdf Error: {ex}");
+            Snackbar.Add($"Fehler: {ex.Message}", Severity.Error);
         }
         finally
         {
             isExportingPdf = false;
-            StateHasChanged();
         }
     }
 
     private async Task ExportSingleBdrToPdf(Guid workflowId)
     {
         exportingWorkflowIds.Add(workflowId);
+
         try
         {
-            var result = await PdfService.GenerateBdrPdfAsync(workflowId);
-
-            if (result.IsSuccess)
-            {
-                Snackbar.Add("BDR Installations-PDF erfolgreich erstellt!", Severity.Success);
-                var downloadUrl = $"/api/pdf/download/{workflowId}/BDR";
-                await JSRuntime.InvokeVoidAsync("open", downloadUrl, "_blank");
-            }
-            else
-            {
-                Snackbar.Add($"Fehler beim Erstellen der BDR PDF: {result.ErrorMessage}", Severity.Error);
-            }
+            var downloadUrl = $"/api/pdf/download/{workflowId}/BDR";
+            await JSRuntime.InvokeVoidAsync("window.open", downloadUrl, "_blank");
+            Snackbar.Add("BDR PDF wird generiert...", Severity.Info);
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Unerwarteter Fehler: {ex.Message}", Severity.Error);
-            Console.WriteLine($"ExportSingleBdrToPdf Error: {ex}");
+            Snackbar.Add($"Fehler: {ex.Message}", Severity.Error);
         }
         finally
         {
@@ -1396,25 +1132,16 @@
     private async Task ExportSingleBvToPdf(Guid workflowId)
     {
         exportingWorkflowIds.Add(workflowId);
+
         try
         {
-            var result = await PdfService.GenerateBvPdfAsync(workflowId);
-
-            if (result.IsSuccess)
-            {
-                Snackbar.Add("BV Installations-PDF erfolgreich erstellt!", Severity.Success);
-                var downloadUrl = $"/api/pdf/download/{workflowId}/BV";
-                await JSRuntime.InvokeVoidAsync("open", downloadUrl, "_blank");
-            }
-            else
-            {
-                Snackbar.Add($"Fehler beim Erstellen der BV PDF: {result.ErrorMessage}", Severity.Error);
-            }
+            var downloadUrl = $"/api/pdf/download/{workflowId}/BV";
+            await JSRuntime.InvokeVoidAsync("window.open", downloadUrl, "_blank");
+            Snackbar.Add("BV PDF wird generiert...", Severity.Info);
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Unerwarteter Fehler: {ex.Message}", Severity.Error);
-            Console.WriteLine($"ExportSingleBvToPdf Error: {ex}");
+            Snackbar.Add($"Fehler: {ex.Message}", Severity.Error);
         }
         finally
         {
@@ -1422,8 +1149,10 @@
         }
     }
 
+ 
+
     /// <summary>
-    /// Navigiert zurück zur vorherigen Seite
+    /// Navigate back to previous page
     /// </summary>
     private void NavigateBack()
     {
@@ -1437,7 +1166,6 @@
         }
         else
         {
-            // Wenn kein ReturnPath gesetzt ist, zur Projektübersicht navigieren
             Navigation.NavigateTo($"/project/{ProjectId}");
         }
     }
@@ -1478,6 +1206,272 @@
         finally
         {
             isReopening = false;
+        }
+    }
+
+    // Hardware/Software processing methods
+    private OrderDetails GetOrderDetailsForWorkflow(DbWorkflow workflow)
+    {
+        var orderData = new OrderDetails();
+
+        try
+        {
+            if (workflow.WorkflowType == WorkflowType.BDR)
+            {
+                ProcessBdrHardware(workflow, orderData);
+            }
+            else
+            {
+                ProcessBvHardware(workflow, orderData);
+            }
+
+            ProcessWorkflowSoftware(workflow, orderData);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"GetOrderDetailsForWorkflow Error: {ex.Message}");
+            orderData.Notes = $"Fehler beim Laden der Details: {ex.Message}";
+        }
+
+        return orderData;
+    }
+
+    private void ProcessBdrHardware(DbWorkflow workflow, OrderDetails orderData)
+    {
+        if (bdrHardwareCache.TryGetValue(workflow.Id, out var bdrHardware) && bdrHardware != null)
+        {
+            if (!string.IsNullOrEmpty(bdrHardware.HardwareSpecs))
+            {
+                orderData.MainHardware = bdrHardware.HardwareSpecs;
+            }
+
+            if (!string.IsNullOrEmpty(bdrHardware.Description))
+            {
+                orderData.HardwareRemarks = bdrHardware.Description;
+            }
+
+            if (bdrFieldsCache.TryGetValue(workflow.Id, out var fields))
+            {
+                var hardwareFields = fields.Where(f => f.FieldType == "Hardware" && !string.IsNullOrWhiteSpace(f.FieldValue)).ToList();
+                foreach (var field in hardwareFields)
+                {
+                    var displayName = !string.IsNullOrEmpty(field.DisplayName) ? field.DisplayName : field.FieldName;
+                    var value = field.FieldValue?.Trim() ?? string.Empty;
+                    if (!string.IsNullOrEmpty(value))
+                    {
+                        orderData.HardwareDetails.Add($"{displayName}: {value}");
+                    }
+                }
+
+                var additionalFields = fields.Where(f => f.FieldType == "Additional" && !string.IsNullOrWhiteSpace(f.FieldValue)).ToList();
+                foreach (var field in additionalFields)
+                {
+                    var displayName = !string.IsNullOrEmpty(field.DisplayName) ? field.DisplayName : field.FieldName;
+                    var value = field.FieldValue?.Trim() ?? string.Empty;
+                    if (!string.IsNullOrEmpty(value))
+                    {
+                        orderData.AdditionalHardware.Add($"{displayName}: {value}");
+                    }
+                }
+            }
+        }
+    }
+
+    private void ProcessBvHardware(DbWorkflow workflow, OrderDetails orderData)
+    {
+        if (bvHardwareCache.TryGetValue(workflow.Id, out var bvHardware) && bvHardware != null)
+        {
+            if (!string.IsNullOrEmpty(bvHardware.PcType))
+            {
+                orderData.MainHardware = bvHardware.PcType;
+            }
+
+            if (!string.IsNullOrEmpty(bvHardware.PcTypeDetails))
+            {
+                var parts = bvHardware.PcTypeDetails.Split('|');
+
+                if (parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1]))
+                {
+                    var requirements = parts[1].Split(';', StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var req in requirements)
+                    {
+                        orderData.HardwareDetails.Add(req.Trim());
+                    }
+                }
+
+                if (parts.Length > 2 && !string.IsNullOrWhiteSpace(parts[2]))
+                {
+                    orderData.HardwareRemarks = parts[2].Trim();
+                }
+            }
+
+            if (bvComponentsCache.TryGetValue(workflow.Id, out var components) && components.Any())
+            {
+                foreach (var component in components)
+                {
+                    var componentText = component.ComponentName ?? "Unbekannte Komponente";
+                    var details = new List<string>();
+
+                    if (!string.IsNullOrEmpty(component.Quantity) && component.Quantity != "1")
+                    {
+                        details.Add($"{component.Quantity}x");
+                    }
+
+                    if (!string.IsNullOrEmpty(component.ComponentType))
+                    {
+                        details.Add(component.ComponentType);
+                    }
+
+                    if (details.Any())
+                    {
+                        orderData.HardwareDetails.Add($"{componentText} ({string.Join(", ", details)})");
+                    }
+                    else
+                    {
+                        orderData.HardwareDetails.Add(componentText);
+                    }
+                }
+            }
+        }
+    }
+
+    private void ProcessWorkflowSoftware(DbWorkflow workflow, OrderDetails orderData)
+    {
+        var description = workflow.Description ?? "";
+        string softwarePrefix = workflow.WorkflowType == WorkflowType.BDR ? "BDRSOFTWARE:" : "BVSOFTWARE:";
+        string remarksPrefix = workflow.WorkflowType == WorkflowType.BDR ? "BDRSOFTWARE_REMARKS:" : "BVSOFTWARE_REMARKS:";
+
+        if (description.Contains(softwarePrefix))
+        {
+            var startIndex = description.IndexOf(softwarePrefix) + softwarePrefix.Length;
+            var endIndex = description.IndexOf("ENDMEC:", startIndex);
+
+            string softwareData = endIndex > startIndex
+                ? description.Substring(startIndex, endIndex - startIndex)
+                : description.Substring(startIndex);
+
+            var softwareItems = ParseSoftwareData(softwareData, workflow.WorkflowType == WorkflowType.BDR);
+            var uniqueSoftware = softwareItems.Distinct().ToList();
+            orderData.Software.AddRange(uniqueSoftware);
+        }
+
+        if (description.Contains(remarksPrefix))
+        {
+            var startIndex = description.IndexOf(remarksPrefix) + remarksPrefix.Length;
+            var endIndex = description.IndexOf("ENDMEC:", startIndex);
+
+            orderData.SoftwareRemarks = endIndex > startIndex
+                ? description.Substring(startIndex, endIndex - startIndex)
+                : description.Substring(startIndex);
+        }
+    }
+
+    private List<string> ParseSoftwareData(string softwareData, bool isBdr)
+    {
+        var items = new List<string>();
+        if (string.IsNullOrEmpty(softwareData)) return items;
+
+        var entries = softwareData.Split(';');
+        foreach (var entry in entries)
+        {
+            if (!string.IsNullOrEmpty(entry))
+            {
+                var parts = entry.Split('|');
+                var softwareType = parts.Length > 0 ? parts[0].Replace("PIPE", "|").Replace("SEMICOLON", ";") : "";
+                var note = parts.Length > 1 ? parts[1].Replace("PIPE", "|").Replace("SEMICOLON", ";") : "";
+                var licenseStr = parts.Length > 2 ? parts[2] : "false";
+                var licenseRequired = isBdr && licenseStr.Equals("true", StringComparison.OrdinalIgnoreCase);
+
+                if (!string.IsNullOrWhiteSpace(softwareType))
+                {
+                    var softwareEntry = softwareType;
+
+                    if (!string.IsNullOrEmpty(note))
+                    {
+                        softwareEntry += $" (Version: {note})";
+                    }
+
+                    if (isBdr && licenseRequired)
+                    {
+                        softwareEntry += " [Lizenz erforderlich]";
+                    }
+
+                    items.Add(softwareEntry);
+                }
+            }
+        }
+
+        return items;
+    }
+
+    private string GetContactPersonForBvWorkflow(DbWorkflow workflow)
+    {
+        if (bvHardwareCache.TryGetValue(workflow.Id, out var bvHardware) && bvHardware != null)
+        {
+            return bvHardware.ContactPerson ?? "";
+        }
+        return "";
+    }
+    /// <summary>
+    /// Save installation notes for individual workflow
+    /// </summary>
+    private async Task SaveInstallationNotes(Guid workflowId)
+    {
+        savingWorkflowIds.Add(workflowId);
+        try
+        {
+            using var transaction = await DbContext.Database.BeginTransactionAsync();
+
+            var workflow = forwardedWorkflows.FirstOrDefault(w => w.Id == workflowId);
+            if (workflow == null)
+            {
+                throw new Exception("Workflow nicht gefunden");
+            }
+
+            var existingDescription = workflow.Description ?? "";
+
+            // Remove old installation comment if present
+            if (existingDescription.Contains("INSTALLATION_COMMENT:"))
+            {
+                var startIndex = existingDescription.IndexOf("INSTALLATION_COMMENT:");
+                var endIndex = existingDescription.IndexOf("ENDMEC:", startIndex);
+                if (endIndex > startIndex)
+                {
+                    existingDescription = existingDescription.Remove(startIndex, endIndex - startIndex + 7);
+                }
+                else
+                {
+                    existingDescription = existingDescription.Substring(0, startIndex);
+                }
+            }
+
+            // Add new installation comment
+            var installComment = GetInstallationComment(workflowId);
+            if (!string.IsNullOrWhiteSpace(installComment))
+            {
+                workflow.Description = existingDescription + $"INSTALLATION_COMMENT:{installComment.Trim()}ENDMEC:";
+            }
+            else
+            {
+                workflow.Description = existingDescription;
+            }
+
+            workflow.LastChange = DateTime.UtcNow;
+
+            await DbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            Snackbar.Add($"Installations-Notizen für {workflow.Name} gespeichert!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Fehler beim Speichern: {ex.Message}", Severity.Error);
+            Console.WriteLine($"SaveInstallationNotes Error: {ex}");
+        }
+        finally
+        {
+            savingWorkflowIds.Remove(workflowId);
+            StateHasChanged();
         }
     }
 }

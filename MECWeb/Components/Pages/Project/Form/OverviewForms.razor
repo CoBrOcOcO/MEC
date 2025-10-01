@@ -192,7 +192,7 @@
     </MudTable>
 
     <!-- Forwarding to purchase button (only if all workflows are ready but not yet forwarded) -->
-    @if (AllWorkflowsCompleted())
+    @if (CanForwardToPurchasing())
     {
         <MudStack Class="mt-6" AlignItems="AlignItems.Center">
             <MudButton Color="Color.Secondary"
@@ -216,6 +216,16 @@
             <MudAlert Severity="Severity.Success" Class="ma-2">
                 <MudText Typo="Typo.body2">
                     Dieses Projekt wurde bereits an den Einkauf weitergeleitet.
+                </MudText>
+            </MudAlert>
+        </MudStack>
+    }
+    else if (workflows.Any() && !CanForwardToPurchasing() && !AllWorkflowsForwarded())
+    {
+        <MudStack Class="mt-6" AlignItems="AlignItems.Center">
+            <MudAlert Severity="Severity.Info" Class="ma-2">
+                <MudText Typo="Typo.body2">
+                    <strong>@GetCompletedWorkflowsCount() von @workflows.Count</strong> Workflows sind vollständig abgeschlossen (Hardware + Software).
                 </MudText>
             </MudAlert>
         </MudStack>
@@ -459,10 +469,40 @@
     }
 
     /// <summary>
+    /// Check if all workflows are completed and ready for purchasing
+    /// </summary>
+    private bool CanForwardToPurchasing()
+    {
+        // Button is only active if:
+        // 1. There are workflows
+        // 2. ALL workflows have status = SoftwareCompleted (Hardware + Software both finished)
+        // 3. NONE have been forwarded yet (Status != Completed and != ForwardedToInstallation)
+
+        if (!workflows.Any()) return false;
+
+        // Check that ALL workflows have completed software (which means hardware is also done)
+        bool allCompleted = workflows.All(w => w.Status == WorkflowStatus.SoftwareCompleted);
+
+        // Check that NONE are already forwarded
+        bool noneForwarded = workflows.All(w => w.Status != WorkflowStatus.Completed &&
+                                                 w.Status != WorkflowStatus.ForwardedToInstallation);
+
+        return allCompleted && noneForwarded;
+    }
+
+    /// <summary>
     /// Forward all completed workflows to purchasing
     /// </summary>
     private async Task ForwardToPurchasing()
     {
+        if (!CanForwardToPurchasing())
+        {
+            var completedCount = GetCompletedWorkflowsCount();
+            var totalCount = workflows.Count;
+            Snackbar.Add($"Nicht alle Workflows sind abgeschlossen! ({completedCount}/{totalCount} fertig)", Severity.Warning);
+            return;
+        }
+
         isForwarding = true;
         try
         {
@@ -509,19 +549,21 @@
         return workflow.Status == WorkflowStatus.SoftwareCompleted;
     }
 
-    private bool AllWorkflowsCompleted()
-    {
-        // Only show forward button if all workflows are software completed but NOT yet forwarded
-        return workflows.Any() &&
-               workflows.All(w => w.Status == WorkflowStatus.SoftwareCompleted) &&
-               workflows.All(w => w.Status != WorkflowStatus.Completed && w.Status != WorkflowStatus.ForwardedToInstallation);
-    }
-
     private bool AllWorkflowsForwarded()
     {
         // Check if any workflows have been forwarded to purchasing or installation
         return workflows.Any() &&
                workflows.Any(w => w.Status == WorkflowStatus.Completed || w.Status == WorkflowStatus.ForwardedToInstallation);
+    }
+
+    /// <summary>
+    /// Get count of completed workflows (Hardware + Software done)
+    /// </summary>
+    private int GetCompletedWorkflowsCount()
+    {
+        return workflows.Count(w => w.Status == WorkflowStatus.SoftwareCompleted ||
+                                    w.Status == WorkflowStatus.Completed ||
+                                    w.Status == WorkflowStatus.ForwardedToInstallation);
     }
 
     private Color GetStatusColor(DbWorkflow workflow) => workflow.Status switch

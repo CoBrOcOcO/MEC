@@ -1,0 +1,277 @@
+﻿@using MECWeb.DbModels.Workflow
+
+<!-- Reusable component for displaying workflow -->
+<MudCard Elevation="2" Class="mb-4" Style="border-left: 4px solid var(--mud-palette-primary);">
+
+    <!-- Header Section -->
+    <MudCardHeader Style="background-color: #f5f5f5; border-bottom: 10px solid #e0e0e0;">
+        <CardHeaderContent>
+            <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                <MudStack Row Spacing="2" AlignItems="AlignItems.Center">
+                    <MudIcon Icon="@WorkflowIcon" Color="@GetHeaderColor()" Size="Size.Large" />
+                    <div>
+                        <MudText Typo="Typo.h6" Style="font-weight: 600;" Color="@GetHeaderColor()">@WorkflowName</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@WorkflowType</MudText>
+                    </div>
+                </MudStack>
+              
+            </MudStack>
+        </CardHeaderContent>
+    </MudCardHeader>
+
+    <MudCardContent>
+        <MudStack Spacing="3">
+
+            <!-- Contact Person (for BV workflows) -->
+            @if (!string.IsNullOrEmpty(ContactPerson))
+            {
+                <MudPaper Elevation="2" Class="pa-4" Style="background-color: white; border-radius: 16px;">
+                    <MudStack Row Spacing="2" AlignItems="AlignItems.Center">
+                        <MudIcon Icon="@Icons.Material.Filled.Person" />
+                        <div>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-weight: 700;">Ansprechpartner</MudText>
+                            <MudText Typo="Typo.body2" Style="font-weight: 600;">@ContactPerson</MudText>
+                        </div>
+                    </MudStack>
+                </MudPaper>
+            }
+
+            <!-- Hardware Section -->
+
+            @if (HardwareItems?.Any() == true)
+            {
+                <MudPaper Elevation="0" Class="pa-4" Style="background-color: #f5f5f5; border-radius: 8px;">
+                    <MudStack Spacing="2">
+                        <MudStack Row Spacing="2" AlignItems="AlignItems.Center">
+                            <MudIcon Icon="@Icons.Material.Filled.Memory" Color="Color.Primary" Size="Size.Medium" />
+                            <MudText Typo="Typo.h6" Color="Color.Primary" Style="font-weight: 600;">Hardware-Konfiguration</MudText>
+                        </MudStack>
+
+                        <MudDivider Style="background-color: #e0e0e0;" />
+
+                        <!-- Main Hardware Specification -->
+                        @if (!string.IsNullOrEmpty(MainHardware))
+                        {
+                            <MudPaper Elevation="2" Class="pa-4" Style="background-color: white; border-radius: 8px solid #3a8a3d;">
+                                <MudStack Row Spacing="2" AlignItems="AlignItems.Center">
+                                    <MudIcon Icon="@Icons.Material.Filled.Computer" Color="Color.Secondary" />
+                                    <MudText Typo="Typo.body2" Style="font-weight: 600;">@MainHardware</MudText>
+                                </MudStack>
+                            </MudPaper>
+                        }
+
+                        <!-- Hardware Details Grid -->
+                        <MudGrid Spacing="2" Class="pa-4">
+                            @foreach (var item in HardwareItems)
+                            {
+                                <MudItem xs="12">
+                                    <MudPaper Elevation="2" Class="pa-4" Style="background-color: white; border-radius: 8px;">
+                                        <MudText Typo="Typo.body1" Style="font-weight: 600;">
+                                            @item
+                                        </MudText>
+                                    </MudPaper>
+                                </MudItem>
+                            }
+                        </MudGrid>
+
+                        <!-- Hardware Remarks -->
+                        @if (!string.IsNullOrWhiteSpace(HardwareRemarks))
+                        {
+                            <MudPaper Elevation="1" Class="pa-3 mt-2" Style="background-color: white; border-left: 6px solid #4caf50; border-radius: 4px;">
+                                <MudStack Spacing="1">
+                                    <MudStack Row Spacing="1" AlignItems="AlignItems.Center">
+                                        <MudIcon Icon="@Icons.Material.Filled.Comment" Color="Color.Success" Size="Size.Small" />
+                                        <MudText Typo="Typo.subtitle2" Color="Color.Success" Style="font-weight: 600;">
+                                            Allgemeine Bemerkungen
+                                        </MudText>
+                                    </MudStack>
+                                    <MudText Typo="Typo.body2" Style="white-space: pre-wrap; margin-left: 28px; color: #424242;">
+                                        @HardwareRemarks
+                                    </MudText>
+                                </MudStack>
+                            </MudPaper>
+                        }
+                    </MudStack>
+                </MudPaper>
+            }
+
+            <!-- Software Section -->
+            @if (SoftwareItems?.Any() == true)
+            {
+                <MudPaper Elevation="0" Class="pa-4" Style="background-color: #f9f9f9; border-radius: 8px;">
+                    <MudStack Spacing="2">
+                        <MudStack Row Spacing="2" AlignItems="AlignItems.Center">
+                            <MudIcon Icon="@Icons.Material.Filled.Apps" Color="Color.Secondary" Size="Size.Medium" />
+                            <MudText Typo="Typo.h6" Color="Color.Secondary" Style="font-weight: 600;">Software-Paket</MudText>
+                        </MudStack>
+
+                        <MudDivider Style="background-color: #e0e0e0;" />
+
+                        <!-- Software List -->
+                        <MudStack Spacing="2" Class="mt-2">
+                            @foreach (var software in SoftwareItems)
+                            {
+                                <MudPaper Elevation="1" Class="pa-3" Style="background-color: white; border-left: 3px solid #757575;">
+                                    <MudStack Row Spacing="2" AlignItems="AlignItems.Center">
+                                        <MudIcon Icon="@GetSoftwareIcon(software)" Color="Color.Default" Size="Size.Small" />
+                                        <MudText Typo="Typo.body2" Style="font-weight: 500;">
+                                            @software
+                                        </MudText>
+                                        @if (software.Contains("[Lizenz"))
+                                        {
+                                            <MudChip T="string"
+                                                     Size="Size.Small"
+                                                     Color="Color.Warning"
+                                                     Icon="@Icons.Material.Filled.Key"
+                                                     Style="margin-left: auto;">
+                                                Lizenz
+                                            </MudChip>
+                                        }
+                                    </MudStack>
+                                </MudPaper>
+                            }
+                        </MudStack>
+
+                        <!-- Software Remarks -->
+                        @if (!string.IsNullOrWhiteSpace(SoftwareRemarks))
+                        {
+                            <MudPaper Elevation="1" Class="pa-3 mt-2" Style="background-color: #f5f5f5; border-left: 4px solid #808080; border-radius: 4px;">
+                                <MudStack Spacing="1">
+                                    <MudStack Row Spacing="1" AlignItems="AlignItems.Center">
+                                        <MudIcon Icon="@Icons.Material.Filled.Comment" Color="Color.Secondary" Size="Size.Small" />
+                                        <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Style="font-weight: 600;">
+                                            Allgemeine Bemerkungen
+                                        </MudText>
+                                    </MudStack>
+                                    <MudText Typo="Typo.body2" Style="white-space: pre-wrap; margin-left: 28px; color: #424242;">
+                                        @SoftwareRemarks
+                                    </MudText>
+                                </MudStack>
+                            </MudPaper>
+                        }
+                    </MudStack>
+                </MudPaper>
+            }
+
+            <!-- Additional Notes -->
+            @if (!string.IsNullOrEmpty(Notes))
+            {
+                <MudPaper Elevation="2" Class="pa-4" Style="background-color: #fff8e1; border-radius: 8px; border: 1px solid #ffd54f;">
+                    <MudStack Row Spacing="2" AlignItems="AlignItems.Start">
+                        <MudIcon Icon="@Icons.Material.Filled.Info" Color="Color.Warning" />
+                        <div style="flex: 1;">
+                            <MudText Typo="Typo.body2" Style="font-weight: 500; color: #f57f17;">Bemerkungen</MudText>
+                            <MudText Typo="Typo.body2" Class="mt-1">@Notes</MudText>
+                        </div>
+                    </MudStack>
+                </MudPaper>
+            }
+
+            <!-- Comments Section -->
+            @if (ShowComments && CommentSection != null)
+            {
+                <MudDivider Class="my-2" />
+                @CommentSection
+            }
+
+        </MudStack>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    /// <summary>
+    /// Workflow name to display in the header
+    /// </summary>
+    [Parameter] public string WorkflowName { get; set; } = "";
+
+    /// <summary>
+    /// Workflow type (BDR or BV) to display in the header
+    /// </summary>
+    [Parameter] public string WorkflowType { get; set; } = "";
+
+    /// <summary>
+    /// Icon for the workflow type
+    /// </summary>
+    [Parameter] public string WorkflowIcon { get; set; } = Icons.Material.Filled.Computer;
+
+    /// <summary>
+    /// Status text to display (e.g., "Abgeschlossen", "Weitergeleitet")
+    /// </summary>
+    [Parameter] public string StatusText { get; set; } = "";
+
+    /// <summary>
+    /// Main hardware specification text
+    /// </summary>
+    [Parameter] public string? MainHardware { get; set; }
+
+    /// <summary>
+    /// List of hardware detail items
+    /// </summary>
+    [Parameter] public List<string>? HardwareItems { get; set; }
+
+    /// <summary>
+    /// List of software items
+    /// </summary>
+    [Parameter] public List<string>? SoftwareItems { get; set; }
+
+    /// <summary>
+    /// Additional notes or remarks
+    /// </summary>
+    [Parameter] public string? Notes { get; set; }
+
+    /// <summary>
+    /// Contact person (mainly for BV workflows)
+    /// </summary>
+    [Parameter] public string? ContactPerson { get; set; }
+
+    /// <summary>
+    /// Hardware general remarks
+    /// </summary>
+    [Parameter] public string? HardwareRemarks { get; set; }
+
+    /// <summary>
+    /// Software general remarks
+    /// </summary>
+    [Parameter] public string? SoftwareRemarks { get; set; }
+
+    /// <summary>
+    /// Whether to show the comments section
+    /// </summary>
+    [Parameter] public bool ShowComments { get; set; } = false;
+
+    /// <summary>
+    /// Comment section render fragment
+    /// </summary>
+    [Parameter] public RenderFragment? CommentSection { get; set; }
+
+    /// <summary>
+    /// Get appropriate icon for software based on keywords
+    /// </summary>
+    private string GetSoftwareIcon(string software)
+    {
+        var lowerSoftware = software.ToLower();
+
+        if (lowerSoftware.Contains("office") || lowerSoftware.Contains("word") || lowerSoftware.Contains("excel"))
+            return Icons.Material.Filled.Description;
+        if (lowerSoftware.Contains("browser") || lowerSoftware.Contains("chrome") || lowerSoftware.Contains("firefox"))
+            return Icons.Material.Filled.Language;
+        if (lowerSoftware.Contains("antivirus") || lowerSoftware.Contains("security"))
+            return Icons.Material.Filled.Security;
+        if (lowerSoftware.Contains("pdf") || lowerSoftware.Contains("reader"))
+            return Icons.Material.Filled.PictureAsPdf;
+
+        return Icons.Material.Filled.Extension;
+    }
+
+    /// <summary>
+    /// Get header color based on workflow type
+    /// </summary>
+    private Color GetHeaderColor()
+    {
+        if (WorkflowType.Contains("BDR"))
+            return Color.Primary;
+        else if (WorkflowType.Contains("BV"))
+            return Color.Secondary;
+        return Color.Default;
+    }
+}

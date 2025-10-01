@@ -1,10 +1,17 @@
-﻿@page "/workflow/{WorkflowId:guid}/bdr-software"
+﻿@using MECWeb.Components.Shared.Project
+@using MECWeb.DbModels.Project
 @using MECWeb.DbModels.Workflow
+@using MECWeb.DbModels
 @using Microsoft.EntityFrameworkCore
+
+@inject IDialogService DialogService
 @inject ApplicationDbContext DbContext
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+
 @layout MainLayout
+
+@page "/workflow/{WorkflowId:guid}/bdr-software"
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
     <MudStack Spacing="4">
@@ -17,7 +24,7 @@
                     @if (currentWorkflow != null)
                     {
                         <MudText Typo="Typo.body2" Color="Color.Secondary">
-                            Workflow: @currentWorkflow.Name
+                            @currentWorkflow.Name
                         </MudText>
                     }
                 </MudStack>
@@ -31,183 +38,218 @@
             </MudStack>
         </MudPaper>
 
-        <!-- Fixed Software Selection at Top -->
-        <MudPaper Class="pa-4" Elevation="1">
-            <MudText Typo="Typo.h6" Class="mb-4">Software hinzufügen:</MudText>
+        <MudGrid>
 
-            <MudStack Spacing="3" Class="mb-3">
-                <!-- Software Dropdown -->
-                <MudSelect T="string"
-                           @bind-Value="selectedSoftwareType"
-                           Label="Software auswählen"
-                           Placeholder="Software auswählen"
-                           Variant="Variant.Outlined">
-                    <MudSelectItem T="string" Value="@("")">Bitte auswählen</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("WinCCflex Runtime2008")">WinCCflex Runtime2008</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("WinCC RT Adv")">WinCC RT Adv</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("Simatic ProDiag for WinCC RT")">Simatic ProDiag for WinCC RT</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("Simatic WinCC Recipes for RT")">Simatic WinCC Recipes for RT</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("Step7 V5.x")">Step7 V5.x</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("TIA Professional")">TIA Professional</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("WinCCflex Advanced")">WinCCflex Advanced</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("Tight VNC Server (Panel)")">Tight VNC Server (Panel)</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("MAQS plc-Linker (pc installation)")">MAQS plc-Linker (pc installation)</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("Verpaarung")">Verpaarung</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("VNC viewer (Fernwartungsrechner)")">VNC viewer (Fernwartungsrechner)</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("MSG")">MSG</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("KUE")">KUE</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("GPG")">GPG</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("GPR")">GPR</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("USV Master Phönix")">USV Master Phönix</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("USV Slave")">USV Slave</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("Siemens Starter/Startdrive")">Siemens Starter/Startdrive</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("Cognex Insight")">Cognex Insight</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("Stäubli SRS + FTP (Filezilla)")">Stäubli SRS + FTP (Filezilla)</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("DSM LineManager")">DSM LineManager</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("Sonstige Software")">Sonstige Software</MudSelectItem>
-                </MudSelect>
+            <!-- BDR Software Selection -->
+            <MudItem xs="12">
+                <MudPaper Class="pa-4" Elevation="1"
+                          Style="@(selectedSoftwareList.Any() ? "background-color: #f8f9fa; border-left: 4px solid #4caf50;" : "")">
+                    <MudText Typo="Typo.h6" Class="mb-3">
+                        Software-Auswahl
+                        @if (selectedSoftwareList.Any())
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" Class="ml-2" />
+                        }
+                    </MudText>
 
-                <!-- Version/Configuration Field (always visible when software selected) -->
-                @if (!string.IsNullOrEmpty(selectedSoftwareType))
-                {
-                    <MudStack Row Spacing="2" AlignItems="AlignItems.End">
-                        <MudTextField @bind-Value="selectedNote"
-                                      Label="Version / Konfiguration"
-                                      Variant="Variant.Outlined"
-                                      Class="flex-grow-1"
-                                      Placeholder="@GetNotePlaceholder(selectedSoftwareType)" />
+                    <!-- Software Selection Controls -->
+                    <MudStack Spacing="3">
+                        <MudGrid>
+                            <MudItem xs="12" sm="6">
+                                <MudSelect T="string"
+                                           @bind-Value="newSoftwareType"
+                                           Label="Software auswählen"
+                                           Variant="Variant.Outlined"
+                                           Placeholder="Software auswählen">
+                                    <MudSelectItem T="string" Value="@("")">Software auswählen</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("WinCCflex Runtime2008")">WinCCflex Runtime2008</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("WinCC RT Adv.")">WinCC RT Adv.</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("Simatic ProDiag for WinCC RT Adv.")">Simatic ProDiag for WinCC RT Adv.</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("Simatic WinCC Recipes for RT Adv.")">Simatic WinCC Recipes for RT Adv.</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("Siemens Starter/Startdrive")">Siemens Starter/Startdrive</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("Cognex Insight")">Cognex Insight</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("Stäubli SRS + FTP (Filezilla)")">Stäubli SRS + FTP (Filezilla)</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("DSM LineManager")">DSM LineManager</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("Step7 V5.x")">Step7 V5.x</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("TIA Professional")">TIA Professional</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("Version for TIA")">Version for TIA</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("WinCCflex Advanced")">WinCCflex Advanced</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("Tight VNC Server (Panel)")">Tight VNC Server (Panel)</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("MAGS plc-Linker (pc installation)")">MAGS plc-Linker (pc installation)</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("Verpaarung")">Verpaarung</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("VNC viewer (Fernwartungsrechner)")">VNC viewer (Fernwartungsrechner)</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("MSG")">MSG</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("KUE")">KUE</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("GPG")">GPG</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("GPR")">GPR</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("USV Master Phönix")">USV Master Phönix</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("USV Slave")">USV Slave</MudSelectItem>
+                                    <MudSelectItem T="string" Value="@("Sonstige")">Sonstige Software</MudSelectItem>
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="newSoftwareVersion"
+                                              Label="Version / Details"
+                                              Variant="Variant.Outlined"
+                                              Placeholder="z.B. Version 2024, Professional, etc."
+                                              Disabled="@(string.IsNullOrWhiteSpace(newSoftwareType))" />
+                            </MudItem>
+                        </MudGrid>
 
-                        <!-- License Required Checkbox -->
-                        <MudCheckBox @bind-Value="selectedLicenseRequired"
-                                     Label="Lizenz vergeben"
-                                     Color="Color.Primary"
-                                     Style="white-space: nowrap;" />
+                        @if (newSoftwareType == "Sonstige")
+                        {
+                            <MudTextField @bind-Value="customSoftware"
+                                          Label="Sonstige Software"
+                                          Variant="Variant.Outlined"
+                                          Placeholder="Geben Sie die gewünschte Software ein..."
+                                          Required="true"
+                                          RequiredError="Bitte geben Sie die Software ein" />
+                        }
 
-                        <!-- Add Button -->
-                        <MudButton Color="Color.Success"
-                                   Variant="Variant.Filled"
-                                   Size="Size.Medium"
-                                   StartIcon="@Icons.Material.Filled.Add"
-                                   OnClick="AddSelectedSoftware"
-                                   Title="Software hinzufügen">
-                            Hinzufügen
-                        </MudButton>
+                        <MudGrid>
+                            <MudItem xs="12" sm="10">
+                                <MudCheckBox @bind-Value="newSoftwareLicenseRequired"
+                                             Label="Lizenz erforderlich"
+                                             Color="Color.Primary"
+                                             Disabled="@(string.IsNullOrWhiteSpace(newSoftwareType))" />
+                            </MudItem>
+                            <MudItem xs="12" sm="2">
+                                <MudButton Color="Color.Success"
+                                           Variant="Variant.Filled"
+                                           Size="Size.Medium"
+                                           StartIcon="@Icons.Material.Filled.Add"
+                                           OnClick="AddSelectedSoftware"
+                                           Disabled="@(string.IsNullOrWhiteSpace(newSoftwareType))"
+                                           FullWidth="true">
+                                    Hinzufügen
+                                </MudButton>
+                            </MudItem>
+                        </MudGrid>
                     </MudStack>
-                }
-            </MudStack>
-        </MudPaper>
 
-        <!-- Selected Software List -->
-        <MudPaper Class="pa-4" Elevation="1"
-                  Style="@(selectedSoftwareList.Any() ? "background-color: #f8f9fa; border-left: 4px solid #4caf50;" : "")">
-            <MudText Typo="Typo.h6" Class="mb-4">
-                Ausgewählte Software:
-                @if (selectedSoftwareList.Any())
-                {
-                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" Class="ml-2" />
-                }
-            </MudText>
+                    <!-- Selected Software List -->
+                    <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Ausgewählte Software</MudText>
 
-            @if (selectedSoftwareList.Any())
-            {
-                <MudStack Spacing="2">
-                    @foreach (var software in selectedSoftwareList.Select((item, index) => new { item, index }))
+                    @if (selectedSoftwareList.Any())
                     {
-                        <MudPaper Class="pa-3 mud-success-lighten-5" Elevation="1">
-                            <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
-                                <!-- Software Info with Index -->
-                                <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
-                                    <MudAvatar Color="Color.Success" Size="Size.Small">
-                                        @(software.index + 1)
-                                    </MudAvatar>
-                                    <MudStack Spacing="1">
-                                        <MudText Typo="Typo.body1" Class="font-weight-bold" Color="Color.Success">
-                                            @software.item.SoftwareType
-                                        </MudText>
-                                        @if (!string.IsNullOrEmpty(software.item.Note))
-                                        {
-                                            <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                                Version: @software.item.Note
-                                            </MudText>
-                                        }
-                                        @if (software.item.LicenseRequired)
-                                        {
-                                            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Icon="@Icons.Material.Filled.Key">
-                                                Lizenz vergeben
-                                            </MudChip>
-                                        }
+                        <MudStack Spacing="2">
+                            @foreach (var software in selectedSoftwareList.Select((item, index) => new { item, index }))
+                            {
+                                <MudPaper Class="pa-3 mud-success-lighten-5" Elevation="1">
+                                    <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                        <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Class="flex-grow-1">
+                                            <MudAvatar Color="Color.Success" Size="Size.Small">
+                                                @(software.index + 1)
+                                            </MudAvatar>
+                                            <MudStack Spacing="1">
+                                                <MudText Typo="Typo.body1" Class="font-weight-bold" Color="Color.Success">
+                                                    @software.item.SoftwareType
+                                                </MudText>
+                                                @if (!string.IsNullOrEmpty(software.item.Version))
+                                                {
+                                                    <MudText Typo="Typo.caption" Color="Color.Primary">
+                                                        Version: @software.item.Version
+                                                    </MudText>
+                                                }
+                                                @if (software.item.LicenseRequired)
+                                                {
+                                                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Icon="@Icons.Material.Filled.Key">
+                                                        Lizenz erforderlich
+                                                    </MudChip>
+                                                }
+                                            </MudStack>
+                                        </MudStack>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                       Color="Color.Error"
+                                                       Size="Size.Small"
+                                                       OnClick="() => RemoveSelectedSoftware(software.item)"
+                                                       Title="Software entfernen" />
                                     </MudStack>
-                                </MudStack>
-
-                                <!-- Remove Button -->
-                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                                               Color="Color.Error"
-                                               Size="Size.Small"
-                                               OnClick="() => RemoveSelectedSoftware(software.item)"
-                                               Title="Software entfernen" />
+                                </MudPaper>
+                            }
+                        </MudStack>
+                    }
+                    else
+                    {
+                        <MudPaper Class="pa-4 mud-surface-lighten-2" Style="border: 2px dashed var(--mud-palette-lines-default);">
+                            <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Filled.Apps" Color="Color.Secondary" Size="Size.Large" />
+                                <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
+                                    Noch keine Software hinzugefügt
+                                </MudText>
                             </MudStack>
                         </MudPaper>
                     }
-                </MudStack>
-            }
-            else
-            {
-                <MudPaper Class="pa-4 mud-surface-lighten-2" Style="border: 2px dashed var(--mud-palette-lines-default);">
-                    <MudStack AlignItems="AlignItems.Center" Spacing="2">
-                        <MudIcon Icon="@Icons.Material.Filled.Build" Color="Color.Secondary" Size="Size.Large" />
-                        <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
-                            Noch keine Software ausgewählt
+                </MudPaper>
+            </MudItem>
+
+            <!-- General Remarks Section -->
+            <MudItem xs="12">
+                <MudPaper Class="pa-4" Elevation="1">
+                    <MudStack Spacing="2">
+                        <MudText Typo="Typo.h6" Class="mb-2">
+                            <MudIcon Icon="@Icons.Material.Filled.Comment" Class="mr-2" />
+                            Allgemeine Bemerkungen
                         </MudText>
+                        <MudTextField @bind-Value="generalRemarks"
+                                      Label="Zusätzliche Bemerkungen zur gesamten Software-Konfiguration"
+                                      Variant="Variant.Outlined"
+                                      Lines="4"
+                                      Placeholder="Allgemeine Hinweise, Besonderheiten oder wichtige Informationen zur Software..." />
                     </MudStack>
                 </MudPaper>
-            }
-        </MudPaper>
+            </MudItem>
 
-        <!-- Save Button -->
-        <MudStack Row Justify="Justify.Center" Spacing="3" Class="mt-4">
-            <MudButton Color="Color.Success"
-                       Variant="Variant.Filled"
-                       Size="Size.Large"
-                       StartIcon="@Icons.Material.Filled.Save"
-                       OnClick="SaveChanges"
-                       Loading="@isSaving"
-                       Disabled="@(isSaving || !selectedSoftwareList.Any())">
-                BDR Software-Konfiguration speichern
-            </MudButton>
-        </MudStack>
-
-        <!-- Back Button -->
-        <MudButton Variant="Variant.Text"
-                   Size="Size.Small"
-                   Color="Color.Primary"
-                   StartIcon="@Icons.Material.Filled.ArrowBack"
-                   FullWidth="true"
-                   OnClick="GoBack">
-            Zurück zur Formular Übersicht
-        </MudButton>
+            <!-- Save Button -->
+            <MudItem xs="12">
+                <MudStack Row Justify="Justify.Center" Spacing="3" Class="mt-8">
+                    <MudButton Color="Color.Success"
+                               Variant="Variant.Filled"
+                               Size="Size.Large"
+                               StartIcon="@Icons.Material.Filled.Save"
+                               OnClick="SaveChanges"
+                               Loading="@isSaving"
+                               Disabled="@(isSaving || !selectedSoftwareList.Any())">
+                        @(hasBdrSoftwareConfig ? "Änderungen speichern" : "BDR Software-Konfiguration speichern")
+                    </MudButton>
+                </MudStack>
+                <MudButton Variant="Variant.Text" Class="mt-4"
+                           Size="Size.Small"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.ArrowBack"
+                           FullWidth="true"
+                           OnClick="GoBack">
+                    Zurück zur Formular Übersicht
+                </MudButton>
+            </MudItem>
+        </MudGrid>
     </MudStack>
 </MudContainer>
 
 @code {
     [Parameter] public Guid WorkflowId { get; set; }
 
-    // Helper class for software entries - extended with license field
+    // Software selection fields
+    private string newSoftwareType = string.Empty;
+    private string customSoftware = string.Empty;
+    private string newSoftwareVersion = string.Empty;
+    private bool newSoftwareLicenseRequired = false;
+    private string generalRemarks = string.Empty;
+
+    private bool isSaving = false;
+    private bool hasBdrSoftwareConfig = false;
+
+    // Helper class for software items
     public class SoftwareItem
     {
-        public string SoftwareType { get; set; } = "";
-        public string Note { get; set; } = "";
+        public string SoftwareType { get; set; } = string.Empty;
+        public string Version { get; set; } = string.Empty;
         public bool LicenseRequired { get; set; } = false;
     }
 
-    // Fixed selection fields at top - extended for license
-    private string selectedSoftwareType = "";
-    private string selectedNote = "";
-    private bool selectedLicenseRequired = false;
-
-    // List of selected software items
+    // List of selected software
     private List<SoftwareItem> selectedSoftwareList = new();
 
-    private bool isSaving = false;
     private DbWorkflow? currentWorkflow;
 
     protected override async Task OnInitializedAsync()
@@ -215,89 +257,113 @@
         await LoadWorkflowData();
     }
 
-    // Add selected software to list - extended for license field
+    // Add selected software to list
     private void AddSelectedSoftware()
     {
-        if (string.IsNullOrEmpty(selectedSoftwareType) || selectedSoftwareType == "")
+        if (string.IsNullOrWhiteSpace(newSoftwareType))
         {
-            Snackbar.Add("Bitte wählen Sie eine Software aus!", Severity.Warning);
+            Snackbar.Add("Bitte Software auswählen!", Severity.Warning);
             return;
         }
 
+        string softwareToAdd = "";
+
+        if (newSoftwareType == "Sonstige")
+        {
+            if (string.IsNullOrWhiteSpace(customSoftware))
+            {
+                Snackbar.Add("Bitte geben Sie eine sonstige Software ein!", Severity.Warning);
+                return;
+            }
+            softwareToAdd = customSoftware.Trim();
+        }
+        else
+        {
+            softwareToAdd = newSoftwareType.Trim();
+        }
+
         // Check if software already exists in list
-        if (selectedSoftwareList.Any(s => s.SoftwareType == selectedSoftwareType))
+        if (selectedSoftwareList.Any(s => s.SoftwareType.Equals(softwareToAdd, StringComparison.OrdinalIgnoreCase)))
         {
             Snackbar.Add("Diese Software wurde bereits hinzugefügt!", Severity.Warning);
             return;
         }
 
-        // Add to selected list with all fields
+        // Add to selected list
         selectedSoftwareList.Add(new SoftwareItem
         {
-            SoftwareType = selectedSoftwareType,
-            Note = selectedNote ?? "",
-            LicenseRequired = selectedLicenseRequired
+            SoftwareType = softwareToAdd,
+            Version = newSoftwareVersion?.Trim() ?? string.Empty,
+            LicenseRequired = newSoftwareLicenseRequired
         });
 
-        // Clear selection fields
-        selectedSoftwareType = "";
-        selectedNote = "";
-        selectedLicenseRequired = false;
+        // Clear input fields
+        newSoftwareType = string.Empty;
+        customSoftware = string.Empty;
+        newSoftwareVersion = string.Empty;
+        newSoftwareLicenseRequired = false;
 
         Snackbar.Add("Software hinzugefügt!", Severity.Success);
     }
 
     // Remove software from selected list
-    private void RemoveSelectedSoftware(SoftwareItem item)
+    private void RemoveSelectedSoftware(SoftwareItem software)
     {
-        selectedSoftwareList.Remove(item);
+        selectedSoftwareList.Remove(software);
         Snackbar.Add("Software entfernt!", Severity.Info);
-    }
-
-    // Helper Methods for note fields - now all software gets a version field
-    private string GetNotePlaceholder(string softwareType)
-    {
-        return softwareType switch
-        {
-            "WinCCflex Runtime2008" => "Version eingeben...",
-            "WinCC RT Adv" => "Version eingeben...",
-            "Simatic ProDiag for WinCC RT" => "Version eingeben...",
-            "Simatic WinCC Recipes for RT" => "Version eingeben...",
-            "Step7 V5.x" => "Version eingeben...",
-            "TIA Professional" => "Version eingeben...",
-            "WinCCflex Advanced" => "Version eingeben...",
-            "Tight VNC Server (Panel)" => "Version eingeben...",
-            "MAQS plc-Linker (pc installation)" => "Version eingeben...",
-            "Verpaarung" => "Konfiguration eingeben...",
-            "VNC viewer (Fernwartungsrechner)" => "Version eingeben...",
-            "MSG" => "Konfiguration eingeben...",
-            "KUE" => "Konfiguration eingeben...",
-            "GPG" => "Konfiguration eingeben...",
-            "GPR" => "Konfiguration eingeben...",
-            "USV Master Phönix" => "Konfiguration eingeben...",
-            "USV Slave" => "Konfiguration eingeben...",
-            "Siemens Starter/Startdrive" => "Version eingeben...",
-            "Cognex Insight" => "Version eingeben...",
-            "Stäubli SRS + FTP (Filezilla)" => "Version eingeben...",
-            "DSM LineManager" => "Version eingeben...",
-            "Sonstige Software" => "Name/Version/Beschreibung eingeben...",
-            _ => "Version/Konfiguration eingeben..."
-        };
     }
 
     private async Task LoadWorkflowData()
     {
         try
         {
-            currentWorkflow = await DbContext.Workflow.FirstOrDefaultAsync(w => w.Id == WorkflowId);
+            // Load workflow
+            currentWorkflow = await DbContext.Workflow
+                .FirstOrDefaultAsync(w => w.Id == WorkflowId);
+
             if (currentWorkflow == null)
             {
-                Snackbar.Add("BDR Software Formular nicht gefunden!", Severity.Error);
+                Snackbar.Add("Workflow nicht gefunden!", Severity.Error);
                 return;
             }
 
-            // Load existing software data
-            await LoadExistingSoftwareData();
+            // Check if BDR software config exists in workflow description
+            var description = currentWorkflow.Description ?? "";
+
+            if (description.Contains("BDRSOFTWARE:"))
+            {
+                hasBdrSoftwareConfig = true;
+
+                // Parse existing software data
+                var startIndex = description.IndexOf("BDRSOFTWARE:") + 12;
+                var endIndex = description.IndexOf("ENDMEC:", startIndex);
+
+                string softwareData = endIndex > startIndex
+                    ? description.Substring(startIndex, endIndex - startIndex)
+                    : description.Substring(startIndex);
+
+                // Parse software items
+                selectedSoftwareList = ParseSoftwareData(softwareData);
+            }
+
+            // Load general remarks from description
+            if (description.Contains("BDRSOFTWARE_REMARKS:"))
+            {
+                var startIndex = description.IndexOf("BDRSOFTWARE_REMARKS:") + 20;
+                var endIndex = description.IndexOf("ENDMEC:", startIndex);
+
+                generalRemarks = endIndex > startIndex
+                    ? description.Substring(startIndex, endIndex - startIndex)
+                    : description.Substring(startIndex);
+            }
+
+            if (hasBdrSoftwareConfig)
+            {
+                Snackbar.Add("Existierende BDR Software-Konfiguration geladen!", Severity.Info);
+            }
+
+            // Force UI refresh
+            StateHasChanged();
         }
         catch (Exception ex)
         {
@@ -306,111 +372,61 @@
         }
     }
 
-    private async Task LoadExistingSoftwareData()
+    // Parse software data from encoded string
+    private List<SoftwareItem> ParseSoftwareData(string softwareData)
     {
-        try
-        {
-            // Search for existing software data in workflow description
-            await Task.Yield();
+        var items = new List<SoftwareItem>();
+        if (string.IsNullOrEmpty(softwareData)) return items;
 
-            var existingData = currentWorkflow?.Description;
-
-            if (!string.IsNullOrEmpty(existingData) && existingData.Contains("BDRSOFTWARE:"))
-            {
-                // Parse software data from combined string
-                var startIndex = existingData.IndexOf("BDRSOFTWARE:") + 12;
-                var endIndex = existingData.IndexOf("ENDMEC:", startIndex);
-
-                string softwareData;
-                if (endIndex > startIndex)
-                {
-                    softwareData = existingData.Substring(startIndex, endIndex - startIndex);
-                }
-                else
-                {
-                    softwareData = existingData.Substring(startIndex);
-                }
-
-                ParseCombinedData(softwareData);
-
-                if (selectedSoftwareList.Any())
-                {
-                    Snackbar.Add("Existierende BDR Software-Konfiguration geladen!", Severity.Info);
-                }
-            }
-            else
-            {
-                // No existing data - start with empty list
-                selectedSoftwareList = new List<SoftwareItem>();
-            }
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Fehler beim Laden: {ex.Message}", Severity.Error);
-            selectedSoftwareList = new List<SoftwareItem>();
-        }
-    }
-
-    private void ParseCombinedData(string combinedData)
-    {
-        if (string.IsNullOrEmpty(combinedData))
-        {
-            selectedSoftwareList = new List<SoftwareItem>();
-            return;
-        }
-
-        // Format: softwaretype1|note1|license1;softwaretype2|note2|license2;...
-        selectedSoftwareList.Clear();
-        var entries = combinedData.Split(';');
-
+        var entries = softwareData.Split(';');
         foreach (var entry in entries)
         {
             if (!string.IsNullOrEmpty(entry))
             {
                 var parts = entry.Split('|');
+
                 var softwareType = parts.Length > 0 ? parts[0].Replace("PIPE", "|").Replace("SEMICOLON", ";") : "";
-                var note = parts.Length > 1 ? parts[1].Replace("PIPE", "|").Replace("SEMICOLON", ";") : "";
+                var version = parts.Length > 1 ? parts[1].Replace("PIPE", "|").Replace("SEMICOLON", ";") : "";
                 var licenseStr = parts.Length > 2 ? parts[2] : "false";
                 var licenseRequired = licenseStr.Equals("true", StringComparison.OrdinalIgnoreCase);
 
                 if (!string.IsNullOrWhiteSpace(softwareType))
                 {
-                    selectedSoftwareList.Add(new SoftwareItem
+                    items.Add(new SoftwareItem
                     {
                         SoftwareType = softwareType,
-                        Note = note,
+                        Version = version,
                         LicenseRequired = licenseRequired
                     });
                 }
             }
         }
+
+        return items;
     }
 
-    private string CreateCombinedData()
+    // Encode software data for storage
+    private string EncodeSoftwareData()
     {
-        // Create combined string for database storage with license field
-        var entries = new List<string>();
+        var encodedItems = new List<string>();
 
-        foreach (var item in selectedSoftwareList)
+        foreach (var software in selectedSoftwareList)
         {
-            if (!string.IsNullOrWhiteSpace(item.SoftwareType) && item.SoftwareType != "")
-            {
-                // Escaping for special characters
-                var softwareType = item.SoftwareType.Replace("|", "PIPE").Replace(";", "SEMICOLON");
-                var note = (item.Note ?? "").Replace("|", "PIPE").Replace(";", "SEMICOLON");
-                var license = item.LicenseRequired ? "true" : "false";
-                entries.Add($"{softwareType}|{note}|{license}");
-            }
+            var encodedType = software.SoftwareType.Replace("|", "PIPE").Replace(";", "SEMICOLON");
+            var encodedVersion = software.Version.Replace("|", "PIPE").Replace(";", "SEMICOLON");
+            var licenseStr = software.LicenseRequired.ToString().ToLower();
+
+            encodedItems.Add($"{encodedType}|{encodedVersion}|{licenseStr}");
         }
 
-        return string.Join(";", entries);
+        return string.Join(";", encodedItems);
     }
 
     private async Task SaveChanges()
     {
         if (currentWorkflow == null)
         {
-            Snackbar.Add("Formular nicht gefunden!", Severity.Error);
+            Snackbar.Add("BDR Software Formular nicht gefunden!", Severity.Error);
             return;
         }
 
@@ -425,10 +441,6 @@
         {
             using var transaction = await DbContext.Database.BeginTransactionAsync();
 
-            // Save software data as combined string
-            var combinedSoftwareData = CreateCombinedData();
-
-            // Save software data in workflow description field (with prefix)
             var existingDescription = currentWorkflow.Description ?? "";
 
             // Remove old BDR software data if present
@@ -442,24 +454,48 @@
                 }
                 else
                 {
-                    // If no ENDMEC found, remove everything from BDRSOFTWARE
                     existingDescription = existingDescription.Substring(0, startIndex);
                 }
             }
 
-            // Add new software data
-            currentWorkflow.Description = existingDescription + $"BDRSOFTWARE:{combinedSoftwareData}ENDMEC:";
+            // Remove old BDR software remarks if present
+            if (existingDescription.Contains("BDRSOFTWARE_REMARKS:"))
+            {
+                var startIndex = existingDescription.IndexOf("BDRSOFTWARE_REMARKS:");
+                var endIndex = existingDescription.IndexOf("ENDMEC:", startIndex);
+                if (endIndex > startIndex)
+                {
+                    existingDescription = existingDescription.Remove(startIndex, endIndex - startIndex + 7);
+                }
+                else
+                {
+                    existingDescription = existingDescription.Substring(0, startIndex);
+                }
+            }
 
-            // Update workflow status
+            // Add new encoded software data
+            var encodedSoftware = EncodeSoftwareData();
+            currentWorkflow.Description = existingDescription + $"BDRSOFTWARE:{encodedSoftware}ENDMEC:";
+
+            // Add general remarks if not empty
+            if (!string.IsNullOrWhiteSpace(generalRemarks))
+            {
+                currentWorkflow.Description += $"BDRSOFTWARE_REMARKS:{generalRemarks.Trim()}ENDMEC:";
+            }
+
+            // ⭐ WICHTIG: Status auf SoftwareCompleted setzen, NICHT auf Completed!
+            // Damit kann der Benutzer manuell entscheiden, wann an Einkauf weitergeleitet wird
             currentWorkflow.Status = WorkflowStatus.SoftwareCompleted;
             currentWorkflow.LastChange = DateTime.UtcNow;
 
             await DbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            Snackbar.Add($"BDR Software-Konfiguration erfolgreich gespeichert! ({selectedSoftwareList.Count} Software-Pakete)", Severity.Success);
+            // Success notification
+            var message = $"BDR Software-Konfiguration erfolgreich gespeichert! ({selectedSoftwareList.Count} Software-Pakete)";
+            Snackbar.Add(message, Severity.Success);
 
-            // Back to OverviewForms.razor
+            // Short delay to show success message, then navigate back
             await Task.Delay(1500);
             Navigation.NavigateTo($"/project/{currentWorkflow.ProjectId}/forms");
         }

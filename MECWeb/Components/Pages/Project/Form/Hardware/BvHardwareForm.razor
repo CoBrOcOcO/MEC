@@ -24,7 +24,7 @@
                     @if (currentWorkflow != null)
                     {
                         <MudText Typo="Typo.body2" Color="Color.Secondary">
-                             @currentWorkflow.Name
+                            @currentWorkflow.Name
                         </MudText>
                     }
                 </MudStack>
@@ -70,7 +70,6 @@
                             <MudSelectItem T="string" Value="@("Sonstige")">Sonstige</MudSelectItem>
                         </MudSelect>
 
-                        @* Show text field when "Sonstige" is selected *@
                         @if (selectedPcType == "Sonstige")
                         {
                             <MudTextField @bind-Value="customPcType"
@@ -80,12 +79,6 @@
                                           Required="true"
                                           RequiredError="Bitte geben Sie den PC-Typ ein" />
                         }
-
-                        <MudTextField @bind-Value="pcDetails"
-                                      Label="Bemerkung"
-                                      Variant="Variant.Outlined"
-                                      Placeholder="Spezielle Hinweise, Anforderungen oder Anmerkungen..."
-                                      Lines="3" />
                     </MudStack>
 
                     @if (IsComputerConfigured())
@@ -118,7 +111,6 @@
                         }
                     </MudText>
 
-                    <!-- Adding Requirements -->
                     <MudStack Spacing="3">
                         <MudGrid>
                             <MudItem xs="8">
@@ -147,7 +139,6 @@
                             </MudItem>
                         </MudGrid>
 
-                        @* Show custom requirement input when "Sonstige" is selected *@
                         @if (newRequirementType == "Sonstige")
                         {
                             <MudTextField @bind-Value="customRequirement"
@@ -159,7 +150,6 @@
                         }
                     </MudStack>
 
-                    <!-- Selected Requirements List -->
                     <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Ausgewählte Anforderungen</MudText>
 
                     @if (selectedRequirementsList.Any())
@@ -169,7 +159,6 @@
                             {
                                 <MudPaper Class="pa-3 mud-success-lighten-5" Elevation="1">
                                     <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
-                                        <!-- Requirement Info with Index -->
                                         <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
                                             <MudAvatar Color="Color.Success" Size="Size.Small">
                                                 @(requirement.index + 1)
@@ -180,8 +169,6 @@
                                                 </MudText>
                                             </MudStack>
                                         </MudStack>
-
-                                        <!-- Remove Button -->
                                         <MudIconButton Icon="@Icons.Material.Filled.Delete"
                                                        Color="Color.Error"
                                                        Size="Size.Small"
@@ -218,7 +205,6 @@
                         }
                     </MudText>
 
-                    <!-- Fixed input fields for adding hardware components -->
                     <MudStack Spacing="3">
                         <MudSelect T="string"
                                    @bind-Value="newComponentName"
@@ -235,7 +221,6 @@
                             <MudSelectItem T="string" Value="@("sonstige Komponente")">sonstige Komponente</MudSelectItem>
                         </MudSelect>
 
-                        <!-- Always show Quantity and Details for ALL components -->
                         <MudGrid>
                             <MudItem xs="6">
                                 <MudTextField @bind-Value="newComponentQuantity"
@@ -252,13 +237,6 @@
                             </MudItem>
                         </MudGrid>
 
-                        <!-- Remarks field for hardware components -->
-                        <MudTextField @bind-Value="newComponentRemarks"
-                                      Label="Bemerkung"
-                                      Variant="Variant.Outlined"
-                                      Lines="2"
-                                      Placeholder="Spezielle Hinweise, Anforderungen oder Anmerkungen..." />
-
                         <MudButton Color="Color.Success"
                                    Variant="Variant.Filled"
                                    Size="Size.Medium"
@@ -267,10 +245,8 @@
                                    FullWidth="true">
                             Komponente hinzufügen
                         </MudButton>
-
                     </MudStack>
 
-                    <!-- Selected Components List -->
                     <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Ausgewählte Hardware-Komponenten</MudText>
 
                     @if (selectedComponentsList.Any())
@@ -280,7 +256,6 @@
                             {
                                 <MudPaper Class="pa-3 mud-success-lighten-5" Elevation="1">
                                     <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
-                                        <!-- Component Info -->
                                         <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Class="flex-grow-1">
                                             <MudAvatar Color="Color.Success" Size="Size.Small">
                                                 @(component.index + 1)
@@ -298,18 +273,8 @@
                                                         Details: @component.item.ComponentType
                                                     </MudText>
                                                 }
-                                                @if (!string.IsNullOrEmpty(component.item.Remarks))
-                                                {
-                                                    <MudAlert Severity="Severity.Info" Class="mt-1" Dense="true">
-                                                        <MudText Typo="Typo.caption">
-                                                            <strong>Bemerkung:</strong> @component.item.Remarks
-                                                        </MudText>
-                                                    </MudAlert>
-                                                }
                                             </MudStack>
                                         </MudStack>
-
-                                        <!-- Remove Button -->
                                         <MudIconButton Icon="@Icons.Material.Filled.Delete"
                                                        Color="Color.Error"
                                                        Size="Size.Small"
@@ -334,6 +299,23 @@
                 </MudPaper>
             </MudItem>
 
+            <!-- General Remarks Section -->
+            <MudItem xs="12">
+                <MudPaper Class="pa-4" Elevation="1">
+                    <MudStack Spacing="2">
+                        <MudText Typo="Typo.h6" Class="mb-2">
+                            <MudIcon Icon="@Icons.Material.Filled.Comment" Class="mr-2" />
+                            Allgemeine Bemerkungen
+                        </MudText>
+                        <MudTextField @bind-Value="generalRemarks"
+                                      Label="Zusätzliche Bemerkungen zur gesamten Hardware-Konfiguration"
+                                      Variant="Variant.Outlined"
+                                      Lines="4"
+                                      Placeholder="Allgemeine Hinweise, Besonderheiten oder wichtige Informationen zur Hardware..." />
+                    </MudStack>
+                </MudPaper>
+            </MudItem>
+
             <!-- Save Button -->
             <MudItem xs="12">
                 <MudStack Row Justify="Justify.Center" Spacing="3" Class="mt-8">
@@ -347,7 +329,6 @@
                         @(existingBvHardware != null ? "Änderungen speichern" : "BV Hardware-Konfiguration speichern")
                     </MudButton>
                 </MudStack>
-                <!-- Back Button -->
                 <MudButton Variant="Variant.Text" Class="mt-4"
                            Size="Size.Small"
                            Color="Color.Primary"
@@ -364,35 +345,28 @@
 @code {
     [Parameter] public Guid WorkflowId { get; set; }
 
-    // BV Computer configuration fields
     private string selectedPcType = "";
-    private string customPcType = ""; // Custom PC type for "Sonstige"
+    private string customPcType = "";
     private string contactPerson = "";
-    private string pcDetails = "";
+    private string generalRemarks = "";
 
-    // Additional Requirements Management
     private string newRequirementType = string.Empty;
     private string customRequirement = string.Empty;
     private List<string> selectedRequirementsList = new();
 
-    // Fixed input fields for adding new components
     private string newComponentName = string.Empty;
     private string newComponentQuantity = "1";
     private string newComponentType = string.Empty;
-    private string newComponentRemarks = string.Empty;
 
     private bool isSaving = false;
 
-    // Helper class for hardware components
     public class HardwareComponent
     {
         public string ComponentName { get; set; } = string.Empty;
         public string Quantity { get; set; } = "1";
         public string ComponentType { get; set; } = string.Empty;
-        public string Remarks { get; set; } = string.Empty;
     }
 
-    // List of selected components
     private List<HardwareComponent> selectedComponentsList = new();
 
     private DbWorkflow? currentWorkflow;
@@ -403,7 +377,6 @@
         await LoadWorkflowData();
     }
 
-    // Helper methods for visual feedback
     private bool HasSelectedItems()
     {
         return IsComputerConfigured() ||
@@ -442,17 +415,13 @@
     private void OnPcTypeChanged(string newValue)
     {
         selectedPcType = newValue;
-
-        // Clear custom text when switching away from "Sonstige"
         if (newValue != "Sonstige")
         {
             customPcType = "";
         }
-
         StateHasChanged();
     }
 
-    // Add selected requirement to list
     private void AddSelectedRequirement()
     {
         string requirementToAdd = "";
@@ -471,47 +440,36 @@
             requirementToAdd = newRequirementType.Trim();
         }
 
-        // Check if requirement already exists in list
         if (selectedRequirementsList.Any(r => r.Equals(requirementToAdd, StringComparison.OrdinalIgnoreCase)))
         {
             Snackbar.Add("Diese Anforderung wurde bereits hinzugefügt!", Severity.Warning);
             return;
         }
 
-        // Add to selected list
         selectedRequirementsList.Add(requirementToAdd);
-
-        // Clear input fields
         newRequirementType = string.Empty;
         customRequirement = string.Empty;
-
         Snackbar.Add("Anforderung hinzugefügt!", Severity.Success);
     }
 
-    // Remove requirement from selected list
     private void RemoveSelectedRequirement(string requirement)
     {
         selectedRequirementsList.Remove(requirement);
         Snackbar.Add("Anforderung entfernt!", Severity.Info);
     }
 
-    // Add selected component to list with flexible validation
     private void AddSelectedComponent()
     {
-        // Allow if either name OR details are provided (not both required)
         if (string.IsNullOrWhiteSpace(newComponentName) && string.IsNullOrWhiteSpace(newComponentType))
         {
             Snackbar.Add("Bitte Komponente oder Details eingeben!", Severity.Warning);
             return;
         }
 
-        // Use "Hardware-Komponente" as default name if only details provided
         var itemName = string.IsNullOrWhiteSpace(newComponentName) ? "Hardware-Komponente" : newComponentName.Trim();
         var itemType = newComponentType?.Trim() ?? string.Empty;
         var itemQuantity = string.IsNullOrWhiteSpace(newComponentQuantity) ? "1" : newComponentQuantity.Trim();
-        var itemRemarks = newComponentRemarks?.Trim() ?? string.Empty;
 
-        // Check if component already exists in list (only check if name is meaningful)
         if (!string.IsNullOrWhiteSpace(newComponentName) &&
             selectedComponentsList.Any(c => c.ComponentName.Equals(itemName, StringComparison.OrdinalIgnoreCase)))
         {
@@ -519,25 +477,20 @@
             return;
         }
 
-        // Add to selected list
         selectedComponentsList.Add(new HardwareComponent
         {
             ComponentName = itemName,
             Quantity = itemQuantity,
-            ComponentType = itemType,
-            Remarks = itemRemarks
+            ComponentType = itemType
         });
 
-        // Clear input fields
         newComponentName = string.Empty;
         newComponentQuantity = "1";
         newComponentType = string.Empty;
-        newComponentRemarks = string.Empty;
 
         Snackbar.Add("Hardware-Komponente hinzugefügt!", Severity.Success);
     }
 
-    // Remove component from selected list
     private void RemoveSelectedComponent(HardwareComponent component)
     {
         selectedComponentsList.Remove(component);
@@ -548,7 +501,6 @@
     {
         try
         {
-            // Load workflow
             currentWorkflow = await DbContext.Workflow
                 .FirstOrDefaultAsync(w => w.Id == WorkflowId);
 
@@ -558,16 +510,12 @@
                 return;
             }
 
-            // Load existing BV hardware data (if available)
             existingBvHardware = await DbContext.BvHardwareComputer
                 .FirstOrDefaultAsync(h => h.WorkflowId == WorkflowId);
 
             if (existingBvHardware != null)
             {
-                // Load existing data into form
                 var pcType = existingBvHardware.PcType ?? "";
-
-                // Check if PC type is one of the predefined options
                 var predefinedTypes = new[] { "MIC 7700 + Erweiterung" };
 
                 if (predefinedTypes.Contains(pcType))
@@ -577,59 +525,38 @@
                 }
                 else if (!string.IsNullOrEmpty(pcType))
                 {
-                    // PC type is custom, set to "Sonstige" and put actual value in customPcType
                     selectedPcType = "Sonstige";
                     customPcType = pcType;
-                }
-                else
-                {
-                    selectedPcType = "";
-                    customPcType = "";
                 }
 
                 contactPerson = existingBvHardware.ContactPerson ?? "";
 
-                // Parse PcTypeDetails (format: pcDetails|additionalRequirements|remarks|pcDetailsRemarks|additionalRemarks)
                 if (!string.IsNullOrEmpty(existingBvHardware.PcTypeDetails))
                 {
                     var parts = existingBvHardware.PcTypeDetails.Split('|');
-                    pcDetails = parts.Length > 0 ? parts[0] : "";
 
-                    // Load multiple requirements from parts[1] (separated by semicolons)
                     if (parts.Length > 1 && !string.IsNullOrEmpty(parts[1]))
                     {
                         selectedRequirementsList = parts[1].Split(';', StringSplitOptions.RemoveEmptyEntries).ToList();
                     }
+
+                    generalRemarks = parts.Length > 2 ? parts[2] : "";
                 }
 
-                // Load existing hardware components from database
                 var components = await DbContext.BvHardwareComponent
                     .Where(c => c.BvHardwareComputerId == existingBvHardware.Id && c.IsActive)
                     .ToListAsync();
 
-                // Convert to list structure
                 selectedComponentsList = components.Select(c => new HardwareComponent
                 {
                     ComponentName = c.ComponentName,
                     Quantity = c.Quantity ?? "1",
-                    ComponentType = c.ComponentType ?? string.Empty,
-                    Remarks = c.Category ?? string.Empty // Use Category field for Remarks (workaround)
+                    ComponentType = c.ComponentType ?? string.Empty
                 }).ToList();
 
                 Snackbar.Add("Existierende BV Hardware-Konfiguration geladen!", Severity.Info);
             }
-            else
-            {
-                // New creation: empty fields and lists
-                selectedPcType = "";
-                customPcType = "";
-                contactPerson = "";
-                pcDetails = "";
-                selectedRequirementsList = new List<string>();
-                selectedComponentsList = new List<HardwareComponent>();
-            }
 
-            // Force UI refresh
             StateHasChanged();
         }
         catch (Exception ex)
@@ -658,16 +585,11 @@
         {
             using var transaction = await DbContext.Database.BeginTransactionAsync();
 
-            // Determine the actual PC type to save
             string actualPcType = GetActualPcType();
-
-            // Combine requirements into semicolon-separated string
             string combinedRequirements = string.Join(";", selectedRequirementsList);
 
-            // 1. Create or update BV hardware computer
             if (existingBvHardware == null)
             {
-                // Create new BV hardware computer
                 existingBvHardware = new DbBvHardwareComputer
                 {
                     Id = Guid.NewGuid(),
@@ -676,7 +598,7 @@
                     SerialNumber = $"BV-{DateTime.Now:yyyyMMdd-HHmmss}",
                     ContactPerson = contactPerson,
                     PcType = actualPcType,
-                    PcTypeDetails = $"{pcDetails}|{combinedRequirements}|||", // Store requirements in part 1
+                    PcTypeDetails = $"|{combinedRequirements}|{generalRemarks}||",
                     Description = "BV Hardware Konfiguration",
                     CreationDate = DateTime.UtcNow,
                     LastChange = DateTime.UtcNow,
@@ -684,18 +606,16 @@
                 };
 
                 DbContext.BvHardwareComputer.Add(existingBvHardware);
-                await DbContext.SaveChangesAsync(); // Save hardware first to get ID
+                await DbContext.SaveChangesAsync();
             }
             else
             {
-                // Update existing BV hardware computer
                 existingBvHardware.PcType = actualPcType;
                 existingBvHardware.ContactPerson = contactPerson;
-                existingBvHardware.PcTypeDetails = $"{pcDetails}|{combinedRequirements}|||";
+                existingBvHardware.PcTypeDetails = $"|{combinedRequirements}|{generalRemarks}||";
                 existingBvHardware.Name = $"{currentWorkflow.Name} BV Hardware";
                 existingBvHardware.LastChange = DateTime.UtcNow;
 
-                // Delete old hardware components (for clean update)
                 var oldComponents = await DbContext.BvHardwareComponent
                     .Where(c => c.BvHardwareComputerId == existingBvHardware.Id)
                     .ToListAsync();
@@ -703,11 +623,10 @@
                 if (oldComponents.Any())
                 {
                     DbContext.BvHardwareComponent.RemoveRange(oldComponents);
-                    await DbContext.SaveChangesAsync(); // Delete old components
+                    await DbContext.SaveChangesAsync();
                 }
             }
 
-            // 2. Save new hardware components
             var newComponents = new List<DbBvHardwareComponent>();
 
             foreach (var component in selectedComponentsList)
@@ -719,35 +638,30 @@
                     ComponentName = component.ComponentName,
                     Quantity = component.Quantity,
                     ComponentType = component.ComponentType,
-                    Category = component.Remarks, // Use Category field for Remarks (workaround)
+                    Category = "",
                     IsSelected = true,
                     CreationDate = DateTime.UtcNow,
                     IsActive = true
                 });
             }
 
-            // Save all new components in batch
             if (newComponents.Any())
             {
                 DbContext.BvHardwareComponent.AddRange(newComponents);
             }
 
-            // 3. Update workflow status to allow software configuration
             currentWorkflow.Status = WorkflowStatus.SoftwareInProgress;
             currentWorkflow.LastChange = DateTime.UtcNow;
 
-            // Save everything and commit transaction
             await DbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            // Success notification
             var savedItemsCount = selectedComponentsList.Count + selectedRequirementsList.Count;
             var pcTypeText = IsPcTypeSelected() ? $"PC-Typ: {GetDisplayPcType()}" : "";
             var message = $"BV Hardware-Konfiguration erfolgreich gespeichert! {pcTypeText} ({savedItemsCount} Einträge)";
 
             Snackbar.Add(message, Severity.Success);
 
-            // Short delay to show success message, then navigate back
             await Task.Delay(1500);
             Navigation.NavigateTo($"/project/{currentWorkflow.ProjectId}/forms");
         }
