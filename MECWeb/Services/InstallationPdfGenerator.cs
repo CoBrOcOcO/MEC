@@ -35,6 +35,9 @@ namespace MECWeb.Services
                 throw new InvalidOperationException("Workflow not found");
             }
 
+            var projectNumber = data.Project?.ProjectNumber ?? "";
+            var projectName = data.Project?.Name ?? "";
+
             return Document.Create(container =>
             {
                 container.Page(page =>
@@ -43,7 +46,7 @@ namespace MECWeb.Services
                     page.Margin(2, Unit.Centimetre);
                     page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Arial"));
 
-                    page.Header().Element(c => CreateModernHeader(c, "BDR-FORMULAR"));
+                    page.Header().Element(c => CreateModernHeader(c, "BDR-FORMULAR", projectNumber, projectName));
 
                     page.Content().PaddingVertical(10).Column(column =>
                     {
@@ -84,6 +87,9 @@ namespace MECWeb.Services
                 throw new InvalidOperationException("Workflow not found");
             }
 
+            var projectNumber = data.Project?.ProjectNumber ?? "";
+            var projectName = data.Project?.Name ?? "";
+
             return Document.Create(container =>
             {
                 container.Page(page =>
@@ -92,7 +98,7 @@ namespace MECWeb.Services
                     page.Margin(2, Unit.Centimetre);
                     page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Arial"));
 
-                    page.Header().Element(c => CreateModernHeader(c, "BV-FORMULAR"));
+                    page.Header().Element(c => CreateModernHeader(c, "BV-FORMULAR", projectNumber, projectName));
 
                     page.Content().PaddingVertical(10).Column(column =>
                     {
@@ -116,23 +122,50 @@ namespace MECWeb.Services
         }
 
         /// <summary>
-        /// Create modern header with Schaeffler logo
+        /// Create modern header with Schaeffler logo and project identification
         /// </summary>
-        private void CreateModernHeader(IContainer container, string title)
+        private void CreateModernHeader(IContainer container, string title, string projectNumber = "", string projectName = "")
         {
-            container.Row(row =>
+            container.Column(column =>
             {
-                if (File.Exists(_logoPath))
+                // First row: Logo and title
+                column.Item().Row(row =>
                 {
-                    row.ConstantItem(150).Image(_logoPath);
-                }
-                else
-                {
-                    row.ConstantItem(150).Text("SCHAEFFLER").FontSize(20).Bold().FontColor("#00873C");
-                }
+                    if (File.Exists(_logoPath))
+                    {
+                        row.ConstantItem(150).Image(_logoPath);
+                    }
+                    else
+                    {
+                        row.ConstantItem(150).Text("SCHAEFFLER").FontSize(20).Bold().FontColor("#00873C");
+                    }
 
-                row.RelativeItem();
-                row.ConstantItem(200).AlignRight().AlignMiddle().Text(title).FontSize(16).FontColor(Colors.Grey.Darken2);
+                    row.RelativeItem();
+                    row.ConstantItem(200).AlignRight().AlignMiddle().Text(title).FontSize(16).FontColor(Colors.Grey.Darken2);
+                });
+
+                // Second row: Project identification (subtle, in grey)
+                if (!string.IsNullOrEmpty(projectNumber) || !string.IsNullOrEmpty(projectName))
+                {
+                    column.Item().PaddingTop(5).BorderTop(1).BorderColor(Colors.Grey.Lighten2).PaddingTop(3)
+                        .Row(row =>
+                        {
+                            row.RelativeItem().Text(text =>
+                            {
+                                if (!string.IsNullOrEmpty(projectNumber))
+                                {
+                                    text.Span("Projekt: ").FontSize(8).FontColor(Colors.Grey.Medium).Bold();
+                                    text.Span(projectNumber).FontSize(8).FontColor(Colors.Grey.Darken1);
+                                }
+                                if (!string.IsNullOrEmpty(projectName))
+                                {
+                                    if (!string.IsNullOrEmpty(projectNumber))
+                                        text.Span(" | ").FontSize(8).FontColor(Colors.Grey.Medium);
+                                    text.Span(projectName).FontSize(8).FontColor(Colors.Grey.Darken1);
+                                }
+                            });
+                        });
+                }
             });
         }
 
@@ -154,7 +187,7 @@ namespace MECWeb.Services
                         columns.RelativeColumn();
                     });
 
-                    // Only show contact person for BV if it has a value
+                    // BV: Show contact person only if it has a value
                     if (isBv && data.BvHardware != null && !string.IsNullOrEmpty(data.BvHardware.ContactPerson))
                     {
                         table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
@@ -163,25 +196,19 @@ namespace MECWeb.Services
                             .Text(data.BvHardware.ContactPerson).FontSize(9);
                     }
 
-                    // Only show project number if it has a value
-                    if (!string.IsNullOrEmpty(data.Project?.ProjectNumber))
-                    {
-                        table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
-                            .Text("Projektnummer:").FontSize(9).Bold();
-                        table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
-                            .Text(data.Project.ProjectNumber).FontSize(9);
-                    }
+                    // Always show project number
+                    table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
+                        .Text("Projektnummer:").FontSize(9).Bold();
+                    table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
+                        .Text(data.Project?.ProjectNumber ?? "").FontSize(9);
 
-                    // Only show project name if it has a value
-                    if (!string.IsNullOrEmpty(data.Project?.Name))
-                    {
-                        table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
-                            .Text("Projektname:").FontSize(9).Bold();
-                        table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
-                            .Text(data.Project.Name).FontSize(9);
-                    }
+                    // Always show project name
+                    table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
+                        .Text("Projektname:").FontSize(9).Bold();
+                    table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
+                        .Text(data.Project?.Name ?? "").FontSize(9);
 
-                    // Only show location if it has a value
+                    // Show location only if it has a value
                     if (!string.IsNullOrEmpty(data.Project?.Location))
                     {
                         table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
@@ -190,7 +217,7 @@ namespace MECWeb.Services
                             .Text(data.Project.Location).FontSize(9);
                     }
 
-                    // Always show creation date if workflow exists
+                    // Always show creation date
                     if (data.Workflow != null)
                     {
                         table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
@@ -236,7 +263,7 @@ namespace MECWeb.Services
                             descContainer.Column(col =>
                             {
                                 col.Item().Text("Allgemeine Beschreibung").FontSize(10).Bold().FontColor(Colors.Grey.Darken1);
-                                col.Item().PaddingTop(3).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).MinHeight(40)
+                                col.Item().PaddingTop(3).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
                                     .Text(data.BdrHardware.Description).FontSize(9);
                             });
                         });
@@ -284,8 +311,6 @@ namespace MECWeb.Services
                             .Text(field.FieldValue ?? "").FontSize(9);
                     }
                 });
-
-                // Removed the empty "Allgemeine Beschreibung" box
             });
         }
 
@@ -323,7 +348,7 @@ namespace MECWeb.Services
                             descContainer.Column(col =>
                             {
                                 col.Item().Text("Allgemeine Beschreibung").FontSize(10).Bold().FontColor(Colors.Grey.Darken1);
-                                col.Item().PaddingTop(3).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).MinHeight(40)
+                                col.Item().PaddingTop(3).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
                                     .Text(data.BvHardware.Description).FontSize(9);
                             });
                         });
@@ -336,8 +361,8 @@ namespace MECWeb.Services
                         {
                             compContainer.Column(innerCol =>
                             {
-                                innerCol.Item().BorderBottom(1).BorderColor(Colors.Grey.Lighten1).PaddingBottom(5)
-                                    .Text("Hardware-Komponenten").FontSize(11).Bold().FontColor(Colors.Grey.Darken1);
+                                innerCol.Item().BorderBottom(1).BorderColor("#00873C").PaddingBottom(5)
+                                    .Text("Hardware-Komponenten").FontSize(11).Bold().FontColor("#00873C");
 
                                 innerCol.Item().PaddingTop(8).Table(table =>
                                 {
@@ -390,7 +415,7 @@ namespace MECWeb.Services
         /// </summary>
         private void CreateModernSoftwareSection(IContainer container, InstallationData data)
         {
-            container.Column(column =>
+            container.ShowOnce().Column(column =>
             {
                 column.Item().BorderBottom(2).BorderColor("#00873C").PaddingBottom(5)
                     .Text("Software-Konfiguration").FontSize(13).Bold().FontColor("#00873C");
@@ -430,8 +455,6 @@ namespace MECWeb.Services
                                 .Text(software.HasLicense ? "Ja" : "Nein").FontSize(9);
                         }
                     });
-
-                    // Removed empty "Allgemeine Beschreibung" box
                 }
                 else
                 {
@@ -446,61 +469,45 @@ namespace MECWeb.Services
         /// </summary>
         private void CreateModernNetworkSection(IContainer container, InstallationData data)
         {
-            container.Column(column =>
+            container.ShowOnce().Column(column =>
             {
                 column.Item().BorderBottom(2).BorderColor("#00873C").PaddingBottom(5)
                     .Text("Netzwerk-Konfiguration").FontSize(13).Bold().FontColor("#00873C");
 
-                if (data.InstallationConfig != null && 
-                    (!string.IsNullOrEmpty(data.InstallationConfig.MacAddress) || 
-                     !string.IsNullOrEmpty(data.InstallationConfig.IpAddress) ||
-                     !string.IsNullOrEmpty(data.InstallationConfig.NetworkNotes)))
+                // Always show MAC and IP address fields (even if InstallationConfig is null)
+                column.Item().PaddingTop(8).Table(table =>
                 {
-                    column.Item().PaddingTop(8).Table(table =>
+                    table.ColumnsDefinition(columns =>
                     {
-                        table.ColumnsDefinition(columns =>
-                        {
-                            columns.ConstantColumn(140);
-                            columns.RelativeColumn();
-                        });
-
-                        // Only show MAC address if it has a value
-                        if (!string.IsNullOrEmpty(data.InstallationConfig.MacAddress))
-                        {
-                            table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
-                                .Text("MAC-Adresse").FontSize(9).Bold();
-                            table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
-                                .Text(data.InstallationConfig.MacAddress).FontSize(9);
-                        }
-
-                        // Only show IP address if it has a value
-                        if (!string.IsNullOrEmpty(data.InstallationConfig.IpAddress))
-                        {
-                            table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
-                                .Text("IP-Adresse:").FontSize(9).Bold();
-                            table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
-                                .Text(data.InstallationConfig.IpAddress).FontSize(9);
-                        }
+                        columns.ConstantColumn(140);
+                        columns.RelativeColumn();
                     });
 
-                    // Only show network notes if they have content
-                    if (!string.IsNullOrEmpty(data.InstallationConfig.NetworkNotes))
-                    {
-                        column.Item().PaddingTop(8).Element(notesContainer =>
-                        {
-                            notesContainer.Column(col =>
-                            {
-                                col.Item().Text("Netzwerk-Hinweise").FontSize(10).Bold().FontColor(Colors.Grey.Darken1);
-                                col.Item().PaddingTop(3).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).MinHeight(40)
-                                    .Text(data.InstallationConfig.NetworkNotes).FontSize(9);
-                            });
-                        });
-                    }
-                }
-                else
+                    // Always show MAC address
+                    table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
+                        .Text("MAC-Adresse").FontSize(9).Bold();
+                    table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
+                        .Text(data.InstallationConfig?.MacAddress ?? "").FontSize(9);
+
+                    // Always show IP address
+                    table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
+                        .Text("IP-Adresse:").FontSize(9).Bold();
+                    table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
+                        .Text(data.InstallationConfig?.IpAddress ?? "").FontSize(9);
+                });
+
+                // Only show network notes if they have content
+                if (data.InstallationConfig != null && !string.IsNullOrEmpty(data.InstallationConfig.NetworkNotes))
                 {
-                    column.Item().PaddingTop(8).Text("Keine Netzwerk-Konfiguration gefunden.")
-                        .Italic().FontColor(Colors.Grey.Medium);
+                    column.Item().PaddingTop(8).Element(notesContainer =>
+                    {
+                        notesContainer.Column(col =>
+                        {
+                            col.Item().Text("Netzwerk-Hinweise").FontSize(10).Bold().FontColor(Colors.Grey.Darken1);
+                            col.Item().PaddingTop(3).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
+                                .Text(data.InstallationConfig.NetworkNotes).FontSize(9);
+                        });
+                    });
                 }
             });
         }
@@ -520,11 +527,14 @@ namespace MECWeb.Services
                 // Only show installation comments section if there is content
                 if (!string.IsNullOrEmpty(installationComment))
                 {
-                    column.Item().BorderBottom(2).BorderColor("#00873C").PaddingBottom(5)
-                        .Text("Installation Kommentare & Hinweise").FontSize(13).Bold().FontColor("#00873C");
+                    column.Item().ShowOnce().Column(innerColumn =>
+                    {
+                        innerColumn.Item().BorderBottom(2).BorderColor("#00873C").PaddingBottom(5)
+                            .Text("Installation Kommentare & Hinweise").FontSize(13).Bold().FontColor("#00873C");
 
-                    column.Item().PaddingTop(8).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).MinHeight(60)
-                        .Text(installationComment).FontSize(9);
+                        innerColumn.Item().PaddingTop(8).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
+                            .Text(installationComment).FontSize(9);
+                    });
                 }
 
                 // Only show purchase comments section if there is content
@@ -536,21 +546,27 @@ namespace MECWeb.Services
                         column.Item().PaddingTop(15);
                     }
 
-                    column.Item().BorderBottom(2).BorderColor("#00873C").PaddingBottom(5)
-                        .Text("Einkauf Kommentare & Hinweise").FontSize(13).Bold().FontColor("#00873C");
+                    column.Item().ShowOnce().Column(innerColumn =>
+                    {
+                        innerColumn.Item().BorderBottom(2).BorderColor("#00873C").PaddingBottom(5)
+                            .Text("Einkauf Kommentare & Hinweise").FontSize(13).Bold().FontColor("#00873C");
 
-                    column.Item().PaddingTop(8).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).MinHeight(60)
-                        .Text(purchaseComment).FontSize(9);
+                        innerColumn.Item().PaddingTop(8).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
+                            .Text(purchaseComment).FontSize(9);
+                    });
                 }
 
                 // If neither comment has content, show a message
                 if (string.IsNullOrEmpty(installationComment) && string.IsNullOrEmpty(purchaseComment))
                 {
-                    column.Item().BorderBottom(2).BorderColor("#00873C").PaddingBottom(5)
-                        .Text("Kommentare & Hinweise").FontSize(13).Bold().FontColor("#00873C");
-                    
-                    column.Item().PaddingTop(8).Text("Keine Kommentare vorhanden.")
-                        .Italic().FontColor(Colors.Grey.Medium);
+                    column.Item().ShowOnce().Column(innerColumn =>
+                    {
+                        innerColumn.Item().BorderBottom(2).BorderColor("#00873C").PaddingBottom(5)
+                            .Text("Kommentare & Hinweise").FontSize(13).Bold().FontColor("#00873C");
+
+                        innerColumn.Item().PaddingTop(8).Text("Keine Kommentare vorhanden.")
+                            .Italic().FontColor(Colors.Grey.Medium);
+                    });
                 }
             });
         }
