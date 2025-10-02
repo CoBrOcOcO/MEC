@@ -124,6 +124,7 @@
             </MudStack>
         }
 
+
         <!-- Back Button -->
         <MudButton Variant="Variant.Text"
                    Size="Size.Small"
@@ -132,7 +133,7 @@
                    FullWidth="true"
                    OnClick="GoBack"
                    Class="mt-4">
-            Zurück zur Startseite
+            Zurück zur Projektübersicht
         </MudButton>
     </MudStack>
 </MudContainer>
@@ -292,7 +293,7 @@
     }
 
     /// <summary>
-    /// Navigiert zurück zur vorherigen Seite
+    /// Navigate back to projects overview
     /// </summary>
     private void GoBack()
     {
@@ -302,7 +303,7 @@
         }
         else
         {
-            Navigation.NavigateTo("/");
+            Navigation.NavigateTo("/projects");
         }
     }
 }

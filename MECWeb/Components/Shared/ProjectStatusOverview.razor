@@ -4,6 +4,8 @@
 
 @inject ApplicationDbContext DbContext
 
+@implements IDisposable
+
 <!-- PROJECT STATUS OVERVIEW COMPONENT -->
 @if (workflows.Any())
 {
@@ -143,11 +145,9 @@ else
 }
 
 @code {
-    // Parameters from parent component
     [Parameter] public Guid ProjectId { get; set; }
     [Parameter] public bool IsLoading { get; set; } = false;
 
-    // Internal state
     private List<DbWorkflow> workflows = new();
     private double _animatedProgress = 0;
     private System.Threading.Timer? _progressTimer;
@@ -157,9 +157,6 @@ else
         await LoadWorkflows();
     }
 
-    /// <summary>
-    /// Load all workflows for the current project
-    /// </summary>
     private async Task LoadWorkflows()
     {
         try
@@ -177,75 +174,110 @@ else
         }
     }
 
-    /// <summary>
-    /// Public method to refresh the component data
-    /// </summary>
     public async Task RefreshAsync()
     {
         await LoadWorkflows();
         StateHasChanged();
     }
 
-    // STATUS COLOR METHODS
+    // STATUS COLOR METHODS WITH IMPROVED CORRECTION LOGIC
     private Color GetHardwareStatusColor()
     {
         if (!workflows.Any()) return Color.Default;
 
+        // Check for pending corrections in Hardware phase
+        if (workflows.Any(w => w.HasPendingCorrection &&
+            (w.CorrectionPhase == WorkflowPhase.Hardware || w.CorrectionPhase == "Hardware")))
+            return Color.Warning;
+
+        // Check if all workflows have completed hardware
         var allCompleted = workflows.All(w => w.Status >= WorkflowStatus.SoftwareInProgress);
         var someStarted = workflows.Any(w => w.Status >= WorkflowStatus.HardwareInProgress);
+        var anyInProgress = workflows.Any(w => w.Status == WorkflowStatus.HardwareInProgress);
 
-        if (allCompleted) return Color.Success;  // Grün - alle fertig
-        if (someStarted) return Color.Warning;   // Orange - in Bearbeitung
-        return Color.Default;                    // Grau - nicht begonnen
+        if (allCompleted) return Color.Success;
+        if (anyInProgress) return Color.Warning;
+        if (someStarted) return Color.Warning;
+        return Color.Default;
     }
 
     private Color GetSoftwareStatusColor()
     {
         if (!workflows.Any()) return Color.Default;
 
+        // Check for pending corrections in Software phase
+        if (workflows.Any(w => w.HasPendingCorrection &&
+            (w.CorrectionPhase == WorkflowPhase.Software || w.CorrectionPhase == "Software")))
+            return Color.Warning;
+
+        // Check if all workflows have completed software
         var allCompleted = workflows.All(w => w.Status >= WorkflowStatus.SoftwareCompleted);
         var someStarted = workflows.Any(w => w.Status >= WorkflowStatus.SoftwareInProgress);
+        var anyInProgress = workflows.Any(w => w.Status == WorkflowStatus.SoftwareInProgress);
 
-        if (allCompleted) return Color.Success;  // Grün - alle fertig
-        if (someStarted) return Color.Warning;   // Orange - in Bearbeitung
-        return Color.Default;                    // Grau - nicht begonnen
+        if (allCompleted) return Color.Success;
+        if (anyInProgress) return Color.Warning;
+        if (someStarted) return Color.Warning;
+        return Color.Default;
     }
 
     private Color GetPurchaseStatusColor()
     {
         if (!workflows.Any()) return Color.Default;
 
-        // Einkauf kann erst starten, wenn Software fertig ist
+        // Check for pending corrections in Purchase phase
+        if (workflows.Any(w => w.HasPendingCorrection &&
+            (w.CorrectionPhase == WorkflowPhase.Purchase || w.CorrectionPhase == "Purchase")))
+            return Color.Warning;
+
+        // Check if all software is completed (prerequisite for purchase)
         var allSoftwareCompleted = workflows.All(w => w.Status >= WorkflowStatus.SoftwareCompleted);
         if (!allSoftwareCompleted) return Color.Default;
 
-        // Prüfen ob Einkauf bearbeitet wird oder abgeschlossen ist
+        // Check purchase status
         var allCompletedPurchase = workflows.All(w => w.Status >= WorkflowStatus.ForwardedToInstallation);
         var somePurchaseStarted = workflows.Any(w => w.Status >= WorkflowStatus.Completed);
+        var anyInProgress = workflows.Any(w => w.Status == WorkflowStatus.Completed &&
+                                               w.Status < WorkflowStatus.ForwardedToInstallation);
 
-        if (allCompletedPurchase) return Color.Success; // Grün - alle fertig
-        if (somePurchaseStarted) return Color.Warning;             // Orange - in Bearbeitung
-        return Color.Default;                                 // Grau - nicht begonnen
+        if (allCompletedPurchase) return Color.Success;
+        if (anyInProgress) return Color.Warning;
+        if (somePurchaseStarted) return Color.Warning;
+        return Color.Default;
     }
 
     private Color GetInstallationStatusColor()
     {
         if (!workflows.Any()) return Color.Default;
 
-        // Installation kann erst starten wenn an Installation weitergeleitet
+        // Check for pending corrections in Installation phase
+        if (workflows.Any(w => w.HasPendingCorrection &&
+            (w.CorrectionPhase == WorkflowPhase.Installation || w.CorrectionPhase == "Installation")))
+            return Color.Warning;
+
+        // Check if any workflows are at installation
         var someForwardedToInstallation = workflows.Any(w => w.Status >= WorkflowStatus.ForwardedToInstallation);
         if (!someForwardedToInstallation) return Color.Default;
 
+        // Check installation status
         var allCompleted = workflows.All(w => w.Status >= WorkflowStatus.Archived);
-        
-        if (allCompleted) return Color.Success;        // Grün - alle fertig
-        return Color.Warning; // Orange sobald weitergeleitet, bis alles archiviert
+        var anyInProgress = workflows.Any(w => w.Status >= WorkflowStatus.ForwardedToInstallation &&
+                                               w.Status < WorkflowStatus.Archived);
+
+        if (allCompleted) return Color.Success;
+        if (anyInProgress) return Color.Warning;
+        return Color.Warning;
     }
 
     // STATUS TEXT METHODS
     private string GetHardwareStatusText()
     {
         if (!workflows.Any()) return "Ausstehend";
+
+        // Check for corrections
+        var correctionsCount = workflows.Count(w => w.HasPendingCorrection &&
+            (w.CorrectionPhase == WorkflowPhase.Hardware || w.CorrectionPhase == "Hardware"));
+        if (correctionsCount > 0) return $"Korrektur ({correctionsCount})";
 
         var completed = workflows.Count(w => w.Status >= WorkflowStatus.SoftwareInProgress);
         if (completed == workflows.Count) return "Abgeschlossen";
@@ -257,6 +289,11 @@ else
     {
         if (!workflows.Any()) return "Ausstehend";
 
+        // Check for corrections
+        var correctionsCount = workflows.Count(w => w.HasPendingCorrection &&
+            (w.CorrectionPhase == WorkflowPhase.Software || w.CorrectionPhase == "Software"));
+        if (correctionsCount > 0) return $"Korrektur ({correctionsCount})";
+
         var completed = workflows.Count(w => w.Status >= WorkflowStatus.SoftwareCompleted);
         if (completed == workflows.Count) return "Abgeschlossen";
         if (completed > 0) return $"{completed}/{workflows.Count}";
@@ -266,6 +303,11 @@ else
     private string GetPurchaseStatusText()
     {
         if (!workflows.Any()) return "Ausstehend";
+
+        // Check for corrections
+        var correctionsCount = workflows.Count(w => w.HasPendingCorrection &&
+            (w.CorrectionPhase == WorkflowPhase.Purchase || w.CorrectionPhase == "Purchase"));
+        if (correctionsCount > 0) return $"Korrektur ({correctionsCount})";
 
         var completed = workflows.Count(w => w.Status >= WorkflowStatus.ForwardedToInstallation);
         if (completed == workflows.Count) return "Abgeschlossen";
@@ -279,6 +321,11 @@ else
     {
         if (!workflows.Any()) return "Ausstehend";
 
+        // Check for corrections
+        var correctionsCount = workflows.Count(w => w.HasPendingCorrection &&
+            (w.CorrectionPhase == WorkflowPhase.Installation || w.CorrectionPhase == "Installation"));
+        if (correctionsCount > 0) return $"Korrektur ({correctionsCount})";
+
         var completed = workflows.Count(w => w.Status >= WorkflowStatus.Archived);
         if (completed == workflows.Count) return "Abgeschlossen";
 
@@ -287,30 +334,20 @@ else
         return "Ausstehend";
     }
 
-    /// <summary>
-    /// Calculate overall project completion percentage
-    /// </summary>
     private int GetCompletionPercentage()
     {
         if (!workflows.Any()) return 0;
 
-        var totalSteps = workflows.Count * 7; // Erhöht auf 7 Schritte pro Workflow
+        var totalSteps = workflows.Count * 7;
         var completedSteps = 0;
 
         foreach (var workflow in workflows)
         {
-            // Hardware (2 Schritte: In Bearbeitung & Abgeschlossen)
             if (workflow.Status >= WorkflowStatus.HardwareInProgress) completedSteps++;
             if (workflow.Status >= WorkflowStatus.SoftwareInProgress) completedSteps++;
-
-            // Software (2 Schritte: In Bearbeitung & Abgeschlossen)
             if (workflow.Status >= WorkflowStatus.SoftwareInProgress) completedSteps++;
             if (workflow.Status >= WorkflowStatus.SoftwareCompleted) completedSteps++;
-
-            // Einkauf (1 Schritt: Erledigt)
             if (workflow.Status >= WorkflowStatus.Completed) completedSteps++;
-
-            // Installation (2 Schritte: Weitergeleitet & Abgeschlossen)
             if (workflow.Status >= WorkflowStatus.ForwardedToInstallation) completedSteps++;
             if (workflow.Status >= WorkflowStatus.Archived) completedSteps++;
         }
@@ -318,18 +355,13 @@ else
         return (int)Math.Round((double)completedSteps / totalSteps * 100);
     }
 
-    // Modifizierte Methode zur Animation des Fortschritts
     private Task AnimateProgress(int targetPercentage)
     {
-        // Aufräumen des alten Timers, falls vorhanden
         _progressTimer?.Dispose();
 
-        // Startwert auf aktuelle Animation setzen, falls eine läuft
         double startValue = _animatedProgress;
-        
-        // Animation über 1 Sekunde
         const int animationDurationMs = 1000;
-        const int updateIntervalMs = 16; // Ca. 60 FPS
+        const int updateIntervalMs = 16;
         int steps = animationDurationMs / updateIntervalMs;
         double increment = (targetPercentage - startValue) / steps;
 
@@ -354,12 +386,10 @@ else
         if (ProjectId != Guid.Empty)
         {
             await LoadWorkflows();
-            // Starten der Animation mit dem aktuellen Fortschritt
             await AnimateProgress(GetCompletionPercentage());
         }
     }
 
-    // Dispose-Methode für Blazor-Komponenten
     public void Dispose()
     {
         _progressTimer?.Dispose();

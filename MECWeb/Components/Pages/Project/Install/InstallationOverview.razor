@@ -114,7 +114,7 @@
                    FullWidth="true"
                    OnClick="GoBack"
                    Class="mt-4">
-            Zurück zur Startseite
+            Zurück zur Projektübersicht
         </MudButton>
     </MudStack>
 </MudContainer>
@@ -214,7 +214,7 @@
     }
 
     /// <summary>
-    /// Navigate back to home
+    /// Navigate back to projects overview
     /// </summary>
     private void GoBack()
     {
@@ -224,7 +224,7 @@
         }
         else
         {
-            Navigation.NavigateTo("/");
+            Navigation.NavigateTo("/projects");
         }
     }
 }

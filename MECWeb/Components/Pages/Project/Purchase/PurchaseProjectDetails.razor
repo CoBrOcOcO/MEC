@@ -875,23 +875,14 @@
     }
 
     /// <summary>
-    /// Navigiert zurück zur vorherigen Seite
+    /// Navigate back to project overview page (app cards)
     /// </summary>
     private void NavigateBack()
     {
-        if (ReturnPath == "overview")
-        {
-            Navigation.NavigateTo("/purchase/orders");
-        }
-        else if (ReturnPath == "project")
-        {
-            Navigation.NavigateTo($"/project/{ProjectId}");
-        }
-        else
-        {
-            Navigation.NavigateTo($"/project/{ProjectId}");
-        }
+        // Always navigate back to the project's app cards page
+        Navigation.NavigateTo($"/project/{ProjectId}");
     }
+
 
     /// <summary>
     /// Get workflow comment from memory

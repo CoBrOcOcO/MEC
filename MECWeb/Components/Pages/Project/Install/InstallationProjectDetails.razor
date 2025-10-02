@@ -100,19 +100,19 @@
             <ProjectStatusOverview ProjectId="@ProjectId"
                                    IsLoading="@loading" />
             <!-- BDR Section Header -->
-    @if (bdrWorkflows.Any())
-    {
+            @if (bdrWorkflows.Any())
+            {
                 <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Class="mt-2">
                     <MudIcon Icon="@Icons.Material.Filled.Computer" Color="Color.Primary" Size="Size.Large" />
                     <MudText Typo="Typo.h5" Color="Color.Primary">BDR - Bedienungsrechner (@bdrWorkflows.Count)</MudText>
                     <MudSpacer />
-            
+
                 </MudStack>
 
                 <!-- BDR Installation Forms -->
-        @foreach (var workflow in bdrWorkflows)
-        {
-            var orderDetails = GetOrderDetailsForWorkflow(workflow);
+                @foreach (var workflow in bdrWorkflows)
+                {
+                    var orderDetails = GetOrderDetailsForWorkflow(workflow);
 
                     <MudPaper Class="pa-4 mb-4" Elevation="2" Style="border-block-end: 4px solid var(--mud-palette-primary);">
                         <MudStack Spacing="3">
@@ -156,7 +156,7 @@
 
 
 
-                  <!-- Network Configuration Integration -->
+                            <!-- Network Configuration Integration -->
 
                             <MudPaper Elevation="1" Class="pa-4 mt-3" Style="background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%); border-left: 4px solid #4caf50; border-radius: 8px;">
                                 <MudStack Spacing="3">
@@ -181,7 +181,8 @@
                                                               Variant="Variant.Outlined"
                                                               Margin="Margin.Dense"
                                                               Mask="@(new PatternMask("HH:HH:HH:HH:HH:HH") { MaskChars = new[] { new MaskChar('H', @"[0-9A-Fa-f]") } })"
-                                                              HelperText="Format: XX:XX:XX:XX:XX:XX" />
+                                                              HelperText="Format: XX:XX:XX:XX:XX:XX"
+                                                              ReadOnly="@isProjectArchived" />
                                             </MudStack>
                                         </MudItem>
                                         <MudItem xs="12" md="6">
@@ -195,7 +196,8 @@
                                                               Variant="Variant.Outlined"
                                                               Margin="Margin.Dense"
                                                               Mask="@(new PatternMask("DDD.DDD.DDD.DDD") { MaskChars = new[] { new MaskChar('D', @"[0-9]") } })"
-                                                              HelperText="Format: XXX.XXX.XXX.XXX" />
+                                                              HelperText="Format: XXX.XXX.XXX.XXX"
+                                                              ReadOnly="@isProjectArchived" />
                                             </MudStack>
                                         </MudItem>
                                     </MudGrid>
@@ -226,7 +228,7 @@
                                                    StartIcon="@Icons.Material.Filled.Save"
                                                    OnClick="@(() => SaveIndividualNetworkConfig(workflow.Id))"
                                                    Loading="@savingWorkflowIds.Contains(workflow.Id)"
-                                                   Disabled="@savingWorkflowIds.Contains(workflow.Id)">
+                                                   Disabled="@(savingWorkflowIds.Contains(workflow.Id) || isProjectArchived)">
                                             Speichern
                                         </MudButton>
                                     </MudStack>
@@ -274,7 +276,8 @@
                                                       Placeholder="Besondere Vorkommnisse, Probleme, Lösungen während der Installation..."
                                                       Variant="Variant.Outlined"
                                                       Lines="4"
-                                                      AutoGrow />
+                                                      AutoGrow
+                                                      ReadOnly="@isProjectArchived" />
 
                                         <MudStack Row Justify="Justify.FlexEnd">
                                             <MudButton Color="Color.Success"
@@ -283,7 +286,7 @@
                                                        StartIcon="@Icons.Material.Filled.Save"
                                                        OnClick="@(() => SaveInstallationNotes(workflow.Id))"
                                                        Loading="@savingWorkflowIds.Contains(workflow.Id)"
-                                                       Disabled="@savingWorkflowIds.Contains(workflow.Id)">
+                                                       Disabled="@(savingWorkflowIds.Contains(workflow.Id) || isProjectArchived)">
                                                 Speichern
                                             </MudButton>
                                         </MudStack>
@@ -292,14 +295,12 @@
                             </MudPaper>
                         </MudStack>
                     </MudPaper>
-        }
-    }
+                }
+            }
 
             <!-- BV Section -->
-
-
-    @if (bvWorkflows.Any())
-    {
+            @if (bvWorkflows.Any())
+            {
                 <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Class="mt-6">
                     <MudIcon Icon="@Icons.Material.Filled.CameraAlt" Color="Color.Secondary" Size="Size.Large" />
                     <MudText Typo="Typo.h5" Color="Color.Secondary">BV - Bildverarbeitungsrechner (@bvWorkflows.Count)</MudText>
@@ -308,10 +309,10 @@
                 </MudStack>
 
                 <!-- BV Installation Forms -->
-        @foreach (var workflow in bvWorkflows)
-        {
-            var orderDetails = GetOrderDetailsForWorkflow(workflow);
-            var contactPerson = GetContactPersonForBvWorkflow(workflow);
+                @foreach (var workflow in bvWorkflows)
+                {
+                    var orderDetails = GetOrderDetailsForWorkflow(workflow);
+                    var contactPerson = GetContactPersonForBvWorkflow(workflow);
 
                     <MudPaper Class="pa-4 mb-4" Elevation="2" Style="border-left: 4px solid var(--mud-palette-secondary);">
                         <MudStack Spacing="3">
@@ -322,14 +323,15 @@
 
 
                             <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-                              
+
                                 <!-- ALL PDF Button -->
                                 <MudButton Color="Color.Secondary"
                                            Variant="Variant.Outlined"
                                            StartIcon="@Icons.Material.Filled.PictureAsPdf"
                                            OnClick="ExportAllBvToPdf"
                                            Loading="@isExportingPdf"
-                                           Disabled="@isExportingPdf"> Alle BV als PDF
+                                           Disabled="@isExportingPdf">
+                                    Alle BV als PDF
                                 </MudButton>
 
 
@@ -380,7 +382,8 @@
                                                               Variant="Variant.Outlined"
                                                               Margin="Margin.Dense"
                                                               Mask="@(new PatternMask("HH:HH:HH:HH:HH:HH") { MaskChars = new[] { new MaskChar('H', @"[0-9A-Fa-f]") } })"
-                                                              HelperText="Format: XX:XX:XX:XX:XX:XX" />
+                                                              HelperText="Format: XX:XX:XX:XX:XX:XX"
+                                                              ReadOnly="@isProjectArchived" />
                                             </MudStack>
                                         </MudItem>
                                         <MudItem xs="12" md="6">
@@ -394,7 +397,8 @@
                                                               Variant="Variant.Outlined"
                                                               Margin="Margin.Dense"
                                                               Mask="@(new PatternMask("DDD.DDD.DDD.DDD") { MaskChars = new[] { new MaskChar('D', @"[0-9]") } })"
-                                                              HelperText="Format: XXX.XXX.XXX.XXX" />
+                                                              HelperText="Format: XXX.XXX.XXX.XXX"
+                                                              ReadOnly="@isProjectArchived" />
                                             </MudStack>
                                         </MudItem>
                                     </MudGrid>
@@ -424,7 +428,7 @@
                                                    StartIcon="@Icons.Material.Filled.Save"
                                                    OnClick="@(() => SaveIndividualNetworkConfig(workflow.Id))"
                                                    Loading="@savingWorkflowIds.Contains(workflow.Id)"
-                                                   Disabled="@savingWorkflowIds.Contains(workflow.Id)">
+                                                   Disabled="@(savingWorkflowIds.Contains(workflow.Id) || isProjectArchived)">
                                             Speichern
                                         </MudButton>
                                     </MudStack>
@@ -472,7 +476,8 @@
                                                       Placeholder="Besondere Vorkommnisse, Probleme, Lösungen während der Installation..."
                                                       Variant="Variant.Outlined"
                                                       Lines="4"
-                                                      AutoGrow />
+                                                      AutoGrow
+                                                      ReadOnly="@isProjectArchived" />
 
                                         <MudStack Row Justify="Justify.FlexEnd">
                                             <MudButton Color="Color.Success"
@@ -481,7 +486,7 @@
                                                        StartIcon="@Icons.Material.Filled.Save"
                                                        OnClick="@(() => SaveInstallationNotes(workflow.Id))"
                                                        Loading="@savingWorkflowIds.Contains(workflow.Id)"
-                                                       Disabled="@savingWorkflowIds.Contains(workflow.Id)">
+                                                       Disabled="@(savingWorkflowIds.Contains(workflow.Id) || isProjectArchived)">
                                                 Speichern
                                             </MudButton>
                                         </MudStack>
@@ -490,9 +495,9 @@
                             </MudPaper>
                         </MudStack>
                     </MudPaper>
-        }
-        }
-    <!-- Summary -->
+                }
+            }
+            <!-- Summary -->
             <MudPaper Class="pa-4 mt-4 mb-4" Elevation="1" Style="background-color: var(--mud-palette-background-grey);">
                 <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
                     <MudStack Row AlignItems="AlignItems.Center" Spacing="4">
@@ -646,6 +651,13 @@
     /// </summary>
     private async Task SaveIndividualNetworkConfig(Guid workflowId)
     {
+        // Prevent saving archived workflows
+        if (isProjectArchived)
+        {
+            Snackbar.Add("Archivierte Projekte können nicht bearbeitet werden!", Severity.Warning);
+            return;
+        }
+
         networkConfigSaveStatus.Remove(workflowId);
         savingWorkflowIds.Add(workflowId);
         StateHasChanged();
@@ -657,7 +669,13 @@
             var workflow = forwardedWorkflows.FirstOrDefault(w => w.Id == workflowId);
             if (workflow == null)
             {
-                throw new Exception("Workflow nicht gefunden");
+                throw new Exception("Projekt nicht gefunden");
+            }
+
+            // Additional check for individual workflow status
+            if (workflow.Status == WorkflowStatus.Archived)
+            {
+                throw new Exception("Dieser Workflow ist archiviert und kann nicht bearbeitet werden");
             }
 
             var config = await DbContext.InstallationConfiguration
@@ -1150,25 +1168,14 @@
         }
     }
 
- 
 
     /// <summary>
-    /// Navigate back to previous page
+    /// Navigate back to project overview page (app cards)
     /// </summary>
     private void NavigateBack()
     {
-        if (ReturnPath == "overview")
-        {
-            Navigation.NavigateTo("/installation/orders");
-        }
-        else if (ReturnPath == "project")
-        {
-            Navigation.NavigateTo($"/project/{ProjectId}");
-        }
-        else
-        {
-            Navigation.NavigateTo($"/project/{ProjectId}");
-        }
+        // Always navigate back to the project's app cards page
+        Navigation.NavigateTo($"/project/{ProjectId}");
     }
 
     private bool isProjectArchived => forwardedWorkflows.All(w => w.Status == WorkflowStatus.Archived);
@@ -1418,6 +1425,13 @@
     /// </summary>
     private async Task SaveInstallationNotes(Guid workflowId)
     {
+        // Prevent saving archived workflows
+        if (isProjectArchived)
+        {
+            Snackbar.Add("Archivierte Projekte können nicht bearbeitet werden!", Severity.Warning);
+            return;
+        }
+
         savingWorkflowIds.Add(workflowId);
         try
         {
@@ -1427,6 +1441,12 @@
             if (workflow == null)
             {
                 throw new Exception("Workflow nicht gefunden");
+            }
+
+            // Additional check for individual workflow status
+            if (workflow.Status == WorkflowStatus.Archived)
+            {
+                throw new Exception("Dieser Workflow ist archiviert und kann nicht bearbeitet werden");
             }
 
             var existingDescription = workflow.Description ?? "";

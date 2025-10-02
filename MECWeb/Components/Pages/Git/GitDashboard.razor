@@ -9,91 +9,89 @@
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
 
-    @* Header Section *@
-    <MudPaper Class="pa-6 mb-4" Elevation="3" Style="background: linear-gradient(135deg, #00893d 0%, #005e46 100%); color: white;">
-        <MudStack AlignItems="AlignItems.Center" Spacing="3">
-            <MudIcon Icon="@Icons.Material.Filled.Dashboard" Style="font-size: 4rem;" />
-            <MudText Typo="Typo.h3" Align="Align.Center">Git Management Dashboard</MudText>
-            <MudText Typo="Typo.body1" Align="Align.Center" Style="opacity: 0.9;">
-                Verwalten Sie Ihre Git-Repositories, laden Sie Dateien hoch und erstellen Sie neue Projekte
-            </MudText>
+
+    @* Header Section - Similar to PDF Header *@
+    <MudPaper Class="pa-6 mb-4" Elevation="0" Style="border-bottom: 3px solid #00873C;">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+            <MudStack Spacing="1">
+                <MudText Typo="Typo.h4" Style="color: #00873C; font-weight: 600;">Git Management Dashboard</MudText>
+                <MudText Typo="Typo.body2" Style="color: #666;">
+                    Verwalten Sie Ihre Git-Repositories, laden Sie Dateien hoch und erstellen Sie neue Projekte
+                </MudText>
+            </MudStack>
+            <MudIcon Icon="@Icons.Material.Filled.Dashboard" Style="font-size: 3rem; color: #00873C;" />
         </MudStack>
     </MudPaper>
 
-    @* Quick Stats *@
-    <MudGrid Class="mb-4">
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Class="pa-4" Elevation="2">
-                <MudStack AlignItems="AlignItems.Center" Spacing="2">
-                    <MudIcon Icon="@Icons.Material.Filled.Storage" Size="Size.Large" Color="Color.Primary" />
-                    <MudText Typo="Typo.h4" Color="Color.Primary">@repositoryCount</MudText>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">Repositories</MudText>
+    @* Quick Stats - Clean table-like design *@
+    <MudPaper Class="mb-4 pa-4" Elevation="1" Style="border: 1px solid #e0e0e0;">
+        <MudText Typo="Typo.h6" Class="mb-3" Style="color: #00873C; font-weight: 600; border-bottom: 2px solid #00873C; padding-bottom: 8px;">
+            Übersicht
+        </MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="3">
+                <MudStack Spacing="1" Style="padding: 12px; border-left: 3px solid #00873C; background-color: #fafafa;">
+                    <MudText Typo="Typo.body2" Style="color: #666; font-size: 0.85rem;">Repositories</MudText>
+                    <MudText Typo="Typo.h5" Style="color: #00873C; font-weight: 600;">@repositoryCount</MudText>
                 </MudStack>
-            </MudPaper>
-        </MudItem>
+            </MudItem>
 
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Class="pa-4" Elevation="2">
-                <MudStack AlignItems="AlignItems.Center" Spacing="2">
-                    <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Large" Color="Color.Success" />
-                    <MudText Typo="Typo.h4" Color="Color.Success">@todayUploads</MudText>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">Uploads Heute</MudText>
+            <MudItem xs="12" sm="6" md="3">
+                <MudStack Spacing="1" Style="padding: 12px; border-left: 3px solid #00873C; background-color: #fafafa;">
+                    <MudText Typo="Typo.body2" Style="color: #666; font-size: 0.85rem;">Uploads Heute</MudText>
+                    <MudText Typo="Typo.h5" Style="color: #00873C; font-weight: 600;">@todayUploads</MudText>
                 </MudStack>
-            </MudPaper>
-        </MudItem>
+            </MudItem>
 
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Class="pa-4" Elevation="2">
-                <MudStack AlignItems="AlignItems.Center" Spacing="2">
-                    <MudIcon Icon="@Icons.Material.Filled.Commit" Size="Size.Large" Color="Color.Info" />
-                    <MudText Typo="Typo.h4" Color="Color.Info">@totalCommits</MudText>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">Commits</MudText>
+            <MudItem xs="12" sm="6" md="3">
+                <MudStack Spacing="1" Style="padding: 12px; border-left: 3px solid #00873C; background-color: #fafafa;">
+                    <MudText Typo="Typo.body2" Style="color: #666; font-size: 0.85rem;">Commits</MudText>
+                    <MudText Typo="Typo.h5" Style="color: #00873C; font-weight: 600;">@totalCommits</MudText>
                 </MudStack>
-            </MudPaper>
-        </MudItem>
+            </MudItem>
 
-        <MudItem xs="12" sm="6" md="3">
-            <MudPaper Class="pa-4" Elevation="2">
-                <MudStack AlignItems="AlignItems.Center" Spacing="2">
-                    <MudIcon Icon="@connectionStatus.icon" Size="Size.Large" Color="@connectionStatus.color" />
-                    <MudText Typo="Typo.body1" Color="@connectionStatus.color">@connectionStatus.text</MudText>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">Gitea Status</MudText>
+            <MudItem xs="12" sm="6" md="3">
+                <MudStack Spacing="1" Style="padding: 12px; border-left: 3px solid #00873C; background-color: #fafafa;">
+                    <MudText Typo="Typo.body2" Style="color: #666; font-size: 0.85rem;">Gitea Status</MudText>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                        <MudIcon Icon="@connectionStatus.icon" Size="Size.Small" Color="@connectionStatus.color" />
+                        <MudText Typo="Typo.body1" Style="font-weight: 600;" Color="@connectionStatus.color">@connectionStatus.text</MudText>
+                    </MudStack>
                 </MudStack>
-            </MudPaper>
-        </MudItem>
-    </MudGrid>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
 
-    @* Quick Actions *@
+    @* Quick Actions and Recent Activity *@
     <MudGrid Class="mb-4">
         <MudItem xs="12" md="6">
-            <MudPaper Class="pa-4" Elevation="2">
-                <MudStack Spacing="3">
-                    <MudText Typo="Typo.h6" Color="Color.Primary">
-                        <MudIcon Icon="@Icons.Material.Filled.RocketLaunch" Class="mr-2" />
-                        Schnellaktionen
-                    </MudText>
+            <MudPaper Class="pa-4" Elevation="1" Style="border: 1px solid #e0e0e0; height: 100%;">
+                <MudText Typo="Typo.h6" Class="mb-3" Style="color: #00873C; font-weight: 600; border-bottom: 2px solid #00873C; padding-bottom: 8px;">
+                    Schnellaktionen
+                </MudText>
 
+                <MudStack Spacing="2">
                     <MudButton Variant="Variant.Filled"
-                               Color="Color.Primary"
                                StartIcon="@Icons.Material.Filled.Add"
                                FullWidth="true"
-                               Href="/git/create-repository">
-                        Neues S-Repository erstellen
+                               Href="/git/create-repository"
+                               Style="background-color: #00873C; color: white; text-transform: none; padding: 12px;">
+                        Neues Repository erstellen
                     </MudButton>
 
                     <MudButton Variant="Variant.Outlined"
-                               Color="Color.Secondary"
                                StartIcon="@Icons.Material.Filled.Upload"
                                FullWidth="true"
-                               Href="/git/upload">
+                               Href="/git/upload"
+                               Style="border-color: #e0e0e0; color: #333; text-transform: none; padding: 12px;">
                         Datei hochladen
                     </MudButton>
 
-                    <MudButton Variant="Variant.Text"
-                               Color="Color.Info"
+                    <MudButton Variant="Variant.Outlined"
                                StartIcon="@Icons.Material.Filled.Storage"
                                FullWidth="true"
-                               Href="/git/repositories">
+                               Href="/git/repositories"
+                               Style="border-color: #e0e0e0; color: #333; text-transform: none; padding: 12px;">
                         Repositories durchsuchen
                     </MudButton>
                 </MudStack>
@@ -101,55 +99,59 @@
         </MudItem>
 
         <MudItem xs="12" md="6">
-            <MudPaper Class="pa-4" Elevation="2">
-                <MudStack Spacing="3">
-                    <MudText Typo="Typo.h6" Color="Color.Primary">
-                        <MudIcon Icon="@Icons.Material.Filled.Timeline" Class="mr-2" />
-                        Letzte Aktivitäten
-                    </MudText>
+            <MudPaper Class="pa-4" Elevation="1" Style="border: 1px solid #e0e0e0; height: 100%;">
+                <MudText Typo="Typo.h6" Class="mb-3" Style="color: #00873C; font-weight: 600; border-bottom: 2px solid #00873C; padding-bottom: 8px;">
+                    Letzte Aktivitäten
+                </MudText>
 
-                    @if (recentRepositories?.Any() == true)
-                    {
-                        <MudList T="string" Dense="true">
-                            @foreach (var repo in recentRepositories.Take(5))
-                            {
-                                <MudListItem T="string"
-                                             Icon="@Icons.Material.Filled.Folder"
-                                             IconColor="Color.Primary"
-                                             OnClick="@(() => NavigateToRepository(repo))">
-                                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-                                        <MudText Typo="Typo.body2">@repo.Name</MudText>
-                                        <MudChip T="string" Size="Size.Small" Color="Color.Default">
-                                            @repo.Owner?.Login
-                                        </MudChip>
-                                    </MudStack>
-                                </MudListItem>
-                            }
-                        </MudList>
-                    }
-                    else
-                    {
-                        <MudAlert Severity="Severity.Info" Dense="true">
-                            Noch keine Repositories verfügbar. Erstellen Sie Ihr erstes Repository!
-                        </MudAlert>
-                    }
-                </MudStack>
+                @if (recentRepositories?.Any() == true)
+                {
+                    <MudTable Items="@recentRepositories.Take(5)" 
+                              Dense="true" 
+                              Hover="true"
+                              Style="border: 1px solid #e0e0e0;"
+                              Elevation="0">
+                        <HeaderContent>
+                            <MudTh Style="background-color: #f5f5f5; color: #333; font-weight: 600; border-bottom: 2px solid #e0e0e0;">Repository</MudTh>
+                            <MudTh Style="background-color: #f5f5f5; color: #333; font-weight: 600; border-bottom: 2px solid #e0e0e0;">Besitzer</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd Style="border-bottom: 1px solid #e0e0e0; cursor: pointer;" @onclick="@(() => NavigateToRepository(context))">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                    <MudIcon Icon="@Icons.Material.Filled.Folder" Size="Size.Small" Style="color: #00873C;" />
+                                    <MudText Typo="Typo.body2">@context.Name</MudText>
+                                </MudStack>
+                            </MudTd>
+                            <MudTd Style="border-bottom: 1px solid #e0e0e0;">
+                                <MudText Typo="Typo.body2" Style="color: #666;">@context.Owner?.Login</MudText>
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Info" 
+                              Dense="true"
+                              Style="background-color: #f5f5f5; border-left: 4px solid #00873C; color: #333;">
+                        Noch keine Repositories verfügbar. Erstellen Sie Ihr erstes Repository!
+                    </MudAlert>
+                }
             </MudPaper>
         </MudItem>
     </MudGrid>
 
     @* System Status *@
-    <MudPaper Class="pa-4" Elevation="2">
-        <MudStack Spacing="3">
-            <MudText Typo="Typo.h6" Color="Color.Primary">
-                <MudIcon Icon="@Icons.Material.Filled.HealthAndSafety" Class="mr-2" />
-                System-Status
-            </MudText>
+    <MudPaper Class="pa-4" Elevation="1" Style="border: 1px solid #e0e0e0;">
+        <MudText Typo="Typo.h6" Class="mb-3" Style="color: #00873C; font-weight: 600; border-bottom: 2px solid #00873C; padding-bottom: 8px;">
+            System-Status
+        </MudText>
 
-            <MudGrid>
-                <MudItem xs="12" md="6">
-                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-                        <MudText Typo="Typo.body2">Gitea-Verbindung:</MudText>
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <MudStack Spacing="2">
+                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" 
+                              Style="padding: 12px; border: 1px solid #e0e0e0; background-color: #fafafa;">
+                        <MudText Typo="Typo.body2" Style="color: #666; font-weight: 600;">Gitea-Verbindung:</MudText>
                         <MudChip T="string"
                                  Color="@connectionStatus.color"
                                  Icon="@connectionStatus.icon"
@@ -157,34 +159,36 @@
                             @connectionStatus.text
                         </MudChip>
                     </MudStack>
-                </MudItem>
 
-                <MudItem xs="12" md="6">
-                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-                        <MudText Typo="Typo.body2">Letzte Synchronisation:</MudText>
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center"
+                              Style="padding: 12px; border: 1px solid #e0e0e0; background-color: #fafafa;">
+                        <MudText Typo="Typo.body2" Style="color: #666; font-weight: 600;">Letzte Synchronisation:</MudText>
+                        <MudText Typo="Typo.body2" Style="color: #333;">
                             @lastSyncTime.ToString("dd.MM.yyyy HH:mm")
                         </MudText>
                     </MudStack>
-                </MudItem>
-            </MudGrid>
+                </MudStack>
+            </MudItem>
 
-            <MudButton Variant="Variant.Outlined"
-                       StartIcon="@Icons.Material.Filled.Refresh"
-                       OnClick="RefreshData"
-                       Disabled="@isLoading"
-                       Size="Size.Small">
-                @if (isLoading)
-                {
-                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                    <span>Lädt...</span>
-                }
-                else
-                {
-                    <span>Daten aktualisieren</span>
-                }
-            </MudButton>
-        </MudStack>
+            <MudItem xs="12" md="6" Style="display: flex; align-items: center;">
+                <MudButton Variant="Variant.Filled"
+                           StartIcon="@Icons.Material.Filled.Refresh"
+                           OnClick="RefreshData"
+                           Disabled="@isLoading"
+                           FullWidth="true"
+                           Style="background-color: #00873C; color: white; text-transform: none; padding: 12px;">
+                    @if (isLoading)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" Style="color: white;" />
+                        <span>Lädt...</span>
+                    }
+                    else
+                    {
+                        <span>Daten aktualisieren</span>
+                    }
+                </MudButton>
+            </MudItem>
+        </MudGrid>
     </MudPaper>
 
 </MudContainer>

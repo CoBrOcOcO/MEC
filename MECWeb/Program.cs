@@ -4,7 +4,6 @@ using MECWeb.DbModels;
 using MECWeb.Localization;
 using MECWeb.Services;
 using Microsoft.AspNetCore.Authentication;
-using QuestPDF.Infrastructure;
 using Microsoft.AspNetCore.Authentication.Certificate;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Identity;
@@ -15,12 +14,14 @@ using Microsoft.Extensions.Localization;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
 using MudBlazor.Services;
+using QuestPDF.Infrastructure;
 using System.IdentityModel.Tokens.Jwt;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // =====================================================================
-// HIER DEN CODE ZUM ERHÖHEN DES UPLOAD-LIMITS EINFÜGEN
+//  ZUM ERHÖHEN DES UPLOAD-LIMITS 
 // =====================================================================
 builder.WebHost.ConfigureKestrel(serverOptions =>
 {
@@ -39,14 +40,22 @@ JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
 QuestPDF.Settings.License = LicenseType.Community;
 QuestPDF.Settings.CheckIfAllTextGlyphsAreAvailable = false;
 
-// ⚠️ ENTFERNT: PDF Storage wird nicht mehr benötigt
-// PDFs werden nur noch on-the-fly generiert ohne Speicherung
 
-// Database Context
+
+// Database Context - BOTH registrations needed for Blazor Server
+// AddDbContext: For direct injection in services/controllers
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
 });
+
+// AddDbContextFactory: For components that need proper scope management
+// Important: Set lifetime to Scoped to avoid singleton/scoped conflict
+builder.Services.AddDbContextFactory<ApplicationDbContext>(
+    options => options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")),
+    lifetime: ServiceLifetime.Scoped
+);
+
 
 // Localization Services
 builder.Services.AddLocalization(options => options.ResourcesPath = "Languages");
@@ -89,6 +98,9 @@ builder.Services.AddScoped<InstallationPdfService>();
 // Add Blazor Server Side with Microsoft Identity
 builder.Services.AddServerSideBlazor()
     .AddMicrosoftIdentityConsentHandler();
+
+//Status Correction Service
+builder.Services.AddScoped<WorkflowCorrectionService>();
 
 // Build the app
 var app = builder.Build();
