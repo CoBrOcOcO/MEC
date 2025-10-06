@@ -2,7 +2,7 @@
 @using MECWeb.DbModels.Project
 @using Microsoft.EntityFrameworkCore
 
-@inject ApplicationDbContext DbContext
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 @inject NavigationManager Navigation
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
@@ -105,11 +105,11 @@
                         }
                     </MudStack>
                 }
-                else if (context.Status == WorkflowStatus.Completed || context.Status == WorkflowStatus.ForwardedToInstallation)
+                else if (context.Status == WorkflowStatus.Completed || context.Status == WorkflowStatus.ForwardedToInstallation || context.Status == WorkflowStatus.Archived)
                 {
                     <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
-                        <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Secondary" Size="Size.Small" />
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">Abgeschlossen</MudText>
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                        <MudText Typo="Typo.caption" Color="Color.Success" Style="font-weight: 500;">Fertig erstellt</MudText>
                     </MudStack>
                 }
             </MudTd>
@@ -140,11 +140,11 @@
                         }
                     </MudStack>
                 }
-                else if (context.Status == WorkflowStatus.Completed || context.Status == WorkflowStatus.ForwardedToInstallation)
+                else if (context.Status == WorkflowStatus.Completed || context.Status == WorkflowStatus.ForwardedToInstallation || context.Status == WorkflowStatus.Archived)
                 {
                     <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
-                        <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Secondary" Size="Size.Small" />
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">Abgeschlossen</MudText>
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                        <MudText Typo="Typo.caption" Color="Color.Success" Style="font-weight: 500;">Fertig erstellt</MudText>
                     </MudStack>
                 }
                 else
@@ -161,7 +161,9 @@
                 </MudChip>
             </MudTd>
             <MudTd>
-                @if (context.Status != WorkflowStatus.Completed && context.Status != WorkflowStatus.ForwardedToInstallation)
+                @if (context.Status != WorkflowStatus.Completed &&
+                                context.Status != WorkflowStatus.ForwardedToInstallation &&
+                                context.Status != WorkflowStatus.Archived)
                 {
                     <MudButtonGroup Size="Size.Small">
                         <MudIconButton Icon="@Icons.Material.Filled.Delete"
@@ -263,13 +265,24 @@
     }
 
     /// <summary>
+    /// Reload data when parameters change (e.g., when navigating back to this page)
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadCurrentProject();
+        await LoadWorkflows();
+    }
+
+    /// <summary>
     /// Load the current project information
     /// </summary>
     private async Task LoadCurrentProject()
     {
         try
         {
-            currentProject = await DbContext.Project
+            using var context = await DbContextFactory.CreateDbContextAsync();
+            currentProject = await context.Project
+                .AsNoTracking()
                 .FirstOrDefaultAsync(p => p.Id == ProjectId);
         }
         catch (Exception ex)
@@ -287,8 +300,11 @@
         loading = true;
         try
         {
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
             // Load workflows sorted - first BDR, then BV
-            workflows = await DbContext.Workflow
+            workflows = await context.Workflow
+                .AsNoTracking()
                 .Where(w => w.ProjectId == ProjectId)
                 .OrderBy(w => w.WorkflowType == WorkflowType.BDR ? 0 : 1) // BDR First
                 .ThenBy(w => w.Name)
@@ -302,6 +318,9 @@
             {
                 await statusOverview.RefreshAsync();
             }
+
+            // Force UI update
+            StateHasChanged();
         }
         catch (Exception ex)
         {
@@ -323,8 +342,11 @@
 
         try
         {
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
             // BDR Hardware-Typ Loading
-            var bdrHardware = await DbContext.HardwareComputer
+            var bdrHardware = await context.HardwareComputer
+                .AsNoTracking()
                 .Where(h => workflows.Select(w => w.Id).Contains(h.WorkflowId))
                 .Select(h => new { h.WorkflowId, h.HardwareSpecs })
                 .ToListAsync();
@@ -335,7 +357,8 @@
             }
 
             // BV Hardware-Typ Loading
-            var bvHardware = await DbContext.BvHardwareComputer
+            var bvHardware = await context.BvHardwareComputer
+                .AsNoTracking()
                 .Where(h => workflows.Select(w => w.Id).Contains(h.WorkflowId))
                 .Select(h => new { h.WorkflowId, h.PcType })
                 .ToListAsync();
@@ -359,8 +382,10 @@
     {
         try
         {
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
             // Count existing forms of the same type for numbering
-            var existingCount = await DbContext.Workflow
+            var existingCount = await context.Workflow
                 .Where(w => w.ProjectId == ProjectId && w.WorkflowType == workflowType)
                 .CountAsync();
 
@@ -377,8 +402,9 @@
                 LastChange = DateTime.UtcNow
             };
 
-            DbContext.Workflow.Add(newWorkflow);
-            await DbContext.SaveChangesAsync();
+            context.Workflow.Add(newWorkflow);
+            await context.SaveChangesAsync();
+
             await LoadWorkflows(); // Also reloads hardware types and refreshes status overview
 
             Snackbar.Add($"{workflowType} Workflow erfolgreich erstellt!", Severity.Success);
@@ -397,30 +423,33 @@
     {
         try
         {
-            var workflow = await DbContext.Workflow.FindAsync(workflowId);
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
+            var workflow = await context.Workflow.FindAsync(workflowId);
             if (workflow == null) return;
 
             // Delete linked hardware data
             if (workflow.WorkflowType == WorkflowType.BDR)
             {
                 // Delete BDR hardware
-                var bdrHardware = await DbContext.HardwareComputer
+                var bdrHardware = await context.HardwareComputer
                     .Where(h => h.WorkflowId == workflowId)
                     .ToListAsync();
-                DbContext.HardwareComputer.RemoveRange(bdrHardware);
+                context.HardwareComputer.RemoveRange(bdrHardware);
             }
             else // BV
             {
                 // Delete BV hardware - delete manually due to NoAction DeleteBehavior
-                var bvHardware = await DbContext.BvHardwareComputer
+                var bvHardware = await context.BvHardwareComputer
                     .Where(h => h.WorkflowId == workflowId)
                     .ToListAsync();
-                DbContext.BvHardwareComputer.RemoveRange(bvHardware);
+                context.BvHardwareComputer.RemoveRange(bvHardware);
             }
 
             // Delete workflow itself
-            DbContext.Workflow.Remove(workflow);
-            await DbContext.SaveChangesAsync();
+            context.Workflow.Remove(workflow);
+            await context.SaveChangesAsync();
+
             await LoadWorkflows(); // Reloads hardware types and refreshes status overview
 
             Snackbar.Add($"Workflow {workflow.Name} erfolgreich gelöscht!", Severity.Success);
@@ -506,14 +535,22 @@
         isForwarding = true;
         try
         {
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
+            // Load and update all workflows
+            var workflowIds = workflows.Select(w => w.Id).ToList();
+            var workflowsToUpdate = await context.Workflow
+                .Where(w => workflowIds.Contains(w.Id))
+                .ToListAsync();
+
             // Set all workflows to "Completed" status
-            foreach (var workflow in workflows)
+            foreach (var workflow in workflowsToUpdate)
             {
                 workflow.Status = WorkflowStatus.Completed;
                 workflow.LastChange = DateTime.UtcNow;
             }
 
-            await DbContext.SaveChangesAsync();
+            await context.SaveChangesAsync();
 
             // Success message
             Snackbar.Add("Alle Formulare erfolgreich an Einkauf weitergeleitet!", Severity.Success);
@@ -522,7 +559,7 @@
             await Task.Delay(1500);
 
             // Navigate back to projects overview
-            Navigation.NavigateTo("/projects");
+            Navigation.NavigateTo("/projects", forceLoad: true);
         }
         catch (Exception ex)
         {
@@ -553,7 +590,9 @@
     {
         // Check if any workflows have been forwarded to purchasing or installation
         return workflows.Any() &&
-               workflows.Any(w => w.Status == WorkflowStatus.Completed || w.Status == WorkflowStatus.ForwardedToInstallation);
+               workflows.Any(w => w.Status == WorkflowStatus.Completed ||
+                                  w.Status == WorkflowStatus.ForwardedToInstallation ||
+                                  w.Status == WorkflowStatus.Archived);
     }
 
     /// <summary>
@@ -563,7 +602,8 @@
     {
         return workflows.Count(w => w.Status == WorkflowStatus.SoftwareCompleted ||
                                     w.Status == WorkflowStatus.Completed ||
-                                    w.Status == WorkflowStatus.ForwardedToInstallation);
+                                    w.Status == WorkflowStatus.ForwardedToInstallation ||
+                                    w.Status == WorkflowStatus.Archived);
     }
 
     private Color GetStatusColor(DbWorkflow workflow) => workflow.Status switch
@@ -574,6 +614,7 @@
         WorkflowStatus.SoftwareCompleted => Color.Success,
         WorkflowStatus.Completed => Color.Primary,
         WorkflowStatus.ForwardedToInstallation => Color.Secondary,
+        WorkflowStatus.Archived => Color.Dark,
         _ => Color.Default
     };
 
@@ -594,9 +635,10 @@
         WorkflowStatus.Created => "Neu",
         WorkflowStatus.HardwareInProgress => "HW läuft",
         WorkflowStatus.SoftwareInProgress => "SW läuft",
-        WorkflowStatus.SoftwareCompleted => "Bereit",
+        WorkflowStatus.SoftwareCompleted => "Bereit für Einkauf",
         WorkflowStatus.Completed => "Beim Einkauf",
         WorkflowStatus.ForwardedToInstallation => "Bei Installation",
+        WorkflowStatus.Archived => "Abgeschlossen",
         _ => "Unbekannt"
     };
 }

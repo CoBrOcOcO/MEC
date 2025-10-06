@@ -74,6 +74,46 @@ namespace MECWeb.DbModels.Workflow
         /// </summary>
         public DateTime? PurchaseCompletedDate { get; set; }
 
+        // CORRECTION TRACKING FIELDS
+        /// <summary>
+        /// Indicates if there is a pending correction that needs to be addressed
+        /// </summary>
+        public bool HasPendingCorrection { get; set; } = false;
+
+        /// <summary>
+        /// Phase where the correction is needed (Hardware, Software, Purchase, Installation)
+        /// </summary>
+        [MaxLength(50)]
+        public string? CorrectionPhase { get; set; }
+
+        /// <summary>
+        /// Note or description of what needs to be corrected
+        /// </summary>
+        [MaxLength(1000)]
+        public string? CorrectionNote { get; set; }
+
+        /// <summary>
+        /// When the correction was requested
+        /// </summary>
+        public DateTime? CorrectionRequestedAt { get; set; }
+
+        /// <summary>
+        /// Who requested the correction
+        /// </summary>
+        [MaxLength(100)]
+        public string? CorrectionRequestedBy { get; set; }
+
         public ICollection<DbHardwareComputer> HardwareComputers { get; set; } = [];
+    }
+
+    /// <summary>
+    /// Workflow phases for correction tracking
+    /// </summary>
+    public static class WorkflowPhase
+    {
+        public const string Hardware = "Hardware";
+        public const string Software = "Software";
+        public const string Purchase = "Purchase";
+        public const string Installation = "Installation";
     }
 }

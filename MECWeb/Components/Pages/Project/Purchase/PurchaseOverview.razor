@@ -7,23 +7,18 @@
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @layout MainLayout
+@implements IDisposable
 
 <MudContainer MaxWidth="MaxWidth.Large" Style="margin-top: 50px;">
     <MudStack Spacing="4">
         <!-- Header Section -->
         <MudStack Spacing="3">
             <MudText Typo="Typo.h4" Align="Align.Center">
-                Einkauf - Rechner Bestellungen
+                Einkauf
             </MudText>
             <MudText Typo="Typo.h6" Align="Align.Center" Color="Color.Secondary">
-                @activeProjects.Count Projekte zur Bestellung bereit
+                @activeProjects.Count Projekte zur Bestellung
             </MudText>
-            @if (forwardedProjects.Any())
-            {
-                <MudText Typo="Typo.body2" Align="Align.Center" Color="Color.Success">
-                    @forwardedProjects.Count Projekte an Installation weitergeleitet
-                </MudText>
-            }
 
             <!-- Search Field -->
             <MudTextField @bind-Value="searchQuery"
@@ -56,7 +51,7 @@
                                 <MudText Typo="Typo.h6">@project.ProjectNumber</MudText>
                                 <MudText Typo="Typo.body2" Color="Color.Secondary">@project.Name</MudText>
                                 <MudText Typo="Typo.caption" Color="Color.Tertiary">
-                                    @project.Workflows.Count(w => w.Status == WorkflowStatus.Completed) Formulare zur Bestellung
+                                    @project.Workflows.Count(w => w.Status == WorkflowStatus.Completed && !w.HasPendingCorrection) Formulare zur Bestellung
                                 </MudText>
                             </MudStack>
 
@@ -68,15 +63,6 @@
                                            OnClick="() => ViewProjectDetails(project.Id)">
                                     Details
                                 </MudButton>
-                                <MudButton Color="Color.Success"
-                                           Variant="Variant.Filled"
-                                           Size="Size.Medium"
-                                           StartIcon="@Icons.Material.Filled.Send"
-                                           OnClick="() => ForwardToInstallation(project.Id)"
-                                           Loading="@forwardingProjectIds.Contains(project.Id)"
-                                           Disabled="@forwardingProjectIds.Contains(project.Id)">
-                                    An Installation
-                                </MudButton>
                             </MudStack>
                         </MudStack>
                     </MudPaper>
@@ -87,7 +73,7 @@
         <!-- Forwarded Projects -->
         @if (filteredForwardedProjects.Any())
         {
-            <MudText Typo="Typo.h6" Color="Color.Secondary" Class="mt-6">An Installation weitergeleitet</MudText>
+            <MudText Typo="Typo.h6" Color="Color.Secondary" Class="mt-6">Bereits an Installation weitergeleitet</MudText>
             <MudStack Spacing="3">
                 @foreach (var project in filteredForwardedProjects)
                 {
@@ -106,7 +92,7 @@
                             <MudButton Color="Color.Secondary"
                                        Variant="Variant.Outlined"
                                        Size="Size.Medium"
-                                       OnClick="() => ViewProjectDetails(project.Id, true)">
+                                       OnClick="() => ViewProjectDetails(project.Id, isForwarded: true)">
                                 Details
                             </MudButton>
                         </MudStack>
@@ -129,38 +115,79 @@
                    Size="Size.Small"
                    Color="Color.Primary"
                    StartIcon="@Icons.Material.Filled.ArrowBack"
-                   FullWidth="true"
                    OnClick="GoBack"
-                   Class="mt-4">
-            Zurück zur Startseite
+                   Class="px-3 py-1">
+            Zurück zur Projektübersicht
         </MudButton>
     </MudStack>
 </MudContainer>
 
 @code {
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
     private List<DbProject> activeProjects = new();
     private List<DbProject> forwardedProjects = new();
     private List<DbProject> filteredActiveProjects = new();
     private List<DbProject> filteredForwardedProjects = new();
     private bool loading = true;
     private string searchQuery = "";
-    private HashSet<Guid> forwardingProjectIds = new();
 
-    [Parameter]
-    [SupplyParameterFromQuery(Name = "readOnly")]
-    public bool ReadOnly { get; set; }
-
-    [Parameter]
-    [SupplyParameterFromQuery(Name = "returnUrl")]
-    public string? ReturnUrl { get; set; }
+    // Auto-refresh timer
+    private System.Threading.Timer? _autoRefreshTimer;
+    private const int AUTO_REFRESH_INTERVAL_MS = 10000; // Reduced to 10 seconds for faster updates
 
     protected override async Task OnInitializedAsync()
     {
+        // Subscribe to navigation changes to reload data when navigating to this page
+        Navigation.LocationChanged += OnLocationChanged;
+
         await LoadProjects();
+
+        // Setup auto-refresh timer
+        _autoRefreshTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadProjects();
+                StateHasChanged();
+            });
+        }, null, AUTO_REFRESH_INTERVAL_MS, AUTO_REFRESH_INTERVAL_MS);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // This ensures the page refreshes when navigating to it with parameters
+        await LoadProjects();
+    }
+
+    public void Dispose()
+    {
+        // Clean up navigation event subscription
+        Navigation.LocationChanged -= OnLocationChanged;
+        _autoRefreshTimer?.Dispose();
+    }
+
+    /// <summary>
+    /// Handle navigation changes - reload data when user navigates to this page
+    /// </summary>
+    private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        // Only reload if we're navigating TO this page (not away from it)
+        if (e.Location.Contains("/purchase/orders"))
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadProjects();
+                StateHasChanged();
+            });
+        }
     }
 
     /// <summary>
     /// Load all projects with purchase-relevant workflows
+    /// EXCLUDES projects with pending corrections
     /// </summary>
     private async Task LoadProjects()
     {
@@ -175,12 +202,14 @@
                 .OrderByDescending(p => p.LastChange)
                 .ToListAsync();
 
-            // Active projects (have at least one completed workflow that hasn't been forwarded)
+            // Active projects (at purchase department - Completed status WITHOUT pending correction)
             activeProjects = allProjects
-                .Where(p => p.Workflows.Any(w => w.Status == WorkflowStatus.Completed))
+                .Where(p => p.Workflows.Any(w =>
+                    w.Status == WorkflowStatus.Completed &&
+                    !w.HasPendingCorrection))
                 .ToList();
 
-            // Forwarded projects (all workflows have been forwarded to installation)
+            // Forwarded projects (already forwarded to installation - ForwardedToInstallation status)
             forwardedProjects = allProjects
                 .Where(p => p.Workflows.All(w => w.Status == WorkflowStatus.ForwardedToInstallation) &&
                            p.Workflows.Any(w => w.Status == WorkflowStatus.ForwardedToInstallation))
@@ -225,6 +254,9 @@
                            p.Name.ToLower().Contains(query))
                 .ToList();
         }
+
+        // Trigger UI update
+        StateHasChanged();
     }
 
     /// <summary>
@@ -246,53 +278,7 @@
     }
 
     /// <summary>
-    /// Forward project to installation department
-    /// </summary>
-    private async Task ForwardToInstallation(Guid projectId)
-    {
-        forwardingProjectIds.Add(projectId);
-        try
-        {
-            using var transaction = await DbContext.Database.BeginTransactionAsync();
-
-            // Update all completed workflows in this project to "ForwardedToInstallation"
-            var completedWorkflows = await DbContext.Workflow
-                .Where(w => w.ProjectId == projectId && w.Status == WorkflowStatus.Completed)
-                .ToListAsync();
-
-            if (!completedWorkflows.Any())
-            {
-                Snackbar.Add("Keine abgeschlossenen Workflows zum Weiterleiten gefunden.", Severity.Warning);
-                return;
-            }
-
-            foreach (var workflow in completedWorkflows)
-            {
-                workflow.Status = WorkflowStatus.ForwardedToInstallation;
-                workflow.LastChange = DateTime.UtcNow;
-            }
-
-            await DbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            Snackbar.Add($"Projekt mit {completedWorkflows.Count} Workflows erfolgreich an Installation weitergeleitet!", Severity.Success);
-
-            // Reload data to move project to forwarded section
-            await LoadProjects();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error forwarding project to installation: {ex.Message}");
-            Snackbar.Add($"Fehler beim Weiterleiten: {ex.Message}", Severity.Error);
-        }
-        finally
-        {
-            forwardingProjectIds.Remove(projectId);
-        }
-    }
-
-    /// <summary>
-    /// Navigiert zurück zur vorherigen Seite
+    /// Navigate back to projects overview
     /// </summary>
     private void GoBack()
     {
@@ -302,7 +288,7 @@
         }
         else
         {
-            Navigation.NavigateTo("/");
+            Navigation.NavigateTo("/projects");
         }
     }
 }
