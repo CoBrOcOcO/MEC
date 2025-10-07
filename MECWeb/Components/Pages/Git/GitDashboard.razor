@@ -194,7 +194,7 @@
 </MudContainer>
 
 @code {
-    private List<GiteaRepository> recentRepositories;
+    private List<GiteaRepository> recentRepositories = new();
     private int repositoryCount = 0;
     private int todayUploads = 12; // Placeholder
     private int totalCommits = 0;
@@ -217,7 +217,8 @@
         try
         {
             // Test Gitea connection
-            recentRepositories = await GiteaService.GetUserRepositoriesAsync();
+            var repos = await GiteaService.GetUserRepositoriesAsync();
+            recentRepositories = repos ?? new List<GiteaRepository>();
 
             if (recentRepositories != null)
             {

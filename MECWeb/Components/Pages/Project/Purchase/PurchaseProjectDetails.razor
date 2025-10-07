@@ -67,7 +67,16 @@
             </MudPaper>
         }
 
-        <!-- Loading -->
+        <!-- Status Overview - Immer sichtbar -->
+        @if (currentProject != null)
+        {
+            <!-- PROJECT STATUS OVERVIEW -->
+            <ProjectStatusOverview ProjectId="@ProjectId"
+                                 IsLoading="@loading" />
+        }
+
+        <!-- Loading -->    
+
         @if (loading)
         {
             <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
@@ -95,10 +104,7 @@
                     <MudText Typo="Typo.h5" Color="Color.Primary">BDR - Bedienungsrechner (@bdrWorkflows.Count)</MudText>
                 </MudStack>
 
-                <!-- PROJECT STATUS OVERVIEW -->
-                <ProjectStatusOverview ProjectId="@ProjectId"
-                                       IsLoading="@loading" />
-
+             
                 <!-- BDR Workflow Forms -->
                 @foreach (var workflow in bdrWorkflows)
                 {
@@ -295,10 +301,11 @@
                    Color="Color.Primary"
                    StartIcon="@Icons.Material.Filled.ArrowBack"
                    FullWidth="true"
-                   Href="@($"/project/{ProjectId}")"
+                   OnClick="NavigateBack"
                    Class="px-3 py-1">
             Zurück zur Projektübersicht
         </MudButton>
+
     </MudStack>
 </MudContainer>
 
@@ -495,7 +502,7 @@
             Snackbar.Add("Projekt erfolgreich zur Korrektur freigegeben!", Severity.Success);
 
             await Task.Delay(1500);
-            Navigation.NavigateTo("/purchase/orders");
+            Navigation.NavigateTo($"/project/{ProjectId}");
         }
         catch (Exception ex)
         {
@@ -844,7 +851,8 @@
             return;
         }
 
-        isForwarding = true;
+        isForwarding  = true;
+
         try
         {
             using var transaction = await DbContext.Database.BeginTransactionAsync();
@@ -861,7 +869,7 @@
             Snackbar.Add("Projekt erfolgreich an Installation weitergeleitet!", Severity.Success);
 
             await Task.Delay(1500);
-            Navigation.NavigateTo("/purchase/orders");
+            Navigation.NavigateTo($"/project/{ProjectId}", forceLoad: true);
         }
         catch (Exception ex)
         {

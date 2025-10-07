@@ -91,7 +91,7 @@ builder.Services.AddSingleton(new ProjectFileService(
     Path.Combine(Directory.GetCurrentDirectory(), "Projects")));
 
 // PDF Services for Installation - ONLY GENERATION, NO STORAGE
-// ⚠️ PdfStorageService ENTFERNT - wird nicht mehr benötigt
+
 builder.Services.AddScoped<InstallationPdfGenerator>();
 builder.Services.AddScoped<InstallationPdfService>();
 

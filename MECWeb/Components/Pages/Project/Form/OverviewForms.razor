@@ -105,6 +105,7 @@
                         }
                     </MudStack>
                 }
+
                 else if (context.Status == WorkflowStatus.Completed || context.Status == WorkflowStatus.ForwardedToInstallation || context.Status == WorkflowStatus.Archived)
                 {
                     <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
@@ -238,7 +239,7 @@
                Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.ArrowBack"
                FullWidth="true"
-               Href="@($"/project/{ProjectId}")"
+               OnClick="NavigateBack"
                Class="px-3 py-1">
         Zurück zur Projektübersicht
     </MudButton>
@@ -498,6 +499,13 @@
     }
 
     /// <summary>
+    /// Navigate back to project overview page
+    /// </summary>
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo ($"/project/{ProjectId}");
+    }
+    /// <summary>
     /// Check if all workflows are completed and ready for purchasing
     /// </summary>
     private bool CanForwardToPurchasing()
@@ -559,7 +567,7 @@
             await Task.Delay(1500);
 
             // Navigate back to projects overview
-            Navigation.NavigateTo("/projects", forceLoad: true);
+            Navigation.NavigateTo($"/project/{ProjectId}", forceLoad: true);
         }
         catch (Exception ex)
         {

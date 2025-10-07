@@ -1,4 +1,5 @@
 ﻿using MECWeb.Components.Shared;
+using MECWeb.Migrations;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Graph;
@@ -47,7 +48,7 @@ namespace MECWeb.Services
                     HeaderDescription = "Freigabe der BDR & BV Formulare",
                     Image = "/assets/homePicture.png",
                     Description = "Weiterleitung freigabe an die Installation",
-                    Href = $"/purchase/orders"
+                    Href = $"purchase/project/{projectId}"  
                 },
 
                new AppCardViewModel
@@ -58,7 +59,7 @@ namespace MECWeb.Services
                     HeaderDescription = "Installation",
                     Image = "/assets/homePicture.png",
                     Description = "Einrichtung der BDR & BV Rechner",
-                    Href = "/installation/orders"
+                    Href = $"installation/project/{projectId}"  
                 },
 
                 new AppCardViewModel
@@ -72,7 +73,6 @@ namespace MECWeb.Services
                     Href = $"project/{projectId}/translate"
                 },
 
-                // ✅ NEU: SOFTWARE ARCHIV APP CARD
                 new AppCardViewModel
                 {
                     Icon = Icons.Material.Filled.Archive,
@@ -83,28 +83,6 @@ namespace MECWeb.Services
                     Description = "Verwaltung von Software-Projekten, Dokumenten und Versionskontrolle .",
                     Href = $"project/{projectId}/repository"
                 },
-
-                //new AppCardViewModel
-                //{
-                //    Icon = Icons.Material.Filled.Translate,
-                //    HeaderText = "Übersetzung",
-                //    Category = "Inbetriebnahme",
-                //    HeaderDescription = "Inbetriebnahme",
-                //    Image = "/assets/homePicture.png",
-                //    Description = "Übersetzung von TIA / STEP7 / EPlan Projekten. Sowie von eigenerstellte Excel Dateien",
-                //    Href = $"project/{projectId}/translate"
-                //},
-
-                                //new AppCardViewModel
-                //{
-                //    Icon = Icons.Material.Filled.Translate,
-                //    HeaderText = "Übersetzung",
-                //    Category = "Inbetriebnahme",
-                //    HeaderDescription = "Inbetriebnahme",
-                //    Image = "/assets/homePicture.png",
-                //    Description = "Übersetzung von TIA / STEP7 / EPlan Projekten. Sowie von eigenerstellte Excel Dateien",
-                //    Href = $"project/{projectId}/translate"
-                //},
 
             };
 

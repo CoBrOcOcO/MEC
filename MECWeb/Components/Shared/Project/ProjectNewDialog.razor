@@ -31,6 +31,12 @@
                           RequiredError="Name ist erforderlich"
                           Variant="Variant.Outlined"
                           T="string" />
+
+            <MudTextField Label="Ort" Typo="Typo.subtitle1" ShrinkLabel="true" Class="mt-4"
+                            @bind-Value="project.Location"
+                            Variant="Variant.Outlined"
+                          T="string" />
+
             <MudTextField Label="Beschreibung" Lines="3" Typo="Typo.subtitle1" ShrinkLabel="true" Class="mt-4"
                           @bind-Value="project.Description"
                           Variant="Variant.Outlined"

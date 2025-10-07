@@ -82,23 +82,36 @@
             <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
         }
 
-        <!-- No forwarded workflows message -->
-        @if (!loading && !forwardedWorkflows.Any())
+        <!-- PROJECT STATUS OVERVIEW - IMMER ANZEIGEN -->
+        @if (!loading)
+        {
+            <ProjectStatusOverview ProjectId="@ProjectId" IsLoading="@loading" />
+        }
+
+        <!--  Prüfe ob Workflows beim Einkauf sind (zurückgeleitet) -->
+        @if (!loading && forwardedWorkflows.Any() && forwardedWorkflows.All(w => w.Status == WorkflowStatus.Completed))
+        {
+            <!-- Projekt ist beim Einkauf - zeige Hinweismeldung -->
+            <MudAlert Severity="Severity.Info" Class="mt-4">
+                <MudText Typo="Typo.body1">
+                    <strong>Dieses Projekt wurde zur Korrektur an den Einkauf zurückgeleitet.</strong>
+                </MudText>
+                <MudText Typo="Typo.body2" Class="mt-2">
+                    Die Installation ist derzeit nicht verfügbar. Das Projekt muss erst vom Einkauf erneut weitergeleitet werden.
+                </MudText>
+            </MudAlert>
+        }
+        else if (!loading && !forwardedWorkflows.Any())
         {
             <MudAlert Severity="Severity.Info">
                 <MudText>Keine Formulare zur Installation für dieses Projekt gefunden.</MudText>
             </MudAlert>
         }
-
-        <!-- Individual Workflow Installation Details -->
-        @if (!loading && forwardedWorkflows.Any())
+        else if (!loading && forwardedWorkflows.Any())
         {
             var bdrWorkflows = forwardedWorkflows.Where(w => w.WorkflowType == WorkflowType.BDR).OrderBy(w => w.Name).ToList();
             var bvWorkflows = forwardedWorkflows.Where(w => w.WorkflowType == WorkflowType.BV).OrderBy(w => w.Name).ToList();
 
-            <!-- PROJECT STATUS OVERVIEW -->
-            <ProjectStatusOverview ProjectId="@ProjectId"
-                                   IsLoading="@loading" />
             <!-- BDR Section Header -->
             @if (bdrWorkflows.Any())
             {
@@ -106,7 +119,6 @@
                     <MudIcon Icon="@Icons.Material.Filled.Computer" Color="Color.Primary" Size="Size.Large" />
                     <MudText Typo="Typo.h5" Color="Color.Primary">BDR - Bedienungsrechner (@bdrWorkflows.Count)</MudText>
                     <MudSpacer />
-
                 </MudStack>
 
                 <!-- BDR Installation Forms -->
@@ -117,12 +129,9 @@
                     <MudPaper Class="pa-4 mb-4" Elevation="2" Style="border-block-end: 4px solid var(--mud-palette-primary);">
                         <MudStack Spacing="3">
 
-
                             <!-- Workflow Header mit PDF Button -->
-
                             <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
                                 <MudStack Spacing="2">
-
                                     <MudButton Color="Color.Primary"
                                                Variant="Variant.Outlined"
                                                StartIcon="@Icons.Material.Filled.PictureAsPdf"
@@ -154,10 +163,7 @@
                                                  ShowComments="false">
                             </WorkflowDetailsCard>
 
-
-
                             <!-- Network Configuration Integration -->
-
                             <MudPaper Elevation="1" Class="pa-4 mt-3" Style="background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%); border-left: 4px solid #4caf50; border-radius: 8px;">
                                 <MudStack Spacing="3">
                                     <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
@@ -201,7 +207,6 @@
                                             </MudStack>
                                         </MudItem>
                                     </MudGrid>
-
 
                                     <MudStack Row Spacing="2" AlignItems="AlignItems.Center" Justify="Justify.FlexEnd" Class="mt-2">
                                         @if (networkConfigSaveStatus.TryGetValue(workflow.Id, out var status))
@@ -305,7 +310,6 @@
                     <MudIcon Icon="@Icons.Material.Filled.CameraAlt" Color="Color.Secondary" Size="Size.Large" />
                     <MudText Typo="Typo.h5" Color="Color.Secondary">BV - Bildverarbeitungsrechner (@bvWorkflows.Count)</MudText>
                     <MudSpacer />
-
                 </MudStack>
 
                 <!-- BV Installation Forms -->
@@ -317,13 +321,8 @@
                     <MudPaper Class="pa-4 mb-4" Elevation="2" Style="border-left: 4px solid var(--mud-palette-secondary);">
                         <MudStack Spacing="3">
 
-
-
                             <!-- Workflow Header mit PDF Button -->
-
-
                             <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-
                                 <!-- ALL PDF Button -->
                                 <MudButton Color="Color.Secondary"
                                            Variant="Variant.Outlined"
@@ -333,7 +332,6 @@
                                            Disabled="@isExportingPdf">
                                     Alle BV als PDF
                                 </MudButton>
-
 
                                 <!-- Single PDF Button -->
                                 <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf"
@@ -497,6 +495,7 @@
                     </MudPaper>
                 }
             }
+
             <!-- Summary -->
             <MudPaper Class="pa-4 mt-4 mb-4" Elevation="1" Style="background-color: var(--mud-palette-background-grey);">
                 <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
@@ -529,7 +528,7 @@
                    FullWidth="true"
                    OnClick="NavigateBack"
                    Class="mt-4">
-            Zurück zur Übersicht
+            Zurück zur Projektübersicht
         </MudButton>
 
     </MudStack>
@@ -618,12 +617,25 @@
                 return;
             }
 
+            // Load workflows based on status
             forwardedWorkflows = currentProject.Workflows
                 .Where(w => w.Status == WorkflowStatus.ForwardedToInstallation ||
-                           w.Status == WorkflowStatus.Archived)
+                           w.Status == WorkflowStatus.Archived ||
+                           w.Status == WorkflowStatus.Completed)
                 .OrderBy(w => w.WorkflowType)
                 .ThenBy(w => w.Name)
                 .ToList();
+
+            // Check if workflows are at installation
+            var atInstallation = forwardedWorkflows.Any(w =>
+                w.Status == WorkflowStatus.ForwardedToInstallation ||
+                w.Status == WorkflowStatus.Archived);
+
+            if (!atInstallation && forwardedWorkflows.Any(w => w.Status == WorkflowStatus.Completed))
+            {
+                // Workflows are at purchase - show only status overview
+                return;
+            }
 
             if (!forwardedWorkflows.Any())
             {
@@ -631,10 +643,14 @@
                 return;
             }
 
-            await LoadDetailedData();
-            await LoadNetworkConfigurations();
-            LoadWorkflowComments();
-            LoadInstallationComments();
+            // Load only when really at installation
+            if (atInstallation)
+            {
+                await LoadDetailedData();
+                await LoadNetworkConfigurations();
+                LoadWorkflowComments();
+                LoadInstallationComments();
+            }
         }
         catch (Exception ex)
         {
@@ -652,7 +668,6 @@
     /// </summary>
     private async Task SaveIndividualNetworkConfig(Guid workflowId)
     {
-        // Prevent saving archived workflows
         if (isProjectArchived)
         {
             Snackbar.Add("Archivierte Projekte können nicht bearbeitet werden!", Severity.Warning);
@@ -673,7 +688,6 @@
                 throw new Exception("Projekt nicht gefunden");
             }
 
-            // Additional check for individual workflow status
             if (workflow.Status == WorkflowStatus.Archived)
             {
                 throw new Exception("Dieser Workflow ist archiviert und kann nicht bearbeitet werden");
@@ -1008,7 +1022,7 @@
             Snackbar.Add("Projekt erfolgreich zur Korrektur freigegeben!", Severity.Success);
 
             await Task.Delay(1500);
-            Navigation.NavigateTo("/installation/orders");
+            Navigation.NavigateTo($"/project/{ProjectId}", forceLoad: true);
         }
         catch (Exception ex)
         {
@@ -1073,7 +1087,7 @@
             Snackbar.Add("Installation erfolgreich abgeschlossen!", Severity.Success);
 
             await Task.Delay(1500);
-            Navigation.NavigateTo("/installation/orders");
+            Navigation.NavigateTo($"/project/{ProjectId}");
         }
         catch (Exception ex)
         {
@@ -1086,7 +1100,15 @@
         }
     }
 
-    // PDF Export Methods - Direct Generation without Storage
+    /// <summary>
+    /// Navigate back to project overview page
+    /// </summary>
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo($"/project/{ProjectId}");
+    }
+
+    // PDF Export Methods
     private async Task ExportAllBdrToPdf()
     {
         if (isExportingPdf) return;
@@ -1169,15 +1191,6 @@
         }
     }
 
-
-    /// <summary>
-    /// Navigate back to project overview page (app cards)
-    /// </summary>
-    private void NavigateBack()
-    {
-        // Always navigate back to the project's app cards page
-        Navigation.NavigateTo($"/project/{ProjectId}");
-    }
 
     private bool isProjectArchived => forwardedWorkflows.All(w => w.Status == WorkflowStatus.Archived);
     private bool isReopening = false;
@@ -1421,12 +1434,12 @@
         }
         return "";
     }
+
     /// <summary>
     /// Save installation notes for individual workflow
     /// </summary>
     private async Task SaveInstallationNotes(Guid workflowId)
     {
-        // Prevent saving archived workflows
         if (isProjectArchived)
         {
             Snackbar.Add("Archivierte Projekte können nicht bearbeitet werden!", Severity.Warning);
@@ -1444,7 +1457,6 @@
                 throw new Exception("Workflow nicht gefunden");
             }
 
-            // Additional check for individual workflow status
             if (workflow.Status == WorkflowStatus.Archived)
             {
                 throw new Exception("Dieser Workflow ist archiviert und kann nicht bearbeitet werden");
@@ -1452,7 +1464,6 @@
 
             var existingDescription = workflow.Description ?? "";
 
-            // Remove old installation comment if present
             if (existingDescription.Contains("INSTALLATION_COMMENT:"))
             {
                 var startIndex = existingDescription.IndexOf("INSTALLATION_COMMENT:");
@@ -1467,7 +1478,6 @@
                 }
             }
 
-            // Add new installation comment
             var installComment = GetInstallationComment(workflowId);
             if (!string.IsNullOrWhiteSpace(installComment))
             {
