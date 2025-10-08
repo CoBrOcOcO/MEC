@@ -3,13 +3,13 @@
 @using MECWeb.DbModels.Project
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.WebUtilities
-@using System.Timers
 @inject ApplicationDbContext DbContext
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @layout ProjectMainLayout
-@implements IDisposable
+@inject IJSRuntime JSRuntime
+
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6">
     <MudStack Spacing="4">
@@ -473,7 +473,8 @@
             var currentCount = await DbContext.Workflow
                 .AsNoTracking()
                 .Where(w => w.ProjectId == ProjectId &&
-                           (w.Status == WorkflowStatus.Completed ||
+                           (w.Status == WorkflowStatus.SoftwareCompleted ||  // NEU
+                            w.Status == WorkflowStatus.Completed ||
                             w.Status == WorkflowStatus.ForwardedToInstallation))
                 .CountAsync();
 
@@ -520,9 +521,9 @@
                 return;
             }
 
-            // Load BOTH Completed AND ForwardedToInstallation workflows
             allWorkflows = currentProject.Workflows
-                .Where(w => w.Status == WorkflowStatus.Completed ||
+                .Where(w => w.Status == WorkflowStatus.SoftwareCompleted ||  // NEU: Workflows die bereit für Einkauf sind
+                            w.Status == WorkflowStatus.Completed ||
                             w.Status == WorkflowStatus.ForwardedToInstallation)
                 .OrderBy(w => w.WorkflowType)
                 .ThenBy(w => w.Name)

@@ -1,4 +1,5 @@
-﻿@using MECWeb.DbModels.Workflow
+﻿@page "/project/{ProjectId:guid}/forms"
+@using MECWeb.DbModels.Workflow
 @using MECWeb.DbModels.Project
 @using Microsoft.EntityFrameworkCore
 
@@ -6,10 +7,10 @@
 @inject NavigationManager Navigation
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
-
+@inject IJSRuntime JSRuntime
 @layout ProjectMainLayout
 
-@page "/project/{ProjectId:guid}/forms"
+
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" class="mt-6">
     <MudStack Spacing="4">
