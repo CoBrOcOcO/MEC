@@ -2,7 +2,7 @@
 @using MECWeb.DbModels.Workflow
 @using MECWeb.DbModels.Project
 @using Microsoft.EntityFrameworkCore
-@inject ApplicationDbContext DbContext
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -543,14 +543,16 @@
     [SupplyParameterFromQuery]
     public string? ReturnPath { get; set; }
 
-    // Network Configuration Data Structure
+    // ==================== DATA STRUCTURES ====================
+
+    // Network configuration data for each workflow
     public class NetworkConfiguration
     {
         public string MacAddress { get; set; } = string.Empty;
         public string IpAddress { get; set; } = string.Empty;
     }
 
-    // Order Details Data Structure
+    // Order details structure for display
     public class OrderDetails
     {
         public string MainHardware { get; set; } = string.Empty;
@@ -559,12 +561,12 @@
         public List<string> PcDetails { get; set; } = new();
         public List<string> Software { get; set; } = new();
         public string Notes { get; set; } = string.Empty;
-        public string ContactPerson { get; set; } = string.Empty;  // NEU!
+        public string ContactPerson { get; set; } = string.Empty;
         public string HardwareRemarks { get; set; } = string.Empty;
         public string SoftwareRemarks { get; set; } = string.Empty;
     }
 
-    // Save Status Class
+    // Save status tracking for network configuration
     public class SaveStatus
     {
         public bool IsSuccess { get; set; }
@@ -572,7 +574,9 @@
         public string ErrorMessage { get; set; } = "";
     }
 
-    // Component state
+    // ==================== COMPONENT STATE ====================
+
+    // Project and workflow data
     private DbProject? currentProject;
     private List<DbWorkflow> forwardedWorkflows = new();
     private bool loading = true;
@@ -583,13 +587,13 @@
     private HashSet<Guid> savingWorkflowIds = new();
     private Dictionary<Guid, SaveStatus> networkConfigSaveStatus = new();
 
-    // Comments from purchase (read-only)
+    // Comments from purchase department (read-only display)
     private Dictionary<Guid, string> workflowComments = new();
 
-    // Installation comments
+    // Installation comments (editable by installation team)
     private Dictionary<Guid, string> installationComments = new();
 
-    // Network configurations
+    // Network configurations per workflow
     private Dictionary<Guid, NetworkConfiguration> networkConfigurations = new();
 
     // Data caches for performance
@@ -598,20 +602,29 @@
     private Dictionary<Guid, DbBvHardwareComputer?> bvHardwareCache = new();
     private Dictionary<Guid, List<DbBvHardwareComponent>> bvComponentsCache = new();
 
+    // Check if project is archived (read-only mode)
+    private bool isProjectArchived => forwardedWorkflows.All(w => w.Status == WorkflowStatus.Archived);
+    private bool isReopening = false;
+
+    // ==================== LIFECYCLE METHODS ====================
+
+    // Component initialization - load all project data
     protected override async Task OnInitializedAsync()
     {
         await LoadProjectDetails();
     }
 
-    /// <summary>
-    /// Load project and workflows forwarded to installation
-    /// </summary>
+    // ==================== DATA LOADING ====================
+
+    // Load project and workflows forwarded to installation
     private async Task LoadProjectDetails()
     {
         loading = true;
         try
         {
-            currentProject = await DbContext.Project
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
+            currentProject = await context.Project
                 .Include(p => p.Workflows)
                 .FirstOrDefaultAsync(p => p.Id == ProjectId);
 
@@ -621,7 +634,7 @@
                 return;
             }
 
-            // Load workflows based on status
+            // Load workflows at installation stage
             forwardedWorkflows = currentProject.Workflows
                 .Where(w => w.Status == WorkflowStatus.ForwardedToInstallation ||
                            w.Status == WorkflowStatus.Archived ||
@@ -630,14 +643,13 @@
                 .ThenBy(w => w.Name)
                 .ToList();
 
-            // Check if workflows are at installation
             var atInstallation = forwardedWorkflows.Any(w =>
                 w.Status == WorkflowStatus.ForwardedToInstallation ||
                 w.Status == WorkflowStatus.Archived);
 
+            // Check if workflows are back at purchase
             if (!atInstallation && forwardedWorkflows.Any(w => w.Status == WorkflowStatus.Completed))
             {
-                // Workflows are at purchase - show only status overview
                 return;
             }
 
@@ -647,7 +659,7 @@
                 return;
             }
 
-            // Load only when really at installation
+            // Load detailed data only when actually at installation
             if (atInstallation)
             {
                 await LoadDetailedData();
@@ -667,129 +679,14 @@
         }
     }
 
-    /// <summary>
-    /// Save network configuration for individual workflow
-    /// </summary>
-    private async Task SaveIndividualNetworkConfig(Guid workflowId)
-    {
-        if (isProjectArchived)
-        {
-            Snackbar.Add("Archivierte Projekte können nicht bearbeitet werden!", Severity.Warning);
-            return;
-        }
-
-        networkConfigSaveStatus.Remove(workflowId);
-        savingWorkflowIds.Add(workflowId);
-        StateHasChanged();
-
-        try
-        {
-            using var transaction = await DbContext.Database.BeginTransactionAsync();
-
-            var workflow = forwardedWorkflows.FirstOrDefault(w => w.Id == workflowId);
-            if (workflow == null)
-            {
-                throw new Exception("Projekt nicht gefunden");
-            }
-
-            if (workflow.Status == WorkflowStatus.Archived)
-            {
-                throw new Exception("Dieser Workflow ist archiviert und kann nicht bearbeitet werden");
-            }
-
-            var config = await DbContext.InstallationConfiguration
-                .FirstOrDefaultAsync(c => c.WorkflowId == workflowId);
-
-            var networkConfig = networkConfigurations[workflowId];
-
-            if (config == null)
-            {
-                config = new DbInstallationConfiguration
-                {
-                    Id = Guid.NewGuid(),
-                    WorkflowId = workflowId,
-                    MacAddress = networkConfig.MacAddress,
-                    IpAddress = networkConfig.IpAddress,
-                    CreationDate = DateTime.UtcNow,
-                    LastChange = DateTime.UtcNow
-                };
-                DbContext.InstallationConfiguration.Add(config);
-            }
-            else
-            {
-                config.MacAddress = networkConfig.MacAddress;
-                config.IpAddress = networkConfig.IpAddress;
-                config.LastChange = DateTime.UtcNow;
-            }
-
-            var existingDescription = workflow.Description ?? "";
-
-            if (existingDescription.Contains("INSTALLATION_COMMENT:"))
-            {
-                var startIndex = existingDescription.IndexOf("INSTALLATION_COMMENT:");
-                var endIndex = existingDescription.IndexOf("ENDMEC:", startIndex);
-                if (endIndex > startIndex)
-                {
-                    existingDescription = existingDescription.Remove(startIndex, endIndex - startIndex + 7);
-                }
-                else
-                {
-                    existingDescription = existingDescription.Substring(0, startIndex);
-                }
-            }
-
-            var installComment = GetInstallationComment(workflowId);
-            if (!string.IsNullOrWhiteSpace(installComment))
-            {
-                workflow.Description = existingDescription + $"INSTALLATION_COMMENT:{installComment.Trim()}ENDMEC:";
-            }
-
-            workflow.LastChange = DateTime.UtcNow;
-
-            await DbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            networkConfigSaveStatus[workflowId] = new SaveStatus
-            {
-                IsSuccess = true,
-                SaveTime = DateTime.Now
-            };
-
-            Snackbar.Add($"Netzwerk-Konfiguration für {workflow.Name} gespeichert!", Severity.Success);
-        }
-        catch (Exception ex)
-        {
-            networkConfigSaveStatus[workflowId] = new SaveStatus
-            {
-                IsSuccess = false,
-                ErrorMessage = ex.Message
-            };
-
-            Snackbar.Add($"Fehler beim Speichern: {ex.Message}", Severity.Error);
-            Console.WriteLine($"SaveIndividualNetworkConfig Error: {ex}");
-        }
-        finally
-        {
-            savingWorkflowIds.Remove(workflowId);
-            StateHasChanged();
-        }
-    }
-
-    /// <summary>
-    /// Clear save status for workflow
-    /// </summary>
-    private void ClearSaveStatus(Guid workflowId)
-    {
-        networkConfigSaveStatus.Remove(workflowId);
-    }
-
-    /// <summary>
-    /// Load hardware/software details from database
-    /// </summary>
+    // Load detailed hardware and software data
     private async Task LoadDetailedData()
     {
         try
         {
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
+            // Load BDR hardware with fields
             var bdrWorkflowIds = forwardedWorkflows
                 .Where(w => w.WorkflowType == WorkflowType.BDR)
                 .Select(w => w.Id)
@@ -797,7 +694,7 @@
 
             if (bdrWorkflowIds.Any())
             {
-                var bdrHardwareWithFields = await DbContext.HardwareComputer
+                var bdrHardwareWithFields = await context.HardwareComputer
                     .Include(h => h.HardwareFields.Where(f => f.IsActive))
                     .Where(h => bdrWorkflowIds.Contains(h.WorkflowId))
                     .ToListAsync();
@@ -813,6 +710,7 @@
                 }
             }
 
+            // Load BV hardware with components
             var bvWorkflowIds = forwardedWorkflows
                 .Where(w => w.WorkflowType == WorkflowType.BV)
                 .Select(w => w.Id)
@@ -820,14 +718,14 @@
 
             if (bvWorkflowIds.Any())
             {
-                var bvHardwareList = await DbContext.BvHardwareComputer
+                var bvHardwareList = await context.BvHardwareComputer
                     .Where(h => bvWorkflowIds.Contains(h.WorkflowId))
                     .ToListAsync();
 
                 foreach (var hardware in bvHardwareList)
                 {
                     bvHardwareCache[hardware.WorkflowId] = hardware;
-                    var components = await DbContext.BvHardwareComponent
+                    var components = await context.BvHardwareComponent
                         .Where(c => c.BvHardwareComputerId == hardware.Id && c.IsActive && c.IsSelected)
                         .ToListAsync();
                     bvComponentsCache[hardware.WorkflowId] = components;
@@ -841,15 +739,15 @@
         }
     }
 
-    /// <summary>
-    /// Load network configurations from database
-    /// </summary>
+    // Load network configurations from database
     private async Task LoadNetworkConfigurations()
     {
         try
         {
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
             var workflowIds = forwardedWorkflows.Select(w => w.Id).ToList();
-            var configs = await DbContext.InstallationConfiguration
+            var configs = await context.InstallationConfiguration
                 .Where(c => workflowIds.Contains(c.WorkflowId))
                 .ToListAsync();
 
@@ -880,9 +778,7 @@
         }
     }
 
-    /// <summary>
-    /// Load purchase comments from workflow descriptions
-    /// </summary>
+    // Load purchase comments from workflow descriptions (read-only)
     private void LoadWorkflowComments()
     {
         foreach (var workflow in forwardedWorkflows)
@@ -892,9 +788,7 @@
         }
     }
 
-    /// <summary>
-    /// Load installation comments from workflow descriptions
-    /// </summary>
+    // Load installation comments from workflow descriptions
     private void LoadInstallationComments()
     {
         foreach (var workflow in forwardedWorkflows)
@@ -904,9 +798,7 @@
         }
     }
 
-    /// <summary>
-    /// Parse comment from workflow description
-    /// </summary>
+    // Parse encoded comment from workflow description
     private string ParseWorkflowComment(string description, string prefix)
     {
         if (string.IsNullOrEmpty(description) || !description.Contains(prefix))
@@ -934,33 +826,144 @@
         return "";
     }
 
-    /// <summary>
-    /// Get purchase comment for workflow
-    /// </summary>
+    // ==================== NETWORK CONFIGURATION ====================
+
+    // Save network configuration for individual workflow
+    private async Task SaveIndividualNetworkConfig(Guid workflowId)
+    {
+        if (isProjectArchived)
+        {
+            Snackbar.Add("Archivierte Projekte können nicht bearbeitet werden!", Severity.Warning);
+            return;
+        }
+
+        networkConfigSaveStatus.Remove(workflowId);
+        savingWorkflowIds.Add(workflowId);
+        StateHasChanged();
+
+        try
+        {
+            using var context = await DbContextFactory.CreateDbContextAsync();
+            using var transaction = await context.Database.BeginTransactionAsync();
+
+            var workflow = forwardedWorkflows.FirstOrDefault(w => w.Id == workflowId);
+            if (workflow == null)
+            {
+                throw new Exception("Projekt nicht gefunden");
+            }
+
+            if (workflow.Status == WorkflowStatus.Archived)
+            {
+                throw new Exception("Dieser Workflow ist archiviert und kann nicht bearbeitet werden");
+            }
+
+            // Load or create network configuration
+            var config = await context.InstallationConfiguration
+                .FirstOrDefaultAsync(c => c.WorkflowId == workflowId);
+
+            var networkConfig = networkConfigurations[workflowId];
+
+            if (config == null)
+            {
+                config = new DbInstallationConfiguration
+                {
+                    Id = Guid.NewGuid(),
+                    WorkflowId = workflowId,
+                    MacAddress = networkConfig.MacAddress,
+                    IpAddress = networkConfig.IpAddress,
+                    CreationDate = DateTime.UtcNow,
+                    LastChange = DateTime.UtcNow
+                };
+                context.InstallationConfiguration.Add(config);
+            }
+            else
+            {
+                config.MacAddress = networkConfig.MacAddress;
+                config.IpAddress = networkConfig.IpAddress;
+                config.LastChange = DateTime.UtcNow;
+            }
+
+            // Update installation comment in workflow description
+            var existingDescription = workflow.Description ?? "";
+
+            if (existingDescription.Contains("INSTALLATION_COMMENT:"))
+            {
+                var startIndex = existingDescription.IndexOf("INSTALLATION_COMMENT:");
+                var endIndex = existingDescription.IndexOf("ENDMEC:", startIndex);
+                if (endIndex > startIndex)
+                {
+                    existingDescription = existingDescription.Remove(startIndex, endIndex - startIndex + 7);
+                }
+                else
+                {
+                    existingDescription = existingDescription.Substring(0, startIndex);
+                }
+            }
+
+            var installComment = GetInstallationComment(workflowId);
+            if (!string.IsNullOrWhiteSpace(installComment))
+            {
+                workflow.Description = existingDescription + $"INSTALLATION_COMMENT:{installComment.Trim()}ENDMEC:";
+            }
+
+            workflow.LastChange = DateTime.UtcNow;
+
+            await context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            networkConfigSaveStatus[workflowId] = new SaveStatus
+            {
+                IsSuccess = true,
+                SaveTime = DateTime.Now
+            };
+
+            Snackbar.Add($"Netzwerk-Konfiguration für {workflow.Name} gespeichert!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            networkConfigSaveStatus[workflowId] = new SaveStatus
+            {
+                IsSuccess = false,
+                ErrorMessage = ex.Message
+            };
+
+            Snackbar.Add($"Fehler beim Speichern: {ex.Message}", Severity.Error);
+            Console.WriteLine($"SaveIndividualNetworkConfig Error: {ex}");
+        }
+        finally
+        {
+            savingWorkflowIds.Remove(workflowId);
+            StateHasChanged();
+        }
+    }
+
+    // Clear save status notification for workflow
+    private void ClearSaveStatus(Guid workflowId)
+    {
+        networkConfigSaveStatus.Remove(workflowId);
+    }
+
+    // ==================== COMMENT MANAGEMENT ====================
+
+    // Get purchase comment (from purchase department)
     private string GetWorkflowComment(Guid workflowId)
     {
         return workflowComments.TryGetValue(workflowId, out var comment) ? comment : "";
     }
 
-    /// <summary>
-    /// Get installation comment for workflow
-    /// </summary>
+    // Get installation comment
     private string GetInstallationComment(Guid workflowId)
     {
         return installationComments.TryGetValue(workflowId, out var comment) ? comment : "";
     }
 
-    /// <summary>
-    /// Update installation comment
-    /// </summary>
+    // Update installation comment in memory (not saved yet)
     private void UpdateInstallationComment(Guid workflowId, string comment)
     {
         installationComments[workflowId] = comment ?? "";
     }
 
-    /// <summary>
-    /// Update network configuration
-    /// </summary>
+    // Update network configuration in memory (not saved yet)
     private void UpdateNetworkConfig(Guid workflowId, string macAddress, string ipAddress)
     {
         if (!networkConfigurations.ContainsKey(workflowId))
@@ -973,7 +976,81 @@
         config.IpAddress = ipAddress ?? "";
     }
 
-    // Workflow management methods
+    // Save installation notes for individual workflow
+    private async Task SaveInstallationNotes(Guid workflowId)
+    {
+        if (isProjectArchived)
+        {
+            Snackbar.Add("Archivierte Projekte können nicht bearbeitet werden!", Severity.Warning);
+            return;
+        }
+
+        savingWorkflowIds.Add(workflowId);
+        try
+        {
+            using var context = await DbContextFactory.CreateDbContextAsync();
+            using var transaction = await context.Database.BeginTransactionAsync();
+
+            var workflow = forwardedWorkflows.FirstOrDefault(w => w.Id == workflowId);
+            if (workflow == null)
+            {
+                throw new Exception("Workflow nicht gefunden");
+            }
+
+            if (workflow.Status == WorkflowStatus.Archived)
+            {
+                throw new Exception("Dieser Workflow ist archiviert und kann nicht bearbeitet werden");
+            }
+
+            // Update workflow description with encoded installation comment
+            var existingDescription = workflow.Description ?? "";
+
+            if (existingDescription.Contains("INSTALLATION_COMMENT:"))
+            {
+                var startIndex = existingDescription.IndexOf("INSTALLATION_COMMENT:");
+                var endIndex = existingDescription.IndexOf("ENDMEC:", startIndex);
+                if (endIndex > startIndex)
+                {
+                    existingDescription = existingDescription.Remove(startIndex, endIndex - startIndex + 7);
+                }
+                else
+                {
+                    existingDescription = existingDescription.Substring(0, startIndex);
+                }
+            }
+
+            var installComment = GetInstallationComment(workflowId);
+            if (!string.IsNullOrWhiteSpace(installComment))
+            {
+                workflow.Description = existingDescription + $"INSTALLATION_COMMENT:{installComment.Trim()}ENDMEC:";
+            }
+            else
+            {
+                workflow.Description = existingDescription;
+            }
+
+            workflow.LastChange = DateTime.UtcNow;
+
+            await context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            Snackbar.Add($"Installations-Notizen für {workflow.Name} gespeichert!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Fehler beim Speichern: {ex.Message}", Severity.Error);
+            Console.WriteLine($"SaveInstallationNotes Error: {ex}");
+        }
+        finally
+        {
+            savingWorkflowIds.Remove(workflowId);
+            StateHasChanged();
+        }
+    }
+
+    // ==================== WORKFLOW ACTIONS ====================
+
+    // Release project back to purchase for corrections
     private async Task ReleaseForCorrection()
     {
         if (!forwardedWorkflows.Any())
@@ -985,24 +1062,24 @@
         bool? result = await DialogService.ShowMessageBox(
             title: "Zur Korrektur freigeben",
             markupMessage: new MarkupString($@"
-                <div style='line-height: 1.6;'>
-                    <div style='margin-bottom: 16px;'>
-                        Möchten Sie das Projekt zur Korrektur freigeben?
-                    </div>
-
-                    <div style='margin-bottom: 8px; font-weight: 600; color: #1976d2;'>
-                        Projekt:
-                    </div>
-                    <div style='margin-bottom: 16px; font-weight: 500;'>
-                        {currentProject?.ProjectNumber} - {currentProject?.Name}
-                    </div>
-
-                    <div style='color: #ff9800; font-weight: 500; display: flex; align-items: center; gap: 8px;'>
-                        <span style='font-size: 18px;'>📝</span>
-                        <span>Das Projekt geht zurück zum Einkauf.</span>
-                    </div>
+            <div style='line-height: 1.6;'>
+                <div style='margin-bottom: 16px;'>
+                    Möchten Sie das Projekt zur Korrektur freigeben?
                 </div>
-            "),
+
+                <div style='margin-bottom: 8px; font-weight: 600; color: #1976d2;'>
+                    Projekt:
+                </div>
+                <div style='margin-bottom: 16px; font-weight: 500;'>
+                    {currentProject?.ProjectNumber} - {currentProject?.Name}
+                </div>
+
+                <div style='color: #ff9800; font-weight: 500; display: flex; align-items: center; gap: 8px;'>
+                    <span style='font-size: 18px;'>📝</span>
+                    <span>Das Projekt geht zurück zum Einkauf.</span>
+                </div>
+            </div>
+        "),
             "Freigeben",
             "Abbrechen"
         );
@@ -1012,15 +1089,17 @@
         isReleasingForCorrection = true;
         try
         {
-            using var transaction = await DbContext.Database.BeginTransactionAsync();
+            using var context = await DbContextFactory.CreateDbContextAsync();
+            using var transaction = await context.Database.BeginTransactionAsync();
 
+            // Set workflows back to Completed status (at purchase)
             foreach (var workflow in forwardedWorkflows)
             {
                 workflow.Status = WorkflowStatus.Completed;
                 workflow.LastChange = DateTime.UtcNow;
             }
 
-            await DbContext.SaveChangesAsync();
+            await context.SaveChangesAsync();
             await transaction.CommitAsync();
 
             Snackbar.Add("Projekt erfolgreich zur Korrektur freigegeben!", Severity.Success);
@@ -1039,6 +1118,7 @@
         }
     }
 
+    // Complete installation and archive project
     private async Task CompleteInstallation()
     {
         if (!forwardedWorkflows.Any())
@@ -1050,24 +1130,24 @@
         bool? result = await DialogService.ShowMessageBox(
             title: "Installation abschließen",
             markupMessage: new MarkupString($@"
-                <div style='line-height: 1.6;'>
-                    <div style='margin-bottom: 16px;'>
-                        Möchten Sie die Installation abschließen?
-                    </div>
-
-                    <div style='margin-bottom: 8px; font-weight: 600; color: #1976d2;'>
-                        Projekt:
-                    </div>
-                    <div style='margin-bottom: 16px; font-weight: 500;'>
-                        {currentProject?.ProjectNumber} - {currentProject?.Name}
-                    </div>
-
-                    <div style='color: #4caf50; font-weight: 500; display: flex; align-items: center; gap: 8px;'>
-                        <span style='font-size: 18px;'>✅</span>
-                        <span>Das Projekt wird als vollständig installiert markiert.</span>
-                    </div>
+            <div style='line-height: 1.6;'>
+                <div style='margin-bottom: 16px;'>
+                    Möchten Sie die Installation abschließen?
                 </div>
-            "),
+
+                <div style='margin-bottom: 8px; font-weight: 600; color: #1976d2;'>
+                    Projekt:
+                </div>
+                <div style='margin-bottom: 16px; font-weight: 500;'>
+                    {currentProject?.ProjectNumber} - {currentProject?.Name}
+                </div>
+
+                <div style='color: #4caf50; font-weight: 500; display: flex; align-items: center; gap: 8px;'>
+                    <span style='font-size: 18px;'>✅</span>
+                    <span>Das Projekt wird als vollständig installiert markiert.</span>
+                </div>
+            </div>
+        "),
             yesText: "Abschließen",
             noText: "Abbrechen"
         );
@@ -1077,15 +1157,17 @@
         isCompletingInstallation = true;
         try
         {
-            using var transaction = await DbContext.Database.BeginTransactionAsync();
+            using var context = await DbContextFactory.CreateDbContextAsync();
+            using var transaction = await context.Database.BeginTransactionAsync();
 
+            // Archive all workflows
             foreach (var workflow in forwardedWorkflows)
             {
                 workflow.Status = WorkflowStatus.Archived;
                 workflow.LastChange = DateTime.UtcNow;
             }
 
-            await DbContext.SaveChangesAsync();
+            await context.SaveChangesAsync();
             await transaction.CommitAsync();
 
             Snackbar.Add("Installation erfolgreich abgeschlossen!", Severity.Success);
@@ -1104,15 +1186,48 @@
         }
     }
 
-    /// <summary>
-    /// Navigate back to project overview page
-    /// </summary>
-    private void NavigateBack()
+    // Reopen archived project for editing
+    private async Task ReopenForEditing()
     {
-        Navigation.NavigateTo($"/project/{ProjectId}", forceLoad: true);
+        bool? result = await DialogService.ShowMessageBox(
+            "Projekt zur Bearbeitung öffnen",
+            "Möchten Sie das Projekt wieder zur Bearbeitung öffnen?",
+            yesText: "Ja", noText: "Abbrechen");
+
+        if (result != true) return;
+
+        isReopening = true;
+        try
+        {
+            using var context = await DbContextFactory.CreateDbContextAsync();
+            using var transaction = await context.Database.BeginTransactionAsync();
+
+            // Reopen workflows from Archived to ForwardedToInstallation
+            foreach (var workflow in forwardedWorkflows)
+            {
+                workflow.Status = WorkflowStatus.ForwardedToInstallation;
+                workflow.LastChange = DateTime.UtcNow;
+            }
+
+            await context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            Snackbar.Add("Projekt wurde zur Bearbeitung geöffnet!", Severity.Success);
+            await LoadProjectDetails();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Fehler beim Öffnen: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isReopening = false;
+        }
     }
 
-    // PDF Export Methods
+    // ==================== PDF EXPORT ====================
+
+    // Export all BDR workflows as PDF
     private async Task ExportAllBdrToPdf()
     {
         if (isExportingPdf) return;
@@ -1134,6 +1249,7 @@
         }
     }
 
+    // Export all BV workflows as PDF
     private async Task ExportAllBvToPdf()
     {
         if (isExportingPdf) return;
@@ -1155,6 +1271,7 @@
         }
     }
 
+    // Export single BDR workflow as PDF
     private async Task ExportSingleBdrToPdf(Guid workflowId)
     {
         exportingWorkflowIds.Add(workflowId);
@@ -1175,6 +1292,7 @@
         }
     }
 
+    // Export single BV workflow as PDF
     private async Task ExportSingleBvToPdf(Guid workflowId)
     {
         exportingWorkflowIds.Add(workflowId);
@@ -1195,47 +1313,9 @@
         }
     }
 
+    // ==================== DATA PROCESSING ====================
 
-    private bool isProjectArchived => forwardedWorkflows.All(w => w.Status == WorkflowStatus.Archived);
-    private bool isReopening = false;
-
-    private async Task ReopenForEditing()
-    {
-        bool? result = await DialogService.ShowMessageBox(
-            "Projekt zur Bearbeitung öffnen",
-            "Möchten Sie das Projekt wieder zur Bearbeitung öffnen?",
-            yesText: "Ja", noText: "Abbrechen");
-
-        if (result != true) return;
-
-        isReopening = true;
-        try
-        {
-            using var transaction = await DbContext.Database.BeginTransactionAsync();
-
-            foreach (var workflow in forwardedWorkflows)
-            {
-                workflow.Status = WorkflowStatus.ForwardedToInstallation;
-                workflow.LastChange = DateTime.UtcNow;
-            }
-
-            await DbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            Snackbar.Add("Projekt wurde zur Bearbeitung geöffnet!", Severity.Success);
-            await LoadProjectDetails();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Fehler beim Öffnen: {ex.Message}", Severity.Error);
-        }
-        finally
-        {
-            isReopening = false;
-        }
-    }
-
-    // Hardware/Software processing methods
+    // Get formatted order details for display
     private OrderDetails GetOrderDetailsForWorkflow(DbWorkflow workflow)
     {
         var orderData = new OrderDetails();
@@ -1262,6 +1342,7 @@
         return orderData;
     }
 
+    // Process BDR hardware data for display
     private void ProcessBdrHardware(DbWorkflow workflow, OrderDetails orderData)
     {
         if (bdrHardwareCache.TryGetValue(workflow.Id, out var bdrHardware) && bdrHardware != null)
@@ -1303,6 +1384,7 @@
         }
     }
 
+    // Process BV hardware data for display
     private void ProcessBvHardware(DbWorkflow workflow, OrderDetails orderData)
     {
         if (bvHardwareCache.TryGetValue(workflow.Id, out var bvHardware) && bvHardware != null)
@@ -1364,6 +1446,7 @@
         }
     }
 
+    // Process software data from encoded workflow description
     private void ProcessWorkflowSoftware(DbWorkflow workflow, OrderDetails orderData)
     {
         var description = workflow.Description ?? "";
@@ -1395,6 +1478,7 @@
         }
     }
 
+    // Parse encoded software data string into list
     private List<string> ParseSoftwareData(string softwareData, bool isBdr)
     {
         var items = new List<string>();
@@ -1433,6 +1517,7 @@
         return items;
     }
 
+    // Get contact person for BV workflow
     private string GetContactPersonForBvWorkflow(DbWorkflow workflow)
     {
         if (bvHardwareCache.TryGetValue(workflow.Id, out var bvHardware) && bvHardware != null)
@@ -1442,80 +1527,9 @@
         return "";
     }
 
-    /// <summary>
-    /// Save installation notes for individual workflow
-    /// </summary>
-    private async Task SaveInstallationNotes(Guid workflowId)
-    {
-        if (isProjectArchived)
-        {
-            Snackbar.Add("Archivierte Projekte können nicht bearbeitet werden!", Severity.Warning);
-            return;
-        }
+    // ==================== HELPER METHODS ====================
 
-        savingWorkflowIds.Add(workflowId);
-        try
-        {
-            using var transaction = await DbContext.Database.BeginTransactionAsync();
-
-            var workflow = forwardedWorkflows.FirstOrDefault(w => w.Id == workflowId);
-            if (workflow == null)
-            {
-                throw new Exception("Workflow nicht gefunden");
-            }
-
-            if (workflow.Status == WorkflowStatus.Archived)
-            {
-                throw new Exception("Dieser Workflow ist archiviert und kann nicht bearbeitet werden");
-            }
-
-            var existingDescription = workflow.Description ?? "";
-
-            if (existingDescription.Contains("INSTALLATION_COMMENT:"))
-            {
-                var startIndex = existingDescription.IndexOf("INSTALLATION_COMMENT:");
-                var endIndex = existingDescription.IndexOf("ENDMEC:", startIndex);
-                if (endIndex > startIndex)
-                {
-                    existingDescription = existingDescription.Remove(startIndex, endIndex - startIndex + 7);
-                }
-                else
-                {
-                    existingDescription = existingDescription.Substring(0, startIndex);
-                }
-            }
-
-            var installComment = GetInstallationComment(workflowId);
-            if (!string.IsNullOrWhiteSpace(installComment))
-            {
-                workflow.Description = existingDescription + $"INSTALLATION_COMMENT:{installComment.Trim()}ENDMEC:";
-            }
-            else
-            {
-                workflow.Description = existingDescription;
-            }
-
-            workflow.LastChange = DateTime.UtcNow;
-
-            await DbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            Snackbar.Add($"Installations-Notizen für {workflow.Name} gespeichert!", Severity.Success);
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Fehler beim Speichern: {ex.Message}", Severity.Error);
-            Console.WriteLine($"SaveInstallationNotes Error: {ex}");
-        }
-        finally
-        {
-            savingWorkflowIds.Remove(workflowId);
-            StateHasChanged();
-        }
-    }
-    /// <summary>
-    /// Get status text for workflow
-    /// </summary>
+    // Get status text for workflow display
     private string GetStatusText(DbWorkflow workflow) => workflow.Status switch
     {
         WorkflowStatus.Created => "Neu",
@@ -1527,4 +1541,12 @@
         WorkflowStatus.Archived => "Abgeschlossen",
         _ => "Unbekannt"
     };
+
+    // ==================== NAVIGATION ====================
+
+    // Navigate back to project overview page
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo($"/project/{ProjectId}", forceLoad: true);
+    }
 }

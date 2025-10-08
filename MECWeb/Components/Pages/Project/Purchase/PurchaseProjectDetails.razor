@@ -3,7 +3,7 @@
 @using MECWeb.DbModels.Project
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.WebUtilities
-@inject ApplicationDbContext DbContext
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -374,7 +374,9 @@
 @code {
     [Parameter] public Guid ProjectId { get; set; }
 
-    // Clean order data structure for display
+    // ==================== DATA STRUCTURES ====================
+
+    // Structure to hold order details for display
     public class OrderDetails
     {
         public string MainHardware { get; set; } = string.Empty;
@@ -387,30 +389,32 @@
         public string SoftwareRemarks { get; set; } = string.Empty;
     }
 
-    // Component state
+    // ==================== COMPONENT STATE ====================
+
+    // Project and workflow data
     private DbProject? currentProject;
     private List<DbWorkflow> allWorkflows = new();
     private bool loading = true;
     private bool isForwarding = false;
     private bool isReleasingForCorrection = false;
 
-    // Automatically determine if we're in read-only mode based on workflow status
+    // Determine if page is in read-only mode (workflows already forwarded to installation)
     private bool IsReadOnlyMode => allWorkflows.Any() &&
                                     allWorkflows.All(w => w.Status == WorkflowStatus.ForwardedToInstallation);
 
-    // Comment and completion tracking
+    // Comment and completion tracking per workflow
     private Dictionary<Guid, string> workflowComments = new();
     private Dictionary<Guid, bool> workflowCompletionStatus = new();
     private Dictionary<Guid, DateTime?> workflowCompletionDates = new();
     private HashSet<Guid> savingWorkflows = new();
 
-    // Data caches for performance
+    // Data caches for performance (avoid repeated DB queries)
     private Dictionary<Guid, DbHardwareComputer?> bdrHardwareCache = new();
     private Dictionary<Guid, List<DbHardwareField>> bdrFieldsCache = new();
     private Dictionary<Guid, DbBvHardwareComputer?> bvHardwareCache = new();
     private Dictionary<Guid, List<DbBvHardwareComponent>> bvComponentsCache = new();
 
-    // Auto-refresh timer
+    // Auto-refresh mechanism to detect new workflows from Forms page
     private System.Timers.Timer? autoRefreshTimer;
     private int lastWorkflowCount = 0;
     private bool isCheckingForUpdates = false;
@@ -418,6 +422,9 @@
     // Cancellation token for async operations
     private CancellationTokenSource? cts;
 
+    // ==================== LIFECYCLE METHODS ====================
+
+    // Component initialization - load data and start auto-refresh
     protected override async Task OnInitializedAsync()
     {
         cts = new CancellationTokenSource();
@@ -425,6 +432,7 @@
         StartAutoRefresh();
     }
 
+    // Cleanup - stop timer and cancel operations
     public void Dispose()
     {
         StopAutoRefresh();
@@ -432,24 +440,21 @@
         cts?.Dispose();
     }
 
-    /// <summary>
-    /// Start auto-refresh timer to check for new workflows
-    /// </summary>
+    // ==================== AUTO-REFRESH SYSTEM ====================
+
+    // Start timer to check for new workflows every second (only if not read-only)
     private void StartAutoRefresh()
     {
-        // Only start timer if not in read-only mode
         if (!IsReadOnlyMode)
         {
-            autoRefreshTimer = new System.Timers.Timer(1000); 
+            autoRefreshTimer = new System.Timers.Timer(1000);
             autoRefreshTimer.Elapsed += async (sender, e) => await CheckForNewWorkflows();
             autoRefreshTimer.AutoReset = true;
             autoRefreshTimer.Start();
         }
     }
 
-    /// <summary>
-    /// Stop auto-refresh timer
-    /// </summary>
+    // Stop and dispose auto-refresh timer
     private void StopAutoRefresh()
     {
         if (autoRefreshTimer != null)
@@ -460,9 +465,7 @@
         }
     }
 
-    /// <summary>
-    /// Check for new workflows from Forms page
-    /// </summary>
+    // Check if workflow count changed (new workflows from Forms page)
     private async Task CheckForNewWorkflows()
     {
         if (isCheckingForUpdates || IsReadOnlyMode) return;
@@ -470,23 +473,23 @@
         isCheckingForUpdates = true;
         try
         {
-            var currentCount = await DbContext.Workflow
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
+            var currentCount = await context.Workflow
                 .AsNoTracking()
                 .Where(w => w.ProjectId == ProjectId &&
-                           (w.Status == WorkflowStatus.SoftwareCompleted ||  // NEU
+                           (w.Status == WorkflowStatus.SoftwareCompleted ||
                             w.Status == WorkflowStatus.Completed ||
                             w.Status == WorkflowStatus.ForwardedToInstallation))
                 .CountAsync();
 
-            // If workflow count changed, reload everything
+            // Reload if count changed
             if (currentCount != lastWorkflowCount && lastWorkflowCount > 0)
             {
                 await InvokeAsync(async () =>
                 {
                     await LoadProjectDetails();
                     StateHasChanged();
-
-                    // Show notification
                     Snackbar.Add($"Neue Workflows vom Formular-Bereich erkannt! ({currentCount} Workflows)", Severity.Info);
                 });
             }
@@ -503,15 +506,17 @@
         }
     }
 
-    /// <summary>
-    /// Load project and workflow details
-    /// </summary>
+    // ==================== DATA LOADING ====================
+
+    // Load project and all workflows ready for purchase
     private async Task LoadProjectDetails()
     {
         loading = true;
         try
         {
-            currentProject = await DbContext.Project
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
+            currentProject = await context.Project
                 .Include(p => p.Workflows)
                 .FirstOrDefaultAsync(p => p.Id == ProjectId);
 
@@ -521,26 +526,25 @@
                 return;
             }
 
+            // Load workflows that are ready for purchase or already forwarded
             allWorkflows = currentProject.Workflows
-                .Where(w => w.Status == WorkflowStatus.SoftwareCompleted ||  // NEU: Workflows die bereit für Einkauf sind
+                .Where(w => w.Status == WorkflowStatus.SoftwareCompleted ||
                             w.Status == WorkflowStatus.Completed ||
                             w.Status == WorkflowStatus.ForwardedToInstallation)
                 .OrderBy(w => w.WorkflowType)
                 .ThenBy(w => w.Name)
                 .ToList();
 
-            // Update workflow count for auto-refresh
             lastWorkflowCount = allWorkflows.Count;
 
             if (!allWorkflows.Any())
             {
-                // No workflows found - show helpful message in UI
                 return;
             }
 
             await LoadDetailedData();
 
-            // Stop auto-refresh if we enter read-only mode
+            // Stop auto-refresh when entering read-only mode
             if (IsReadOnlyMode)
             {
                 StopAutoRefresh();
@@ -557,9 +561,76 @@
         }
     }
 
-    /// <summary>
-    /// Check if all workflows are completed and ready for installation
-    /// </summary>
+    // Load detailed hardware and software data for all workflows
+    private async Task LoadDetailedData()
+    {
+        try
+        {
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
+            // Load BDR hardware with fields
+            var bdrWorkflowIds = allWorkflows
+                .Where(w => w.WorkflowType == WorkflowType.BDR)
+                .Select(w => w.Id)
+                .ToList();
+
+            if (bdrWorkflowIds.Any())
+            {
+                var bdrHardwareWithFields = await context.HardwareComputer
+                    .Include(h => h.HardwareFields.Where(f => f.IsActive))
+                    .Where(h => bdrWorkflowIds.Contains(h.WorkflowId))
+                    .ToListAsync();
+
+                foreach (var hardware in bdrHardwareWithFields)
+                {
+                    bdrHardwareCache[hardware.WorkflowId] = hardware;
+
+                    var fields = hardware.HardwareFields
+                        .OrderBy(f => f.DisplayOrder)
+                        .ThenBy(f => f.DisplayName)
+                        .ToList();
+
+                    bdrFieldsCache[hardware.WorkflowId] = fields;
+                }
+            }
+
+            // Load BV hardware with components
+            var bvWorkflowIds = allWorkflows
+                .Where(w => w.WorkflowType == WorkflowType.BV)
+                .Select(w => w.Id)
+                .ToList();
+
+            if (bvWorkflowIds.Any())
+            {
+                var bvHardwareList = await context.BvHardwareComputer
+                    .Where(h => bvWorkflowIds.Contains(h.WorkflowId))
+                    .ToListAsync();
+
+                foreach (var hardware in bvHardwareList)
+                {
+                    bvHardwareCache[hardware.WorkflowId] = hardware;
+
+                    var components = await context.BvHardwareComponent
+                        .Where(c => c.BvHardwareComputerId == hardware.Id && c.IsActive && c.IsSelected)
+                        .ToListAsync();
+
+                    bvComponentsCache[hardware.WorkflowId] = components;
+                }
+            }
+
+            LoadWorkflowComments();
+            LoadWorkflowCompletionStatus();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Fehler beim Laden der Hardware-Details: {ex.Message}", Severity.Warning);
+            Console.WriteLine($"LoadDetailedData Error: {ex}");
+        }
+    }
+
+    // ==================== WORKFLOW ACTIONS ====================
+
+    // Check if all workflows are marked as completed
     private bool CanForwardToInstallation()
     {
         if (!allWorkflows.Any() || IsReadOnlyMode) return false;
@@ -575,9 +646,7 @@
         return true;
     }
 
-    /// <summary>
-    /// Release project for correction
-    /// </summary>
+    // Release project back to Forms for corrections
     private async Task ReleaseForCorrection()
     {
         if (IsReadOnlyMode || !allWorkflows.Any())
@@ -589,24 +658,24 @@
         bool? result = await DialogService.ShowMessageBox(
             title: "Zur Korrektur freigeben",
             markupMessage: new MarkupString($@"
-                <div style='line-height: 1.6;'>
-                    <div style='margin-bottom: 16px;'>
-                        Möchten Sie das Projekt zur Korrektur freigeben?
-                    </div>
-
-                    <div style='margin-bottom: 8px; font-weight: 600; color: #1976d2;'>
-                        Projekt:
-                    </div>
-                    <div style='margin-bottom: 16px; font-weight: 500;'>
-                        {currentProject?.ProjectNumber} - {currentProject?.Name}
-                    </div>
-
-                    <div style='color: #ff9800; font-weight: 500; display: flex; align-items: center; gap: 8px;'>
-                        <span style='font-size: 18px;'>📝</span>
-                        <span>Die Abteilungen können das Projekt wieder bearbeiten.</span>
-                    </div>
+            <div style='line-height: 1.6;'>
+                <div style='margin-bottom: 16px;'>
+                    Möchten Sie das Projekt zur Korrektur freigeben?
                 </div>
-            "),
+
+                <div style='margin-bottom: 8px; font-weight: 600; color: #1976d2;'>
+                    Projekt:
+                </div>
+                <div style='margin-bottom: 16px; font-weight: 500;'>
+                    {currentProject?.ProjectNumber} - {currentProject?.Name}
+                </div>
+
+                <div style='color: #ff9800; font-weight: 500; display: flex; align-items: center; gap: 8px;'>
+                    <span style='font-size: 18px;'>📝</span>
+                    <span>Die Abteilungen können das Projekt wieder bearbeiten.</span>
+                </div>
+            </div>
+        "),
             yesText: "Freigeben",
             noText: "Abbrechen"
         );
@@ -616,15 +685,17 @@
         isReleasingForCorrection = true;
         try
         {
-            using var transaction = await DbContext.Database.BeginTransactionAsync();
+            using var context = await DbContextFactory.CreateDbContextAsync();
+            using var transaction = await context.Database.BeginTransactionAsync();
 
+            // Set all workflows back to SoftwareCompleted status
             foreach (var workflow in allWorkflows)
             {
                 workflow.Status = WorkflowStatus.SoftwareCompleted;
                 workflow.LastChange = DateTime.UtcNow;
             }
 
-            await DbContext.SaveChangesAsync();
+            await context.SaveChangesAsync();
             await transaction.CommitAsync();
 
             Snackbar.Add("Projekt erfolgreich zur Korrektur freigegeben!", Severity.Success);
@@ -643,74 +714,223 @@
         }
     }
 
-    /// <summary>
-    /// Load detailed hardware and software data
-    /// </summary>
-    private async Task LoadDetailedData()
+    // Forward all workflows to Installation
+    private async Task ForwardToInstallation()
     {
+        if (IsReadOnlyMode || !allWorkflows.Any())
+        {
+            Snackbar.Add("Keine Formulare zum Weiterleiten vorhanden!", Severity.Warning);
+            return;
+        }
+
+        if (!CanForwardToInstallation())
+        {
+            var completedCount = GetCompletedWorkflowsCount();
+            var totalCount = allWorkflows.Count;
+            Snackbar.Add($"Bitte alle Workflows als erledigt markieren! ({completedCount}/{totalCount} erledigt)", Severity.Warning);
+            return;
+        }
+
+        isForwarding = true;
+
         try
         {
-            var bdrWorkflowIds = allWorkflows
-                .Where(w => w.WorkflowType == WorkflowType.BDR)
-                .Select(w => w.Id)
-                .ToList();
+            using var context = await DbContextFactory.CreateDbContextAsync();
+            using var transaction = await context.Database.BeginTransactionAsync();
 
-            if (bdrWorkflowIds.Any())
+            // Update status to ForwardedToInstallation
+            foreach (var workflow in allWorkflows)
             {
-                var bdrHardwareWithFields = await DbContext.HardwareComputer
-                    .Include(h => h.HardwareFields.Where(f => f.IsActive))
-                    .Where(h => bdrWorkflowIds.Contains(h.WorkflowId))
-                    .ToListAsync();
-
-                foreach (var hardware in bdrHardwareWithFields)
-                {
-                    bdrHardwareCache[hardware.WorkflowId] = hardware;
-
-                    var fields = hardware.HardwareFields
-                        .OrderBy(f => f.DisplayOrder)
-                        .ThenBy(f => f.DisplayName)
-                        .ToList();
-
-                    bdrFieldsCache[hardware.WorkflowId] = fields;
-                }
+                workflow.Status = WorkflowStatus.ForwardedToInstallation;
+                workflow.LastChange = DateTime.UtcNow;
             }
 
-            var bvWorkflowIds = allWorkflows
-                .Where(w => w.WorkflowType == WorkflowType.BV)
-                .Select(w => w.Id)
-                .ToList();
+            await context.SaveChangesAsync();
+            await transaction.CommitAsync();
 
-            if (bvWorkflowIds.Any())
-            {
-                var bvHardwareList = await DbContext.BvHardwareComputer
-                    .Where(h => bvWorkflowIds.Contains(h.WorkflowId))
-                    .ToListAsync();
+            Snackbar.Add("Projekt erfolgreich an Installation weitergeleitet!", Severity.Success);
 
-                foreach (var hardware in bvHardwareList)
-                {
-                    bvHardwareCache[hardware.WorkflowId] = hardware;
-
-                    var components = await DbContext.BvHardwareComponent
-                        .Where(c => c.BvHardwareComputerId == hardware.Id && c.IsActive && c.IsSelected)
-                        .ToListAsync();
-
-                    bvComponentsCache[hardware.WorkflowId] = components;
-                }
-            }
-
-            LoadWorkflowComments();
-            LoadWorkflowCompletionStatus();
+            await Task.Delay(1000);
+            await LoadProjectDetails();
+            StateHasChanged();
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Fehler beim Laden der Hardware-Details: {ex.Message}", Severity.Warning);
-            Console.WriteLine($"LoadDetailedData Error: {ex}");
+            Snackbar.Add($"Fehler beim Weiterleiten: {ex.Message}", Severity.Error);
+            Console.WriteLine($"ForwardToInstallation Error: {ex}");
+        }
+        finally
+        {
+            isForwarding = false;
         }
     }
 
-    /// <summary>
-    /// Get formatted order details for display
-    /// </summary>
+    // ==================== COMMENT MANAGEMENT ====================
+
+    // Get workflow comment from memory
+    private string GetWorkflowComment(Guid workflowId)
+    {
+        return workflowComments.TryGetValue(workflowId, out var comment) ? comment : "";
+    }
+
+    // Load existing comments from workflow database field
+    private void LoadWorkflowComments()
+    {
+        try
+        {
+            foreach (var workflow in allWorkflows)
+            {
+                workflowComments[workflow.Id] = workflow.PurchaseComment ?? "";
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"LoadWorkflowComments Error: {ex.Message}");
+        }
+    }
+
+    // Load workflow completion status from database
+    private void LoadWorkflowCompletionStatus()
+    {
+        try
+        {
+            foreach (var workflow in allWorkflows)
+            {
+                workflowCompletionStatus[workflow.Id] = workflow.PurchaseCompleted;
+                workflowCompletionDates[workflow.Id] = workflow.PurchaseCompletedDate;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"LoadWorkflowCompletionStatus Error: {ex.Message}");
+        }
+    }
+
+    // Update workflow comment in memory (not saved yet)
+    private void UpdateWorkflowComment(Guid workflowId, string comment)
+    {
+        if (!IsReadOnlyMode)
+        {
+            workflowComments[workflowId] = comment ?? "";
+        }
+    }
+
+    // Get workflow completion status safely
+    private bool GetWorkflowCompletionStatus(Guid workflowId)
+    {
+        return workflowCompletionStatus.TryGetValue(workflowId, out var status) && status;
+    }
+
+    // Update workflow completion status in memory (not saved yet)
+    private void UpdateWorkflowCompletionStatus(Guid workflowId, bool value)
+    {
+        if (!IsReadOnlyMode)
+        {
+            workflowCompletionStatus[workflowId] = value;
+        }
+    }
+
+    // Check if specific workflow is currently being saved
+    private bool IsSavingWorkflow(Guid workflowId)
+    {
+        return savingWorkflows.Contains(workflowId);
+    }
+
+    // Get formatted completion date text
+    private string GetCompletionDateText(Guid workflowId)
+    {
+        if (workflowCompletionDates.TryGetValue(workflowId, out var date) && date.HasValue)
+        {
+            return date.Value.ToLocalTime().ToString("dd.MM.yyyy");
+        }
+        return "Heute";
+    }
+
+    // Get count of completed workflows
+    private int GetCompletedWorkflowsCount()
+    {
+        return workflowCompletionStatus.Count(kvp => kvp.Value);
+    }
+
+    // Save individual workflow comment and completion status to database
+    private async Task SaveWorkflowComment(Guid workflowId)
+    {
+        if (IsReadOnlyMode) return;
+
+        var workflow = allWorkflows.FirstOrDefault(w => w.Id == workflowId);
+        if (workflow == null)
+        {
+            Snackbar.Add("Workflow nicht gefunden!", Severity.Error);
+            return;
+        }
+
+        savingWorkflows.Add(workflowId);
+        try
+        {
+            using var context = await DbContextFactory.CreateDbContextAsync();
+            using var transaction = await context.Database.BeginTransactionAsync();
+
+            // Update purchase comment
+            workflow.PurchaseComment = workflowComments.TryGetValue(workflowId, out var comment)
+                ? comment?.Trim()
+                : null;
+
+            // Update description with encoded comment
+            var existingDescription = workflow.Description ?? "";
+
+            if (existingDescription.Contains("PURCHASE_COMMENT:"))
+            {
+                var startIndex = existingDescription.IndexOf("PURCHASE_COMMENT:");
+                var endIndex = existingDescription.IndexOf("ENDMEC:", startIndex);
+                if (endIndex > startIndex)
+                {
+                    existingDescription = existingDescription.Remove(startIndex, endIndex - startIndex + 7);
+                }
+                else
+                {
+                    existingDescription = existingDescription.Substring(0, startIndex);
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(workflow.PurchaseComment))
+            {
+                workflow.Description = existingDescription + $"PURCHASE_COMMENT:{workflow.PurchaseComment}ENDMEC:";
+            }
+            else
+            {
+                workflow.Description = existingDescription;
+            }
+
+            // Update completion status
+            var isCompleted = workflowCompletionStatus.TryGetValue(workflowId, out var completed) && completed;
+            workflow.PurchaseCompleted = isCompleted;
+            workflow.PurchaseCompletedDate = isCompleted ? DateTime.UtcNow : null;
+
+            workflowCompletionDates[workflowId] = workflow.PurchaseCompletedDate;
+
+            workflow.LastChange = DateTime.UtcNow;
+
+            await context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            var statusText = isCompleted ? " und als erledigt markiert" : "";
+            Snackbar.Add($"Kommentar für '{workflow.Name}' gespeichert{statusText}!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Fehler beim Speichern: {ex.Message}", Severity.Error);
+            Console.WriteLine($"SaveWorkflowComment Error: {ex.Message}");
+        }
+        finally
+        {
+            savingWorkflows.Remove(workflowId);
+            StateHasChanged();
+        }
+    }
+
+    // ==================== DATA PROCESSING ====================
+
+    // Get formatted order details for display
     private OrderDetails GetOrderDetailsForWorkflow(DbWorkflow workflow)
     {
         var orderData = new OrderDetails();
@@ -737,9 +957,7 @@
         return orderData;
     }
 
-    /// <summary>
-    /// Get contact person for BV workflow
-    /// </summary>
+    // Get contact person for BV workflow
     private string GetContactPersonForBvWorkflow(DbWorkflow workflow)
     {
         if (bvHardwareCache.TryGetValue(workflow.Id, out var bvHardware) && bvHardware != null)
@@ -749,9 +967,7 @@
         return "";
     }
 
-    /// <summary>
-    /// Process BDR hardware data for display
-    /// </summary>
+    // Process BDR hardware data for display
     private void ProcessBdrHardware(DbWorkflow workflow, OrderDetails orderData)
     {
         if (bdrHardwareCache.TryGetValue(workflow.Id, out var bdrHardware) && bdrHardware != null)
@@ -793,9 +1009,7 @@
         }
     }
 
-    /// <summary>
-    /// Process BV hardware data for display
-    /// </summary>
+    // Process BV hardware data for display
     private void ProcessBvHardware(DbWorkflow workflow, OrderDetails orderData)
     {
         if (bvHardwareCache.TryGetValue(workflow.Id, out var bvHardware) && bvHardware != null)
@@ -854,9 +1068,7 @@
         }
     }
 
-    /// <summary>
-    /// Process software data from workflow description
-    /// </summary>
+    // Process software data from encoded workflow description
     private void ProcessWorkflowSoftware(DbWorkflow workflow, OrderDetails orderData)
     {
         var description = workflow.Description ?? "";
@@ -889,9 +1101,8 @@
         }
     }
 
-    /// <summary>
-    /// Parse software data from encoded string
-    /// </summary>
+    // Parse encoded software data string into list
+
     private List<string> ParseSoftwareData(string softwareData, bool isBdr)
     {
         var items = new List<string>();
@@ -930,240 +1141,11 @@
         return items;
     }
 
-    /// <summary>
-    /// Forward project to installation
-    /// </summary>
-    private async Task ForwardToInstallation()
-    {
-        if (IsReadOnlyMode || !allWorkflows.Any())
-        {
-            Snackbar.Add("Keine Formulare zum Weiterleiten vorhanden!", Severity.Warning);
-            return;
-        }
+    // ==================== NAVIGATION ====================
 
-        if (!CanForwardToInstallation())
-        {
-            var completedCount = GetCompletedWorkflowsCount();
-            var totalCount = allWorkflows.Count;
-            Snackbar.Add($"Bitte alle Workflows als erledigt markieren! ({completedCount}/{totalCount} erledigt)", Severity.Warning);
-            return;
-        }
-
-        isForwarding = true;
-
-        try
-        {
-            using var transaction = await DbContext.Database.BeginTransactionAsync();
-
-            foreach (var workflow in allWorkflows)
-            {
-                workflow.Status = WorkflowStatus.ForwardedToInstallation;
-                workflow.LastChange = DateTime.UtcNow;
-            }
-
-            await DbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            Snackbar.Add("Projekt erfolgreich an Installation weitergeleitet!", Severity.Success);
-
-            // Reload to show read-only view
-            await Task.Delay(1000);
-            await LoadProjectDetails();
-            StateHasChanged();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Fehler beim Weiterleiten: {ex.Message}", Severity.Error);
-            Console.WriteLine($"ForwardToInstallation Error: {ex}");
-        }
-        finally
-        {
-            isForwarding = false;
-        }
-    }
-
-    /// <summary>
-    /// Navigate back to project overview page
-    /// </summary>
+    // Navigate back to project overview page
     private void NavigateBack()
     {
         Navigation.NavigateTo($"/project/{ProjectId}", forceLoad: true);
-    }
-
-    /// <summary>
-    /// Get workflow comment from memory
-    /// </summary>
-    private string GetWorkflowComment(Guid workflowId)
-    {
-        return workflowComments.TryGetValue(workflowId, out var comment) ? comment : "";
-    }
-
-    /// <summary>
-    /// Load existing comments from workflow
-    /// </summary>
-    private void LoadWorkflowComments()
-    {
-        try
-        {
-            foreach (var workflow in allWorkflows)
-            {
-                workflowComments[workflow.Id] = workflow.PurchaseComment ?? "";
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"LoadWorkflowComments Error: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Load workflow completion status
-    /// </summary>
-    private void LoadWorkflowCompletionStatus()
-    {
-        try
-        {
-            foreach (var workflow in allWorkflows)
-            {
-                workflowCompletionStatus[workflow.Id] = workflow.PurchaseCompleted;
-                workflowCompletionDates[workflow.Id] = workflow.PurchaseCompletedDate;
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"LoadWorkflowCompletionStatus Error: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Update workflow comment in memory
-    /// </summary>
-    private void UpdateWorkflowComment(Guid workflowId, string comment)
-    {
-        if (!IsReadOnlyMode)
-        {
-            workflowComments[workflowId] = comment ?? "";
-        }
-    }
-
-    /// <summary>
-    /// Get workflow completion status safely
-    /// </summary>
-    private bool GetWorkflowCompletionStatus(Guid workflowId)
-    {
-        return workflowCompletionStatus.TryGetValue(workflowId, out var status) && status;
-    }
-
-    /// <summary>
-    /// Update workflow completion status
-    /// </summary>
-    private void UpdateWorkflowCompletionStatus(Guid workflowId, bool value)
-    {
-        if (!IsReadOnlyMode)
-        {
-            workflowCompletionStatus[workflowId] = value;
-        }
-    }
-
-    /// <summary>
-    /// Check if a specific workflow is currently being saved
-    /// </summary>
-    private bool IsSavingWorkflow(Guid workflowId)
-    {
-        return savingWorkflows.Contains(workflowId);
-    }
-
-    /// <summary>
-    /// Get completion date text for display
-    /// </summary>
-    private string GetCompletionDateText(Guid workflowId)
-    {
-        if (workflowCompletionDates.TryGetValue(workflowId, out var date) && date.HasValue)
-        {
-            return date.Value.ToLocalTime().ToString("dd.MM.yyyy");
-        }
-        return "Heute";
-    }
-
-    /// <summary>
-    /// Get count of completed workflows
-    /// </summary>
-    private int GetCompletedWorkflowsCount()
-    {
-        return workflowCompletionStatus.Count(kvp => kvp.Value);
-    }
-
-    /// <summary>
-    /// Save individual workflow comment and completion status
-    /// </summary>
-    private async Task SaveWorkflowComment(Guid workflowId)
-    {
-        if (IsReadOnlyMode) return;
-
-        var workflow = allWorkflows.FirstOrDefault(w => w.Id == workflowId);
-        if (workflow == null)
-        {
-            Snackbar.Add("Workflow nicht gefunden!", Severity.Error);
-            return;
-        }
-
-        savingWorkflows.Add(workflowId);
-        try
-        {
-            using var transaction = await DbContext.Database.BeginTransactionAsync();
-
-            workflow.PurchaseComment = workflowComments.TryGetValue(workflowId, out var comment)
-                ? comment?.Trim()
-                : null;
-
-            var existingDescription = workflow.Description ?? "";
-
-            if (existingDescription.Contains("PURCHASE_COMMENT:"))
-            {
-                var startIndex = existingDescription.IndexOf("PURCHASE_COMMENT:");
-                var endIndex = existingDescription.IndexOf("ENDMEC:", startIndex);
-                if (endIndex > startIndex)
-                {
-                    existingDescription = existingDescription.Remove(startIndex, endIndex - startIndex + 7);
-                }
-                else
-                {
-                    existingDescription = existingDescription.Substring(0, startIndex);
-                }
-            }
-
-            if (!string.IsNullOrWhiteSpace(workflow.PurchaseComment))
-            {
-                workflow.Description = existingDescription + $"PURCHASE_COMMENT:{workflow.PurchaseComment}ENDMEC:";
-            }
-            else
-            {
-                workflow.Description = existingDescription;
-            }
-
-            var isCompleted = workflowCompletionStatus.TryGetValue(workflowId, out var completed) && completed;
-            workflow.PurchaseCompleted = isCompleted;
-            workflow.PurchaseCompletedDate = isCompleted ? DateTime.UtcNow : null;
-
-            workflowCompletionDates[workflowId] = workflow.PurchaseCompletedDate;
-
-            workflow.LastChange = DateTime.UtcNow;
-
-            await DbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            var statusText = isCompleted ? " und als erledigt markiert" : "";
-            Snackbar.Add($"Kommentar für '{workflow.Name}' gespeichert{statusText}!", Severity.Success);
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Fehler beim Speichern: {ex.Message}", Severity.Error);
-            Console.WriteLine($"SaveWorkflowComment Error: {ex.Message}");
-        }
-        finally
-        {
-            savingWorkflows.Remove(workflowId);
-            StateHasChanged();
-        }
     }
 }

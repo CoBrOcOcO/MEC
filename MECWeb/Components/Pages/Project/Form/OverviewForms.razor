@@ -323,6 +323,13 @@
 @code {
     [Parameter] public Guid ProjectId { get; set; }
 
+    // ==================== DATA STRUCTURES ====================
+
+    // No additional data structures needed (uses OrderDetails from component)
+
+    // ==================== COMPONENT STATE ====================
+
+    // Project and workflow data
     private List<DbWorkflow> workflows = new();
     private DbProject? currentProject;
     private bool loading = false;
@@ -330,27 +337,31 @@
     private ProjectStatusOverview? statusOverview;
     private Dictionary<Guid, string> hardwareTypeCache = new();
 
-    // Data caches for detailed view (same as Purchase page)
+    // Data caches for detailed view (same structure as Purchase/Installation)
     private Dictionary<Guid, DbHardwareComputer?> bdrHardwareCache = new();
     private Dictionary<Guid, List<DbHardwareField>> bdrFieldsCache = new();
     private Dictionary<Guid, DbBvHardwareComputer?> bvHardwareCache = new();
     private Dictionary<Guid, List<DbBvHardwareComponent>> bvComponentsCache = new();
 
+    // ==================== LIFECYCLE METHODS ====================
+
+    // Component initialization
     protected override async Task OnInitializedAsync()
     {
         await LoadCurrentProject();
         await LoadWorkflows();
     }
 
+    // Called when parameters change
     protected override async Task OnParametersSetAsync()
     {
         await LoadCurrentProject();
         await LoadWorkflows();
     }
 
-    /// <summary>
-    /// Load the current project information
-    /// </summary>
+    // ==================== DATA LOADING ====================
+
+    // Load current project information
     private async Task LoadCurrentProject()
     {
         try
@@ -367,9 +378,7 @@
         }
     }
 
-    /// <summary>
-    /// Load all workflows for the current project
-    /// </summary>
+    // Load all workflows for current project
     private async Task LoadWorkflows()
     {
         loading = true;
@@ -386,12 +395,13 @@
 
             await LoadHardwareTypes();
 
-            // Load detailed data if workflows are forwarded/completed
+            // Load detailed data if workflows are forwarded/completed (detail view)
             if (AllWorkflowsForwardedOrCompleted())
             {
                 await LoadDetailedData(context);
             }
 
+            // Refresh status overview component
             if (statusOverview != null)
             {
                 await statusOverview.RefreshAsync();
@@ -410,9 +420,7 @@
         }
     }
 
-    /// <summary>
-    /// Load and cache hardware types for performance optimization
-    /// </summary>
+    // Load and cache hardware types for performance optimization
     private async Task LoadHardwareTypes()
     {
         hardwareTypeCache.Clear();
@@ -421,6 +429,7 @@
         {
             using var context = await DbContextFactory.CreateDbContextAsync();
 
+            // Load BDR hardware specs
             var bdrHardware = await context.HardwareComputer
                 .AsNoTracking()
                 .Where(h => workflows.Select(w => w.Id).Contains(h.WorkflowId))
@@ -432,6 +441,7 @@
                 hardwareTypeCache[hardware.WorkflowId] = hardware.HardwareSpecs ?? "BDR";
             }
 
+            // Load BV hardware specs
             var bvHardware = await context.BvHardwareComputer
                 .AsNoTracking()
                 .Where(h => workflows.Select(w => w.Id).Contains(h.WorkflowId))
@@ -449,24 +459,12 @@
         }
     }
 
-    /// <summary>
-    /// Check if all workflows are forwarded/completed (show detail view)
-    /// </summary>
-    private bool AllWorkflowsForwardedOrCompleted()
-    {
-        return workflows.Any() &&
-               workflows.All(w => w.Status == WorkflowStatus.Completed ||
-                                  w.Status == WorkflowStatus.ForwardedToInstallation ||
-                                  w.Status == WorkflowStatus.Archived);
-    }
-
-    /// <summary>
-    /// Load detailed hardware and software data for detail view (same as Purchase page)
-    /// </summary>
+    // Load detailed hardware and software data for detail view
     private async Task LoadDetailedData(ApplicationDbContext context)
     {
         try
         {
+            // Load BDR hardware with fields
             var bdrWorkflowIds = workflows
                 .Where(w => w.WorkflowType == WorkflowType.BDR)
                 .Select(w => w.Id)
@@ -493,6 +491,7 @@
                 }
             }
 
+            // Load BV hardware with components
             var bvWorkflowIds = workflows
                 .Where(w => w.WorkflowType == WorkflowType.BV)
                 .Select(w => w.Id)
@@ -524,9 +523,205 @@
         }
     }
 
-    /// <summary>
-    /// Get order details for a workflow (for detail view) - Same logic as Purchase page
-    /// </summary>
+    // ==================== VIEW MODE DETECTION ====================
+
+    // Check if all workflows are forwarded/completed (show detail view instead of edit table)
+    private bool AllWorkflowsForwardedOrCompleted()
+    {
+        return workflows.Any() &&
+               workflows.All(w => w.Status == WorkflowStatus.Completed ||
+                                  w.Status == WorkflowStatus.ForwardedToInstallation ||
+                                  w.Status == WorkflowStatus.Archived);
+    }
+
+    // ==================== WORKFLOW CRUD OPERATIONS ====================
+
+    // Create new workflow (BDR or BV)
+    private async Task CreateWorkflow(WorkflowType workflowType)
+    {
+        try
+        {
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
+            // Get next workflow number
+            var existingCount = await context.Workflow
+                .Where(w => w.ProjectId == ProjectId && w.WorkflowType == workflowType)
+                .CountAsync();
+
+            var workflowNumber = existingCount + 1;
+
+            // Create new workflow
+            var newWorkflow = new DbWorkflow
+            {
+                Id = Guid.NewGuid(),
+                ProjectId = ProjectId,
+                Name = $"{workflowType} {workflowNumber}",
+                WorkflowType = workflowType,
+                Status = WorkflowStatus.Created,
+                CreationDate = DateTime.UtcNow,
+                LastChange = DateTime.UtcNow
+            };
+
+            context.Workflow.Add(newWorkflow);
+            await context.SaveChangesAsync();
+
+            await LoadWorkflows();
+
+            Snackbar.Add($"{workflowType} Workflow erfolgreich erstellt!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error creating workflow: {ex.Message}");
+            Snackbar.Add($"Fehler beim Erstellen des Workflows: {ex.Message}", Severity.Error);
+        }
+    }
+
+    // Delete workflow and associated hardware data
+    private async Task DeleteWorkflow(Guid workflowId)
+    {
+        try
+        {
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
+            var workflow = await context.Workflow.FindAsync(workflowId);
+            if (workflow == null) return;
+
+            // Delete associated hardware data
+            if (workflow.WorkflowType == WorkflowType.BDR)
+            {
+                var bdrHardware = await context.HardwareComputer
+                    .Where(h => h.WorkflowId == workflowId)
+                    .ToListAsync();
+                context.HardwareComputer.RemoveRange(bdrHardware);
+            }
+            else
+            {
+                var bvHardware = await context.BvHardwareComputer
+                    .Where(h => h.WorkflowId == workflowId)
+                    .ToListAsync();
+                context.BvHardwareComputer.RemoveRange(bvHardware);
+            }
+
+            context.Workflow.Remove(workflow);
+            await context.SaveChangesAsync();
+
+            await LoadWorkflows();
+
+            Snackbar.Add($"Workflow {workflow.Name} erfolgreich gelöscht!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Fehler beim Löschen des Workflows: {ex.Message}", Severity.Error);
+            Console.WriteLine($"Error deleting workflow: {ex.Message}");
+        }
+    }
+
+    // ==================== WORKFLOW FORWARDING ====================
+
+    // Check if all workflows are ready for forwarding to purchase
+    private bool CanForwardToPurchasing()
+    {
+        if (!workflows.Any()) return false;
+
+        bool allCompleted = workflows.All(w => w.Status == WorkflowStatus.SoftwareCompleted);
+        bool noneForwarded = workflows.All(w => w.Status != WorkflowStatus.Completed &&
+                                                 w.Status != WorkflowStatus.ForwardedToInstallation);
+
+        return allCompleted && noneForwarded;
+    }
+
+    // Forward all completed workflows to purchase department
+    private async Task ForwardToPurchasing()
+    {
+        if (!CanForwardToPurchasing())
+        {
+            var completedCount = GetCompletedWorkflowsCount();
+            var totalCount = workflows.Count;
+            Snackbar.Add($"Nicht alle Workflows sind abgeschlossen! ({completedCount}/{totalCount} fertig)", Severity.Warning);
+            return;
+        }
+
+        isForwarding = true;
+        StateHasChanged();
+        try
+        {
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
+            var workflowIds = workflows.Select(w => w.Id).ToList();
+            var workflowsToUpdate = await context.Workflow
+                .Where(w => workflowIds.Contains(w.Id))
+                .ToListAsync();
+
+            // Update status to Completed (at purchase)
+            foreach (var workflow in workflowsToUpdate)
+            {
+                workflow.Status = WorkflowStatus.Completed;
+                workflow.LastChange = DateTime.UtcNow;
+            }
+
+            await context.SaveChangesAsync();
+
+            Snackbar.Add("Alle Formulare erfolgreich an Einkauf weitergeleitet!", Severity.Success);
+
+            await Task.Delay(1500);
+
+            // Reload to show detail view
+            await LoadWorkflows();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Fehler beim Weiterleiten: {ex.Message}", Severity.Error);
+            Console.WriteLine($"ForwardToPurchasing Error: {ex.Message}");
+        }
+        finally
+        {
+            isForwarding = false;
+        }
+    }
+
+    // ==================== NAVIGATION ====================
+
+    // Navigate to hardware form (BDR or BV)
+    private void GoToHardwareForm(Guid workflowId)
+    {
+        var workflow = workflows.FirstOrDefault(w => w.Id == workflowId);
+        if (workflow == null) return;
+
+        if (workflow.WorkflowType == WorkflowType.BDR)
+        {
+            Navigation.NavigateTo($"/workflow/{workflowId}/hardware");
+        }
+        else
+        {
+            Navigation.NavigateTo($"/workflow/{workflowId}/bv-hardware");
+        }
+    }
+
+    // Navigate to software form (BDR or BV)
+    private void GoToSoftwareForm(Guid workflowId)
+    {
+        var workflow = workflows.FirstOrDefault(w => w.Id == workflowId);
+        if (workflow == null) return;
+
+        if (workflow.WorkflowType == WorkflowType.BDR)
+        {
+            Navigation.NavigateTo($"/workflow/{workflowId}/bdr-software");
+        }
+        else
+        {
+            Navigation.NavigateTo($"/workflow/{workflowId}/bv-software");
+        }
+    }
+
+    // Navigate back to project overview
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo($"/project/{ProjectId}", forceLoad: true);
+    }
+
+    // ==================== DATA PROCESSING (DETAIL VIEW) ====================
+
+    // Get formatted order details for display (same logic as Purchase/Installation)
     private (string MainHardware, List<string> HardwareDetails, List<string> AdditionalHardware, List<string> Software, string Notes, string ContactPerson, string HardwareRemarks, string SoftwareRemarks) GetOrderDetailsForWorkflow(DbWorkflow workflow)
     {
         var mainHardware = "";
@@ -560,9 +755,7 @@
         return (mainHardware, hardwareDetails, additionalHardware, software, notes, contactPerson, hardwareRemarks, softwareRemarks);
     }
 
-    /// <summary>
-    /// Process BDR hardware data for display (same as Purchase page)
-    /// </summary>
+    // Process BDR hardware data for display
     private void ProcessBdrHardware(DbWorkflow workflow, ref string mainHardware, ref List<string> hardwareDetails, ref List<string> additionalHardware, ref string hardwareRemarks)
     {
         if (bdrHardwareCache.TryGetValue(workflow.Id, out var bdrHardware) && bdrHardware != null)
@@ -604,9 +797,7 @@
         }
     }
 
-    /// <summary>
-    /// Process BV hardware data for display (same as Purchase page)
-    /// </summary>
+    // Process BV hardware data for display
     private void ProcessBvHardware(DbWorkflow workflow, ref string mainHardware, ref List<string> hardwareDetails, ref List<string> additionalHardware, ref string hardwareRemarks, ref string contactPerson)
     {
         if (bvHardwareCache.TryGetValue(workflow.Id, out var bvHardware) && bvHardware != null)
@@ -616,7 +807,7 @@
                 mainHardware = bvHardware.PcType;
             }
 
-            // ContactPerson auslesen!
+            // Extract contact person
             if (!string.IsNullOrEmpty(bvHardware.ContactPerson))
             {
                 contactPerson = bvHardware.ContactPerson;
@@ -670,9 +861,8 @@
             }
         }
     }
-    /// <summary>
-    /// Process software data from workflow description (same as Purchase page)
-    /// </summary>
+
+    // Process software data from encoded workflow description
     private void ProcessWorkflowSoftware(DbWorkflow workflow, ref List<string> software, ref string softwareRemarks)
     {
         var description = workflow.Description ?? "";
@@ -705,9 +895,7 @@
         }
     }
 
-    /// <summary>
-    /// Parse software data from encoded string (same as Purchase page)
-    /// </summary>
+    // Parse encoded software data string into list
     private List<string> ParseSoftwareData(string softwareData, bool isBdr)
     {
         var items = new List<string>();
@@ -746,206 +934,21 @@
         return items;
     }
 
-    /// <summary>
-    /// Create a new workflow for the current project
-    /// </summary>
-    private async Task CreateWorkflow(WorkflowType workflowType)
-    {
-        try
-        {
-            using var context = await DbContextFactory.CreateDbContextAsync();
+    // ==================== HELPER METHODS ====================
 
-            var existingCount = await context.Workflow
-                .Where(w => w.ProjectId == ProjectId && w.WorkflowType == workflowType)
-                .CountAsync();
-
-            var workflowNumber = existingCount + 1;
-
-            var newWorkflow = new DbWorkflow
-            {
-                Id = Guid.NewGuid(),
-                ProjectId = ProjectId,
-                Name = $"{workflowType} {workflowNumber}",
-                WorkflowType = workflowType,
-                Status = WorkflowStatus.Created,
-                CreationDate = DateTime.UtcNow,
-                LastChange = DateTime.UtcNow
-            };
-
-            context.Workflow.Add(newWorkflow);
-            await context.SaveChangesAsync();
-
-            await LoadWorkflows();
-
-            Snackbar.Add($"{workflowType} Workflow erfolgreich erstellt!", Severity.Success);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error creating workflow: {ex.Message}");
-            Snackbar.Add($"Fehler beim Erstellen des Workflows: {ex.Message}", Severity.Error);
-        }
-    }
-
-    /// <summary>
-    /// Delete a workflow and its associated data
-    /// </summary>
-    private async Task DeleteWorkflow(Guid workflowId)
-    {
-        try
-        {
-            using var context = await DbContextFactory.CreateDbContextAsync();
-
-            var workflow = await context.Workflow.FindAsync(workflowId);
-            if (workflow == null) return;
-
-            if (workflow.WorkflowType == WorkflowType.BDR)
-            {
-                var bdrHardware = await context.HardwareComputer
-                    .Where(h => h.WorkflowId == workflowId)
-                    .ToListAsync();
-                context.HardwareComputer.RemoveRange(bdrHardware);
-            }
-            else
-            {
-                var bvHardware = await context.BvHardwareComputer
-                    .Where(h => h.WorkflowId == workflowId)
-                    .ToListAsync();
-                context.BvHardwareComputer.RemoveRange(bvHardware);
-            }
-
-            context.Workflow.Remove(workflow);
-            await context.SaveChangesAsync();
-
-            await LoadWorkflows();
-
-            Snackbar.Add($"Workflow {workflow.Name} erfolgreich gelöscht!", Severity.Success);
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Fehler beim Löschen des Workflows: {ex.Message}", Severity.Error);
-            Console.WriteLine($"Error deleting workflow: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Navigate to the hardware form for a workflow
-    /// </summary>
-    private void GoToHardwareForm(Guid workflowId)
-    {
-        var workflow = workflows.FirstOrDefault(w => w.Id == workflowId);
-        if (workflow == null) return;
-
-        if (workflow.WorkflowType == WorkflowType.BDR)
-        {
-            Navigation.NavigateTo($"/workflow/{workflowId}/hardware");
-        }
-        else
-        {
-            Navigation.NavigateTo($"/workflow/{workflowId}/bv-hardware");
-        }
-    }
-
-    /// <summary>
-    /// Navigate to the software form for a workflow
-    /// </summary>
-    private void GoToSoftwareForm(Guid workflowId)
-    {
-        var workflow = workflows.FirstOrDefault(w => w.Id == workflowId);
-        if (workflow == null) return;
-
-        if (workflow.WorkflowType == WorkflowType.BDR)
-        {
-            Navigation.NavigateTo($"/workflow/{workflowId}/bdr-software");
-        }
-        else
-        {
-            Navigation.NavigateTo($"/workflow/{workflowId}/bv-software");
-        }
-    }
-
-    /// <summary>
-    /// Navigate back to project overview page
-    /// </summary>
-    private void NavigateBack()
-    {
-        Navigation.NavigateTo($"/project/{ProjectId}", forceLoad: true);
-    }
-
-    /// <summary>
-    /// Check if all workflows are completed and ready for purchasing
-    /// </summary>
-    private bool CanForwardToPurchasing()
-    {
-        if (!workflows.Any()) return false;
-
-        bool allCompleted = workflows.All(w => w.Status == WorkflowStatus.SoftwareCompleted);
-        bool noneForwarded = workflows.All(w => w.Status != WorkflowStatus.Completed &&
-                                                 w.Status != WorkflowStatus.ForwardedToInstallation);
-
-        return allCompleted && noneForwarded;
-    }
-
-    /// <summary>
-    /// Forward all completed workflows to purchasing
-    /// </summary>
-    private async Task ForwardToPurchasing()
-    {
-        if (!CanForwardToPurchasing())
-        {
-            var completedCount = GetCompletedWorkflowsCount();
-            var totalCount = workflows.Count;
-            Snackbar.Add($"Nicht alle Workflows sind abgeschlossen! ({completedCount}/{totalCount} fertig)", Severity.Warning);
-            return;
-        }
-
-        isForwarding = true;
-        StateHasChanged();
-        try
-        {
-            using var context = await DbContextFactory.CreateDbContextAsync();
-
-            var workflowIds = workflows.Select(w => w.Id).ToList();
-            var workflowsToUpdate = await context.Workflow
-                .Where(w => workflowIds.Contains(w.Id))
-                .ToListAsync();
-
-            foreach (var workflow in workflowsToUpdate)
-            {
-                workflow.Status = WorkflowStatus.Completed;
-                workflow.LastChange = DateTime.UtcNow;
-            }
-
-            await context.SaveChangesAsync();
-
-            Snackbar.Add("Alle Formulare erfolgreich an Einkauf weitergeleitet!", Severity.Success);
-
-            await Task.Delay(1500);
-
-            // Reload to show detail view
-            await LoadWorkflows();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Fehler beim Weiterleiten: {ex.Message}", Severity.Error);
-            Console.WriteLine($"ForwardToPurchasing Error: {ex.Message}");
-        }
-        finally
-        {
-            isForwarding = false;
-        }
-    }
-
-    // Helper Methods
+    // Check if workflow has hardware data
     private bool HasHardwareData(DbWorkflow workflow)
     {
         return workflow.Status > WorkflowStatus.Created;
     }
 
+    // Check if workflow has software data
     private bool HasSoftwareData(DbWorkflow workflow)
     {
         return workflow.Status == WorkflowStatus.SoftwareCompleted;
     }
 
+    // Get count of completed workflows
     private int GetCompletedWorkflowsCount()
     {
         return workflows.Count(w => w.Status == WorkflowStatus.SoftwareCompleted ||
@@ -954,6 +957,7 @@
                                     w.Status == WorkflowStatus.Archived);
     }
 
+    // Get color for workflow status chip
     private Color GetStatusColor(DbWorkflow workflow) => workflow.Status switch
     {
         WorkflowStatus.Created => Color.Default,
@@ -966,6 +970,7 @@
         _ => Color.Default
     };
 
+    // Get hardware type text from cache
     private string GetHardwareTypeText(DbWorkflow workflow)
     {
         if (hardwareTypeCache.TryGetValue(workflow.Id, out var hardwareType))
@@ -976,6 +981,7 @@
         return workflow.WorkflowType.ToString();
     }
 
+    // Get status text for workflow display
     private string GetStatusText(DbWorkflow workflow) => workflow.Status switch
     {
         WorkflowStatus.Created => "Neu",
