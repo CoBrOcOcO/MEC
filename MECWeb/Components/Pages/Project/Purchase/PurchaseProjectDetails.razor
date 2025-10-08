@@ -440,7 +440,7 @@
         // Only start timer if not in read-only mode
         if (!IsReadOnlyMode)
         {
-            autoRefreshTimer = new System.Timers.Timer(3000); // Check every 3 seconds
+            autoRefreshTimer = new System.Timers.Timer(1000); 
             autoRefreshTimer.Elapsed += async (sender, e) => await CheckForNewWorkflows();
             autoRefreshTimer.AutoReset = true;
             autoRefreshTimer.Start();
