@@ -662,14 +662,12 @@
                 <div style='margin-bottom: 16px;'>
                     Möchten Sie das Projekt zur Korrektur freigeben?
                 </div>
-
                 <div style='margin-bottom: 8px; font-weight: 600; color: #1976d2;'>
                     Projekt:
                 </div>
                 <div style='margin-bottom: 16px; font-weight: 500;'>
                     {currentProject?.ProjectNumber} - {currentProject?.Name}
                 </div>
-
                 <div style='color: #ff9800; font-weight: 500; display: flex; align-items: center; gap: 8px;'>
                     <span style='font-size: 18px;'>📝</span>
                     <span>Die Abteilungen können das Projekt wieder bearbeiten.</span>
@@ -688,8 +686,13 @@
             using var context = await DbContextFactory.CreateDbContextAsync();
             using var transaction = await context.Database.BeginTransactionAsync();
 
-            // Set all workflows back to SoftwareCompleted status
-            foreach (var workflow in allWorkflows)
+            
+            var workflowIds = allWorkflows.Select(w => w.Id).ToList();
+            var workflowsToUpdate = await context.Workflow
+                .Where(w => workflowIds.Contains(w.Id))
+                .ToListAsync();
+
+            foreach (var workflow in workflowsToUpdate)
             {
                 workflow.Status = WorkflowStatus.SoftwareCompleted;
                 workflow.LastChange = DateTime.UtcNow;
@@ -738,8 +741,13 @@
             using var context = await DbContextFactory.CreateDbContextAsync();
             using var transaction = await context.Database.BeginTransactionAsync();
 
-            // Update status to ForwardedToInstallation
-            foreach (var workflow in allWorkflows)
+            
+            var workflowIds = allWorkflows.Select(w => w.Id).ToList();
+            var workflowsToUpdate = await context.Workflow
+                .Where(w => workflowIds.Contains(w.Id))
+                .ToListAsync();
+
+            foreach (var workflow in workflowsToUpdate)
             {
                 workflow.Status = WorkflowStatus.ForwardedToInstallation;
                 workflow.LastChange = DateTime.UtcNow;
@@ -764,7 +772,6 @@
             isForwarding = false;
         }
     }
-
     // ==================== COMMENT MANAGEMENT ====================
 
     // Get workflow comment from memory
@@ -857,8 +864,8 @@
     {
         if (IsReadOnlyMode) return;
 
-        var workflow = allWorkflows.FirstOrDefault(w => w.Id == workflowId);
-        if (workflow == null)
+        var workflowInMemory = allWorkflows.FirstOrDefault(w => w.Id == workflowId);
+        if (workflowInMemory == null)
         {
             Snackbar.Add("Workflow nicht gefunden!", Severity.Error);
             return;
@@ -869,6 +876,13 @@
         {
             using var context = await DbContextFactory.CreateDbContextAsync();
             using var transaction = await context.Database.BeginTransactionAsync();
+
+            // KORREKTUR: Workflow im neuen Context laden
+            var workflow = await context.Workflow.FindAsync(workflowId);
+            if (workflow == null)
+            {
+                throw new Exception("Workflow konnte nicht gefunden werden");
+            }
 
             // Update purchase comment
             workflow.PurchaseComment = workflowComments.TryGetValue(workflowId, out var comment)
@@ -914,7 +928,7 @@
             await transaction.CommitAsync();
 
             var statusText = isCompleted ? " und als erledigt markiert" : "";
-            Snackbar.Add($"Kommentar für '{workflow.Name}' gespeichert{statusText}!", Severity.Success);
+            Snackbar.Add($"Kommentar für '{workflowInMemory.Name}' gespeichert{statusText}!", Severity.Success);
         }
         catch (Exception ex)
         {
