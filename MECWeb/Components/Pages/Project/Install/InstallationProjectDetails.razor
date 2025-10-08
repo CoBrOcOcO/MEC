@@ -8,11 +8,11 @@
 @inject IDialogService DialogService
 @inject InstallationPdfService PdfService
 @inject IJSRuntime JSRuntime
-@layout MainLayout
+@layout ProjectMainLayout
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6">
     <MudStack Spacing="4">
-
+        <MudText Typo="Typo.h4" Color="Color.Secondary" Align="Align.Center"> Installation</MudText>
         <!-- Project Header -->
         @if (currentProject != null)
         {
@@ -92,7 +92,7 @@
         @if (!loading && forwardedWorkflows.Any() && forwardedWorkflows.All(w => w.Status == WorkflowStatus.Completed))
         {
             <!-- Projekt ist beim Einkauf - zeige Hinweismeldung -->
-            <MudAlert Severity="Severity.Info" Class="mt-4">
+            <MudAlert Severity="Severity.Warning" Class="mt-4">
                 <MudText Typo="Typo.body1">
                     <strong>Dieses Projekt wurde zur Korrektur an den Einkauf zurückgeleitet.</strong>
                 </MudText>
@@ -103,7 +103,7 @@
         }
         else if (!loading && !forwardedWorkflows.Any())
         {
-            <MudAlert Severity="Severity.Info">
+            <MudAlert Severity="Severity.Warning">
                 <MudText>Keine Formulare zur Installation für dieses Projekt gefunden.</MudText>
             </MudAlert>
         }
@@ -154,8 +154,10 @@
                             <WorkflowDetailsCard WorkflowName="@workflow.Name"
                                                  WorkflowType="BDR - Bedienungsrechner"
                                                  WorkflowIcon="@Icons.Material.Filled.Computer"
+                                                 StatusText="@GetStatusText(workflow)"
                                                  MainHardware="@orderDetails.MainHardware"
                                                  HardwareItems="@orderDetails.HardwareDetails"
+                                                 AdditionalHardwareItems="@orderDetails.AdditionalHardware"
                                                  SoftwareItems="@orderDetails.Software"
                                                  Notes="@orderDetails.Notes"
                                                  HardwareRemarks="@orderDetails.HardwareRemarks"
@@ -346,16 +348,17 @@
                             <WorkflowDetailsCard WorkflowName="@workflow.Name"
                                                  WorkflowType="BV - Bildverarbeitungsrechner"
                                                  WorkflowIcon="@Icons.Material.Filled.CameraAlt"
+                                                 StatusText="@GetStatusText(workflow)"
                                                  MainHardware="@orderDetails.MainHardware"
                                                  HardwareItems="@orderDetails.HardwareDetails"
+                                                 AdditionalHardwareItems="@orderDetails.AdditionalHardware"
                                                  SoftwareItems="@orderDetails.Software"
+                                                 ContactPerson="@orderDetails.ContactPerson"
                                                  Notes="@orderDetails.Notes"
-                                                 ContactPerson="@contactPerson"
                                                  HardwareRemarks="@orderDetails.HardwareRemarks"
                                                  SoftwareRemarks="@orderDetails.SoftwareRemarks"
                                                  ShowComments="false">
                             </WorkflowDetailsCard>
-
                             <!-- Network Configuration Integration -->
                             <MudPaper Elevation="1" Class="pa-4 mt-3" Style="background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%); border-left: 4px solid #4caf50; border-radius: 8px;">
                                 <MudStack Spacing="3">
@@ -556,6 +559,7 @@
         public List<string> PcDetails { get; set; } = new();
         public List<string> Software { get; set; } = new();
         public string Notes { get; set; } = string.Empty;
+        public string ContactPerson { get; set; } = string.Empty;  // NEU!
         public string HardwareRemarks { get; set; } = string.Empty;
         public string SoftwareRemarks { get; set; } = string.Empty;
     }
@@ -1022,7 +1026,7 @@
             Snackbar.Add("Projekt erfolgreich zur Korrektur freigegeben!", Severity.Success);
 
             await Task.Delay(1500);
-            Navigation.NavigateTo($"/project/{ProjectId}", forceLoad: true);
+            Navigation.NavigateTo($"/project/{ProjectId}");
         }
         catch (Exception ex)
         {
@@ -1105,7 +1109,7 @@
     /// </summary>
     private void NavigateBack()
     {
-        Navigation.NavigateTo($"/project/{ProjectId}");
+        Navigation.NavigateTo($"/project/{ProjectId}", forceLoad: true);
     }
 
     // PDF Export Methods
@@ -1307,7 +1311,10 @@
             {
                 orderData.MainHardware = bvHardware.PcType;
             }
-
+            if (!string.IsNullOrEmpty(bvHardware.ContactPerson))
+            {
+                orderData.ContactPerson = bvHardware.ContactPerson;
+            }
             if (!string.IsNullOrEmpty(bvHardware.PcTypeDetails))
             {
                 var parts = bvHardware.PcTypeDetails.Split('|');
@@ -1506,4 +1513,18 @@
             StateHasChanged();
         }
     }
+    /// <summary>
+    /// Get status text for workflow
+    /// </summary>
+    private string GetStatusText(DbWorkflow workflow) => workflow.Status switch
+    {
+        WorkflowStatus.Created => "Neu",
+        WorkflowStatus.HardwareInProgress => "HW läuft",
+        WorkflowStatus.SoftwareInProgress => "SW läuft",
+        WorkflowStatus.SoftwareCompleted => "Bereit für Einkauf",
+        WorkflowStatus.Completed => "Beim Einkauf",
+        WorkflowStatus.ForwardedToInstallation => "Bei Installation",
+        WorkflowStatus.Archived => "Abgeschlossen",
+        _ => "Unbekannt"
+    };
 }

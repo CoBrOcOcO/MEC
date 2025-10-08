@@ -14,7 +14,7 @@
                         <MudText Typo="Typo.caption" Color="Color.Secondary">@WorkflowType</MudText>
                     </div>
                 </MudStack>
-              
+
             </MudStack>
         </CardHeaderContent>
     </MudCardHeader>
@@ -37,8 +37,7 @@
             }
 
             <!-- Hardware Section -->
-
-            @if (HardwareItems?.Any() == true)
+            @if (HardwareItems?.Any() == true || AdditionalHardwareItems?.Any() == true || !string.IsNullOrEmpty(MainHardware))
             {
                 <MudPaper Elevation="0" Class="pa-4" Style="background-color: #f5f5f5; border-radius: 8px;">
                     <MudStack Spacing="2">
@@ -52,27 +51,49 @@
                         <!-- Main Hardware Specification -->
                         @if (!string.IsNullOrEmpty(MainHardware))
                         {
-                            <MudPaper Elevation="2" Class="pa-4" Style="background-color: white; border-radius: 8px solid #3a8a3d;">
+                            <MudPaper Elevation="2" Class="pa-4" Style="background-color: white; border-radius: 8px; border-left: 4px solid #3a8a3d;">
                                 <MudStack Row Spacing="2" AlignItems="AlignItems.Center">
-                                    <MudIcon Icon="@Icons.Material.Filled.Computer" Color="Color.Secondary" />
-                                    <MudText Typo="Typo.body2" Style="font-weight: 600;">@MainHardware</MudText>
+                                    <MudIcon Icon="@Icons.Material.Filled.Computer" Color="Color.Primary" />
+                                    <MudText Typo="Typo.body1" Style="font-weight: 600;">@MainHardware</MudText>
                                 </MudStack>
                             </MudPaper>
                         }
 
                         <!-- Hardware Details Grid -->
-                        <MudGrid Spacing="2" Class="pa-4">
-                            @foreach (var item in HardwareItems)
-                            {
-                                <MudItem xs="12">
-                                    <MudPaper Elevation="2" Class="pa-4" Style="background-color: white; border-radius: 8px;">
-                                        <MudText Typo="Typo.body1" Style="font-weight: 600;">
+                        @if (HardwareItems?.Any() == true)
+                        {
+                            <MudStack Spacing="2" Class="mt-2">
+                                <MudText Typo="Typo.subtitle2" Color="Color.Primary" Style="font-weight: 600;">
+                                    Hardware-Details
+                                </MudText>
+                                @foreach (var item in HardwareItems)
+                                {
+                                    <MudPaper Elevation="1" Class="pa-3" Style="background-color: white; border-radius: 8px; border-left: 3px solid #4caf50;">
+                                        <MudText Typo="Typo.body2" Style="font-weight: 500;">
                                             @item
                                         </MudText>
                                     </MudPaper>
-                                </MudItem>
-                            }
-                        </MudGrid>
+                                }
+                            </MudStack>
+                        }
+
+                        <!-- Additional Hardware Section -->
+                        @if (AdditionalHardwareItems?.Any() == true)
+                        {
+                            <MudStack Spacing="2" Class="mt-3">
+                                <MudText Typo="Typo.subtitle2" Color="Color.Primary" Style="font-weight: 600;">
+                                    Zusatzhardware
+                                </MudText>
+                                @foreach (var item in AdditionalHardwareItems)
+                                {
+                                    <MudPaper Elevation="1" Class="pa-3" Style="background-color: white; border-radius: 8px; border-left: 3px solid #2196f3;">
+                                        <MudText Typo="Typo.body2" Style="font-weight: 500;">
+                                            @item
+                                        </MudText>
+                                    </MudPaper>
+                                }
+                            </MudStack>
+                        }
 
                         <!-- Hardware Remarks -->
                         @if (!string.IsNullOrWhiteSpace(HardwareRemarks))
@@ -208,6 +229,11 @@
     /// List of hardware detail items
     /// </summary>
     [Parameter] public List<string>? HardwareItems { get; set; }
+
+    /// <summary>
+    /// List of additional hardware items (e.g., keyboard, mouse, monitor)
+    /// </summary>
+    [Parameter] public List<string>? AdditionalHardwareItems { get; set; }
 
     /// <summary>
     /// List of software items

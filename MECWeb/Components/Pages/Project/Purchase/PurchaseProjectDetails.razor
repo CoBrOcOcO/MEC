@@ -3,15 +3,17 @@
 @using MECWeb.DbModels.Project
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.WebUtilities
+@using System.Timers
 @inject ApplicationDbContext DbContext
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
-@layout MainLayout
+@layout ProjectMainLayout
 @implements IDisposable
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6">
     <MudStack Spacing="4">
+        <MudText Typo="Typo.h4" Color="Color.Secondary" Align="Align.Center">Einkauf</MudText>
 
         <!-- Project Header -->
         @if (currentProject != null)
@@ -21,16 +23,16 @@
                     <MudStack Spacing="1">
                         <MudText Typo="Typo.h4" Color="Color.Primary">@currentProject.ProjectNumber</MudText>
                         <MudText Typo="Typo.h6" Color="Color.Secondary">@currentProject.Name</MudText>
+
                         @if (!string.IsNullOrWhiteSpace(currentProject.Description))
                         {
                             <MudText Typo="Typo.body2" Color="Color.Tertiary">@currentProject.Description</MudText>
                         }
                     </MudStack>
 
-
                     <!-- Action Buttons -->
                     <MudStack Row Spacing="3">
-                        @if (!ReadOnly)
+                        @if (!IsReadOnlyMode)
                         {
                             <MudButton Color="Color.Secondary"
                                        Variant="Variant.Filled"
@@ -38,7 +40,7 @@
                                        StartIcon="@Icons.Material.Filled.Edit"
                                        OnClick="ReleaseForCorrection"
                                        Loading="@isReleasingForCorrection"
-                                       Disabled="@(!completedWorkflows.Any() || isReleasingForCorrection)">
+                                       Disabled="@(!allWorkflows.Any() || isReleasingForCorrection)">
                                 Zur Korrektur freigeben
                             </MudButton>
 
@@ -52,49 +54,56 @@
                                 An Installation weiterleiten
                             </MudButton>
                         }
-                        else
-                        {
-                            <!-- Read-Only Warning -->
-                            <MudAlert Severity="Severity.Info" Icon="@Icons.Material.Filled.Lock" Class="mb-0">
-                                <MudText Typo="Typo.body2">
-                                    <strong>Projekt bereits an Installation weitergeleitet.</strong>
-                                    Alle Formulare sind gesperrt.
-                                </MudText>
-                            </MudAlert>
-                        }
+
                     </MudStack>
                 </MudStack>
             </MudPaper>
+
+            <!-- ReadOnly Banner -->
+            @if (IsReadOnlyMode)
+            {
+                <MudAlert Severity="Severity.Success" Icon="@Icons.Material.Filled.Lock" Variant="Variant.Filled">
+                    <MudText Typo="Typo.body1" Style="font-weight: 500;">
+                        <strong>Projekt wurde an Installation weitergeleitet.</strong>
+                        Alle Details können eingesehen, aber nicht mehr bearbeitet werden.
+                    </MudText>
+                </MudAlert>
+            }
         }
 
-        <!-- Status Overview - Immer sichtbar -->
+        <!-- Status Overview -->
         @if (currentProject != null)
         {
-            <!-- PROJECT STATUS OVERVIEW -->
             <ProjectStatusOverview ProjectId="@ProjectId"
-                                 IsLoading="@loading" />
+                                   IsLoading="@loading" />
         }
 
-        <!-- Loading -->    
-
+        <!-- Loading -->
         @if (loading)
         {
             <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
         }
 
-        <!-- No completed workflows message -->
-        @if (!loading && !completedWorkflows.Any())
+        <!-- No workflows message -->
+        @if (!loading && !allWorkflows.Any())
         {
-            <MudAlert Severity="Severity.Info">
-                <MudText>Keine abgeschlossenen Formulare für dieses Projekt gefunden.</MudText>
+            <MudAlert Severity="Severity.Warning">
+                <MudStack Spacing="2">
+                    <MudText Typo="Typo.body1" Style="font-weight: 600;">
+                        Keine Formulare für den Einkauf gefunden
+                    </MudText>
+                    <MudText Typo="Typo.body2">
+                        Dieses Projekt wurde zur Korrektur an Formulare zurückgeleitet.
+                    </MudText>
+                </MudStack>
             </MudAlert>
         }
 
         <!-- Individual Workflow Cards -->
-        @if (!loading && completedWorkflows.Any())
+        @if (!loading && allWorkflows.Any())
         {
-            var bdrWorkflows = completedWorkflows.Where(w => w.WorkflowType == WorkflowType.BDR).OrderBy(w => w.Name).ToList();
-            var bvWorkflows = completedWorkflows.Where(w => w.WorkflowType == WorkflowType.BV).OrderBy(w => w.Name).ToList();
+            var bdrWorkflows = allWorkflows.Where(w => w.WorkflowType == WorkflowType.BDR).OrderBy(w => w.Name).ToList();
+            var bvWorkflows = allWorkflows.Where(w => w.WorkflowType == WorkflowType.BV).OrderBy(w => w.Name).ToList();
 
             <!-- BDR Section Header -->
             @if (bdrWorkflows.Any())
@@ -104,18 +113,17 @@
                     <MudText Typo="Typo.h5" Color="Color.Primary">BDR - Bedienungsrechner (@bdrWorkflows.Count)</MudText>
                 </MudStack>
 
-             
                 <!-- BDR Workflow Forms -->
                 @foreach (var workflow in bdrWorkflows)
                 {
                     var orderDetails = GetOrderDetailsForWorkflow(workflow);
-
                     <WorkflowDetailsCard WorkflowName="@workflow.Name"
                                          WorkflowType="BDR - Bedienungsrechner"
                                          WorkflowIcon="@Icons.Material.Filled.Computer"
-                                         StatusText="Abgeschlossen"
+                                         StatusText="@(IsReadOnlyMode ? "Bei Installation" : "Beim Einkauf")"
                                          MainHardware="@orderDetails.MainHardware"
                                          HardwareItems="@orderDetails.HardwareDetails"
+                                         AdditionalHardwareItems="@orderDetails.AdditionalHardware"
                                          SoftwareItems="@orderDetails.Software"
                                          Notes="@orderDetails.Notes"
                                          HardwareRemarks="@orderDetails.HardwareRemarks"
@@ -123,22 +131,49 @@
                                          ShowComments="false">
                     </WorkflowDetailsCard>
 
-                    <!-- Comment Section für BDR -->
-                    <MudPaper Elevation="1" Class="pa-4 mb-4">
-                        <MudStack Spacing="3">
-                            <MudText Typo="Typo.h6" Style="border-bottom: 2px solid #4caf50; padding-bottom: 8px; color: #4caf50;">
-                                <MudIcon Icon="@Icons.Material.Filled.AssignmentTurnedIn" Class="mr-2" />
-                                Kommentar für Installation
-                            </MudText>
-                            <MudTextField Value="@GetWorkflowComment(workflow.Id)"
-                                          ValueChanged="@((string value) => UpdateWorkflowComment(workflow.Id, value))"
-                                          Label="Kommentare/Hinweise für Installation"
-                                          Placeholder="Spezielle Installations-Hinweise, Besonderheiten, etc..."
-                                          Variant="Variant.Outlined"
-                                          Lines="3"
-                                          ReadOnly="@ReadOnly" />
 
-                            @if (!ReadOnly)
+                    <!-- Comment Section für BDR -->
+                    <MudPaper Elevation="1" Class="pa-4 mb-4" Style="@(IsReadOnlyMode ? "background-color: #f5f5f5;" : "")">
+                        <MudStack Spacing="3">
+                            <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@(IsReadOnlyMode? Icons.Material.Filled.Comment : Icons.Material.Filled.AssignmentTurnedIn)"
+                                         Color="@(IsReadOnlyMode ?  Color.Secondary : Color.Success)" />
+                                <MudText Typo="Typo.h6" Color="@(IsReadOnlyMode? Color.Secondary: Color.Success)">
+                                    Kommentar für Installation
+                                </MudText>
+                            </MudStack>
+
+                            @if (!string.IsNullOrWhiteSpace(GetWorkflowComment(workflow.Id)))
+                            {
+                                <MudPaper Class="pa-3" Elevation="0"
+                                          Style="@(IsReadOnlyMode ? "background-color: white; border-left: 4px solid #2196f3;" : "")">
+                                    <MudTextField Value="@GetWorkflowComment(workflow.Id)"
+                                                  ValueChanged="@((string value) => UpdateWorkflowComment(workflow.Id, value))"
+                                                  Label="Kommentare/Hinweise für Installation"
+                                                  Placeholder="Spezielle Installations-Hinweise, Besonderheiten, etc..."
+                                                  Variant="Variant.Outlined"
+                                                  Lines="3"
+                                                  ReadOnly="@IsReadOnlyMode"
+                                                  Disabled="@IsReadOnlyMode" />
+                                </MudPaper>
+                            }
+                            else if (!IsReadOnlyMode)
+                            {
+                                <MudTextField Value="@GetWorkflowComment(workflow.Id)"
+                                              ValueChanged="@((string value) => UpdateWorkflowComment(workflow.Id, value))"
+                                              Label="Kommentare/Hinweise für Installation"
+                                              Placeholder="Spezielle Installations-Hinweise, Besonderheiten, etc..."
+                                              Variant="Variant.Outlined"
+                                              Lines="3" />
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Tertiary" Style="font-style: italic;">
+                                    Kein Kommentar vorhanden
+                                </MudText>
+                            }
+
+                            @if (!IsReadOnlyMode)
                             {
                                 <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
                                     <MudCheckBox Value="@GetWorkflowCompletionStatus(workflow.Id)"
@@ -171,7 +206,7 @@
                             else if (workflow.PurchaseCompleted)
                             {
                                 <MudAlert Severity="Severity.Success" Icon="@Icons.Material.Filled.CheckCircle" Dense="true">
-                                    Erledigt am @(workflow.PurchaseCompletedDate?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "unbekannt")
+                                    Vom Einkauf erledigt am @(workflow.PurchaseCompletedDate?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "unbekannt")
                                 </MudAlert>
                             }
                         </MudStack>
@@ -196,9 +231,10 @@
                     <WorkflowDetailsCard WorkflowName="@workflow.Name"
                                          WorkflowType="BV - Bildverarbeitungsrechner"
                                          WorkflowIcon="@Icons.Material.Filled.CameraAlt"
-                                         StatusText="Abgeschlossen"
+                                         StatusText="@(IsReadOnlyMode ? "Bei Installation" : "Beim Einkauf")"
                                          MainHardware="@orderDetails.MainHardware"
                                          HardwareItems="@orderDetails.HardwareDetails"
+                                         AdditionalHardwareItems="@orderDetails.AdditionalHardware"
                                          SoftwareItems="@orderDetails.Software"
                                          Notes="@orderDetails.Notes"
                                          ContactPerson="@contactPerson"
@@ -208,21 +244,47 @@
                     </WorkflowDetailsCard>
 
                     <!-- Comment Section für BV -->
-                    <MudPaper Elevation="1" Class="pa-4 mb-4">
+                    <MudPaper Elevation="1" Class="pa-4 mb-4" Style="@(IsReadOnlyMode ? "background-color: #f5f5f5;" : "")">
                         <MudStack Spacing="3">
-                            <MudText Typo="Typo.h6" Style="border-bottom: 2px solid #4caf50; padding-bottom: 8px; color: #4caf50;">
-                                <MudIcon Icon="@Icons.Material.Filled.AssignmentTurnedIn" Class="mr-2" />
-                                Kommentar für Installation
-                            </MudText>
-                            <MudTextField Value="@GetWorkflowComment(workflow.Id)"
-                                          ValueChanged="@((string value) => UpdateWorkflowComment(workflow.Id, value))"
-                                          Label="Kommentare/Hinweise für Installation"
-                                          Placeholder="Spezielle Installations-Hinweise, Besonderheiten, etc..."
-                                          Variant="Variant.Outlined"
-                                          Lines="3"
-                                          ReadOnly="@ReadOnly" />
+                            <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@(IsReadOnlyMode? Icons.Material.Filled.Comment : Icons.Material.Filled.AssignmentTurnedIn)"
+                                         Color="@(IsReadOnlyMode ? Color.Secondary : Color.Success)" />
+                                <MudText Typo="Typo.h6" Color="@(IsReadOnlyMode? Color.Secondary: Color.Success)">
+                                    Kommentar für Installation
+                                </MudText>
+                            </MudStack>
 
-                            @if (!ReadOnly)
+                            @if (!string.IsNullOrWhiteSpace(GetWorkflowComment(workflow.Id)))
+                            {
+                                <MudPaper Class="pa-3" Elevation="0"
+                                          Style="@(IsReadOnlyMode ? "background-color: white; border-left: 4px solid #757575;" : "")">
+                                    <MudTextField Value="@GetWorkflowComment(workflow.Id)"
+                                                  ValueChanged="@((string value) => UpdateWorkflowComment(workflow.Id, value))"
+                                                  Label="Kommentare/Hinweise für Installation"
+                                                  Placeholder="Spezielle Installations-Hinweise, Besonderheiten, etc..."
+                                                  Variant="Variant.Outlined"
+                                                  Lines="3"
+                                                  ReadOnly="@IsReadOnlyMode"
+                                                  Disabled="@IsReadOnlyMode" />
+                                </MudPaper>
+                            }
+                            else if (!IsReadOnlyMode)
+                            {
+                                <MudTextField Value="@GetWorkflowComment(workflow.Id)"
+                                              ValueChanged="@((string value) => UpdateWorkflowComment(workflow.Id, value))"
+                                              Label="Kommentare/Hinweise für Installation"
+                                              Placeholder="Spezielle Installations-Hinweise, Besonderheiten, etc..."
+                                              Variant="Variant.Outlined"
+                                              Lines="3" />
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Tertiary" Style="font-style: italic;">
+                                    Kein Kommentar vorhanden
+                                </MudText>
+                            }
+
+                            @if (!IsReadOnlyMode)
                             {
                                 <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
                                     <MudCheckBox Value="@GetWorkflowCompletionStatus(workflow.Id)"
@@ -255,7 +317,7 @@
                             else if (workflow.PurchaseCompleted)
                             {
                                 <MudAlert Severity="Severity.Success" Icon="@Icons.Material.Filled.CheckCircle" Dense="true">
-                                    Erledigt am @(workflow.PurchaseCompletedDate?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "unbekannt")
+                                    Vom Einkauf erledigt am @(workflow.PurchaseCompletedDate?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "unbekannt")
                                 </MudAlert>
                             }
                         </MudStack>
@@ -279,7 +341,7 @@
                             <MudText Typo="Typo.h6" Color="Color.Success">@(bdrWorkflows.Count + bvWorkflows.Count)</MudText>
                             <MudText Typo="Typo.caption">Gesamt</MudText>
                         </MudStack>
-                        @if (!ReadOnly)
+                        @if (!IsReadOnlyMode)
                         {
                             <MudDivider Vertical="true" FlexItem="true" />
                             <MudStack AlignItems="AlignItems.Center" Spacing="1">
@@ -288,8 +350,8 @@
                             </MudStack>
                         }
                     </MudStack>
-                    <MudText Typo="Typo.body1" Color="@(ReadOnly? Color.Info: Color.Success)" Class="font-weight-bold">
-                        @(ReadOnly ? "An Installation weitergeleitet" : "Bereit für Installation")
+                    <MudText Typo="Typo.body1" Color="@(IsReadOnlyMode? Color.Secondary: Color.Success)" Class="font-weight-bold">
+                        @(IsReadOnlyMode ? "An Installation weitergeleitet" : "Bereit für Installation")
                     </MudText>
                 </MudStack>
             </MudPaper>
@@ -312,14 +374,6 @@
 @code {
     [Parameter] public Guid ProjectId { get; set; }
 
-    [Parameter]
-    [SupplyParameterFromQuery]
-    public string? ReturnPath { get; set; }
-
-    [Parameter]
-    [SupplyParameterFromQuery(Name = "readOnly")]
-    public bool ReadOnly { get; set; }
-
     // Clean order data structure for display
     public class OrderDetails
     {
@@ -335,10 +389,14 @@
 
     // Component state
     private DbProject? currentProject;
-    private List<DbWorkflow> completedWorkflows = new();
+    private List<DbWorkflow> allWorkflows = new();
     private bool loading = true;
     private bool isForwarding = false;
     private bool isReleasingForCorrection = false;
+
+    // Automatically determine if we're in read-only mode based on workflow status
+    private bool IsReadOnlyMode => allWorkflows.Any() &&
+                                    allWorkflows.All(w => w.Status == WorkflowStatus.ForwardedToInstallation);
 
     // Comment and completion tracking
     private Dictionary<Guid, string> workflowComments = new();
@@ -352,6 +410,11 @@
     private Dictionary<Guid, DbBvHardwareComputer?> bvHardwareCache = new();
     private Dictionary<Guid, List<DbBvHardwareComponent>> bvComponentsCache = new();
 
+    // Auto-refresh timer
+    private System.Timers.Timer? autoRefreshTimer;
+    private int lastWorkflowCount = 0;
+    private bool isCheckingForUpdates = false;
+
     // Cancellation token for async operations
     private CancellationTokenSource? cts;
 
@@ -359,12 +422,84 @@
     {
         cts = new CancellationTokenSource();
         await LoadProjectDetails();
+        StartAutoRefresh();
     }
 
     public void Dispose()
     {
+        StopAutoRefresh();
         cts?.Cancel();
         cts?.Dispose();
+    }
+
+    /// <summary>
+    /// Start auto-refresh timer to check for new workflows
+    /// </summary>
+    private void StartAutoRefresh()
+    {
+        // Only start timer if not in read-only mode
+        if (!IsReadOnlyMode)
+        {
+            autoRefreshTimer = new System.Timers.Timer(3000); // Check every 3 seconds
+            autoRefreshTimer.Elapsed += async (sender, e) => await CheckForNewWorkflows();
+            autoRefreshTimer.AutoReset = true;
+            autoRefreshTimer.Start();
+        }
+    }
+
+    /// <summary>
+    /// Stop auto-refresh timer
+    /// </summary>
+    private void StopAutoRefresh()
+    {
+        if (autoRefreshTimer != null)
+        {
+            autoRefreshTimer.Stop();
+            autoRefreshTimer.Dispose();
+            autoRefreshTimer = null;
+        }
+    }
+
+    /// <summary>
+    /// Check for new workflows from Forms page
+    /// </summary>
+    private async Task CheckForNewWorkflows()
+    {
+        if (isCheckingForUpdates || IsReadOnlyMode) return;
+
+        isCheckingForUpdates = true;
+        try
+        {
+            var currentCount = await DbContext.Workflow
+                .AsNoTracking()
+                .Where(w => w.ProjectId == ProjectId &&
+                           (w.Status == WorkflowStatus.Completed ||
+                            w.Status == WorkflowStatus.ForwardedToInstallation))
+                .CountAsync();
+
+            // If workflow count changed, reload everything
+            if (currentCount != lastWorkflowCount && lastWorkflowCount > 0)
+            {
+                await InvokeAsync(async () =>
+                {
+                    await LoadProjectDetails();
+                    StateHasChanged();
+
+                    // Show notification
+                    Snackbar.Add($"Neue Workflows vom Formular-Bereich erkannt! ({currentCount} Workflows)", Severity.Info);
+                });
+            }
+
+            lastWorkflowCount = currentCount;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"CheckForNewWorkflows Error: {ex.Message}");
+        }
+        finally
+        {
+            isCheckingForUpdates = false;
+        }
     }
 
     /// <summary>
@@ -375,7 +510,6 @@
         loading = true;
         try
         {
-            // Load project with workflows
             currentProject = await DbContext.Project
                 .Include(p => p.Workflows)
                 .FirstOrDefaultAsync(p => p.Id == ProjectId);
@@ -386,34 +520,30 @@
                 return;
             }
 
-            // Get workflows based on read-only status
-            if (ReadOnly)
-            {
-                // Show forwarded workflows
-                completedWorkflows = currentProject.Workflows
-                    .Where(w => w.Status == WorkflowStatus.ForwardedToInstallation)
-                    .OrderBy(w => w.WorkflowType)
-                    .ThenBy(w => w.Name)
-                    .ToList();
-            }
-            else
-            {
-                // Show completed workflows
-                completedWorkflows = currentProject.Workflows
-                    .Where(w => w.Status == WorkflowStatus.Completed)
-                    .OrderBy(w => w.WorkflowType)
-                    .ThenBy(w => w.Name)
-                    .ToList();
-            }
+            // Load BOTH Completed AND ForwardedToInstallation workflows
+            allWorkflows = currentProject.Workflows
+                .Where(w => w.Status == WorkflowStatus.Completed ||
+                            w.Status == WorkflowStatus.ForwardedToInstallation)
+                .OrderBy(w => w.WorkflowType)
+                .ThenBy(w => w.Name)
+                .ToList();
 
-            if (!completedWorkflows.Any())
+            // Update workflow count for auto-refresh
+            lastWorkflowCount = allWorkflows.Count;
+
+            if (!allWorkflows.Any())
             {
-                Snackbar.Add("Keine relevanten Formulare für dieses Projekt gefunden.", Severity.Info);
+                // No workflows found - show helpful message in UI
                 return;
             }
 
-            // Load detailed hardware/software data
             await LoadDetailedData();
+
+            // Stop auto-refresh if we enter read-only mode
+            if (IsReadOnlyMode)
+            {
+                StopAutoRefresh();
+            }
         }
         catch (Exception ex)
         {
@@ -431,10 +561,9 @@
     /// </summary>
     private bool CanForwardToInstallation()
     {
-        if (!completedWorkflows.Any()) return false;
+        if (!allWorkflows.Any() || IsReadOnlyMode) return false;
 
-        // Check if all workflows are marked as completed
-        foreach (var workflow in completedWorkflows)
+        foreach (var workflow in allWorkflows)
         {
             if (!workflowCompletionStatus.TryGetValue(workflow.Id, out var isCompleted) || !isCompleted)
             {
@@ -446,17 +575,16 @@
     }
 
     /// <summary>
-    /// Release project for correction (only in active mode)
+    /// Release project for correction
     /// </summary>
     private async Task ReleaseForCorrection()
     {
-        if (ReadOnly || !completedWorkflows.Any())
+        if (IsReadOnlyMode || !allWorkflows.Any())
         {
             Snackbar.Add("Keine Formulare zur Freigabe vorhanden!", Severity.Warning);
             return;
         }
 
-        // Confirmation dialog
         bool? result = await DialogService.ShowMessageBox(
             title: "Zur Korrektur freigeben",
             markupMessage: new MarkupString($@"
@@ -489,8 +617,7 @@
         {
             using var transaction = await DbContext.Database.BeginTransactionAsync();
 
-            // Set all completed workflows back to SoftwareCompleted
-            foreach (var workflow in completedWorkflows)
+            foreach (var workflow in allWorkflows)
             {
                 workflow.Status = WorkflowStatus.SoftwareCompleted;
                 workflow.LastChange = DateTime.UtcNow;
@@ -522,21 +649,18 @@
     {
         try
         {
-            // Load BDR hardware data
-            var bdrWorkflowIds = completedWorkflows
+            var bdrWorkflowIds = allWorkflows
                 .Where(w => w.WorkflowType == WorkflowType.BDR)
                 .Select(w => w.Id)
                 .ToList();
 
             if (bdrWorkflowIds.Any())
             {
-                // Load all BDR hardware with fields in one query using Include
                 var bdrHardwareWithFields = await DbContext.HardwareComputer
                     .Include(h => h.HardwareFields.Where(f => f.IsActive))
                     .Where(h => bdrWorkflowIds.Contains(h.WorkflowId))
                     .ToListAsync();
 
-                // Cache the results
                 foreach (var hardware in bdrHardwareWithFields)
                 {
                     bdrHardwareCache[hardware.WorkflowId] = hardware;
@@ -550,20 +674,17 @@
                 }
             }
 
-            // Load BV hardware data
-            var bvWorkflowIds = completedWorkflows
+            var bvWorkflowIds = allWorkflows
                 .Where(w => w.WorkflowType == WorkflowType.BV)
                 .Select(w => w.Id)
                 .ToList();
 
             if (bvWorkflowIds.Any())
             {
-                // Load all BV hardware first
                 var bvHardwareList = await DbContext.BvHardwareComputer
                     .Where(h => bvWorkflowIds.Contains(h.WorkflowId))
                     .ToListAsync();
 
-                // Then load components for each hardware separately
                 foreach (var hardware in bvHardwareList)
                 {
                     bvHardwareCache[hardware.WorkflowId] = hardware;
@@ -576,10 +697,7 @@
                 }
             }
 
-            // Load existing comments
             LoadWorkflowComments();
-
-            // Load completion status
             LoadWorkflowCompletionStatus();
         }
         catch (Exception ex)
@@ -598,17 +716,15 @@
 
         try
         {
-            // Process Hardware based on workflow type
             if (workflow.WorkflowType == WorkflowType.BDR)
             {
                 ProcessBdrHardware(workflow, orderData);
             }
-            else // BV
+            else
             {
                 ProcessBvHardware(workflow, orderData);
             }
 
-            // Process Software
             ProcessWorkflowSoftware(workflow, orderData);
         }
         catch (Exception ex)
@@ -639,22 +755,18 @@
     {
         if (bdrHardwareCache.TryGetValue(workflow.Id, out var bdrHardware) && bdrHardware != null)
         {
-            // Main hardware type (selectedHardwareType)
             if (!string.IsNullOrEmpty(bdrHardware.HardwareSpecs))
             {
                 orderData.MainHardware = bdrHardware.HardwareSpecs;
             }
 
-            // Hardware Remarks from Description field
             if (!string.IsNullOrEmpty(bdrHardware.Description))
             {
                 orderData.HardwareRemarks = bdrHardware.Description;
             }
 
-            // Load hardware fields and separate by type
             if (bdrFieldsCache.TryGetValue(workflow.Id, out var fields))
             {
-                // Hardware Details (FieldType="Hardware") - only show filled fields
                 var hardwareFields = fields.Where(f => f.FieldType == "Hardware" && !string.IsNullOrWhiteSpace(f.FieldValue)).ToList();
                 foreach (var field in hardwareFields)
                 {
@@ -666,7 +778,6 @@
                     }
                 }
 
-                // Additional Hardware (FieldType="Additional") - only show filled fields
                 var additionalFields = fields.Where(f => f.FieldType == "Additional" && !string.IsNullOrWhiteSpace(f.FieldValue)).ToList();
                 foreach (var field in additionalFields)
                 {
@@ -688,18 +799,15 @@
     {
         if (bvHardwareCache.TryGetValue(workflow.Id, out var bvHardware) && bvHardware != null)
         {
-            // Main hardware type (PC Type)
             if (!string.IsNullOrEmpty(bvHardware.PcType))
             {
                 orderData.MainHardware = bvHardware.PcType;
             }
 
-            // Parse PC Details from PcTypeDetails (combined field)
             if (!string.IsNullOrEmpty(bvHardware.PcTypeDetails))
             {
                 var parts = bvHardware.PcTypeDetails.Split('|');
 
-                // Additional Requirements - add to HardwareDetails
                 if (parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1]))
                 {
                     var requirements = parts[1].Split(';', StringSplitOptions.RemoveEmptyEntries);
@@ -709,14 +817,12 @@
                     }
                 }
 
-                // Hardware Remarks (stored in PcTypeDetails part 2)
                 if (parts.Length > 2 && !string.IsNullOrWhiteSpace(parts[2]))
                 {
                     orderData.HardwareRemarks = parts[2].Trim();
                 }
             }
 
-            // Hardware components - add to HardwareDetails
             if (bvComponentsCache.TryGetValue(workflow.Id, out var components) && components.Any())
             {
                 foreach (var component in components)
@@ -724,19 +830,16 @@
                     var componentText = component.ComponentName ?? "Unbekannte Komponente";
                     var details = new List<string>();
 
-                    // Add quantity if specified and not 1
                     if (!string.IsNullOrEmpty(component.Quantity) && component.Quantity != "1")
                     {
                         details.Add($"{component.Quantity}x");
                     }
 
-                    // Add special type/details if specified
                     if (!string.IsNullOrEmpty(component.ComponentType))
                     {
                         details.Add(component.ComponentType);
                     }
 
-                    // Format component entry
                     if (details.Any())
                     {
                         orderData.HardwareDetails.Add($"{componentText} ({string.Join(", ", details)})");
@@ -759,7 +862,6 @@
         string softwarePrefix = workflow.WorkflowType == WorkflowType.BDR ? "BDRSOFTWARE:" : "BVSOFTWARE:";
         string remarksPrefix = workflow.WorkflowType == WorkflowType.BDR ? "BDRSOFTWARE_REMARKS:" : "BVSOFTWARE_REMARKS:";
 
-        // Extract software items
         if (description.Contains(softwarePrefix))
         {
             var startIndex = description.IndexOf(softwarePrefix) + softwarePrefix.Length;
@@ -771,12 +873,10 @@
 
             var softwareItems = ParseSoftwareData(softwareData, workflow.WorkflowType == WorkflowType.BDR);
 
-            // Remove duplicates and add to order data
             var uniqueSoftware = softwareItems.Distinct().ToList();
             orderData.Software.AddRange(uniqueSoftware);
         }
 
-        // Extract software remarks
         if (description.Contains(remarksPrefix))
         {
             var startIndex = description.IndexOf(remarksPrefix) + remarksPrefix.Length;
@@ -811,13 +911,11 @@
                 {
                     var softwareEntry = softwareType;
 
-                    // Add version/note if available
                     if (!string.IsNullOrEmpty(note))
                     {
                         softwareEntry += $" (Version: {note})";
                     }
 
-                    // Add license info for BDR
                     if (isBdr && licenseRequired)
                     {
                         softwareEntry += " [Lizenz erforderlich]";
@@ -832,32 +930,31 @@
     }
 
     /// <summary>
-    /// Forward project to installation (only in active mode)
+    /// Forward project to installation
     /// </summary>
     private async Task ForwardToInstallation()
     {
-        if (ReadOnly || !completedWorkflows.Any())
+        if (IsReadOnlyMode || !allWorkflows.Any())
         {
             Snackbar.Add("Keine Formulare zum Weiterleiten vorhanden!", Severity.Warning);
             return;
         }
 
-        // Check if all workflows are completed
         if (!CanForwardToInstallation())
         {
             var completedCount = GetCompletedWorkflowsCount();
-            var totalCount = completedWorkflows.Count;
+            var totalCount = allWorkflows.Count;
             Snackbar.Add($"Bitte alle Workflows als erledigt markieren! ({completedCount}/{totalCount} erledigt)", Severity.Warning);
             return;
         }
 
-        isForwarding  = true;
+        isForwarding = true;
 
         try
         {
             using var transaction = await DbContext.Database.BeginTransactionAsync();
 
-            foreach (var workflow in completedWorkflows)
+            foreach (var workflow in allWorkflows)
             {
                 workflow.Status = WorkflowStatus.ForwardedToInstallation;
                 workflow.LastChange = DateTime.UtcNow;
@@ -868,8 +965,10 @@
 
             Snackbar.Add("Projekt erfolgreich an Installation weitergeleitet!", Severity.Success);
 
-            await Task.Delay(1500);
-            Navigation.NavigateTo($"/project/{ProjectId}", forceLoad: true);
+            // Reload to show read-only view
+            await Task.Delay(1000);
+            await LoadProjectDetails();
+            StateHasChanged();
         }
         catch (Exception ex)
         {
@@ -883,14 +982,12 @@
     }
 
     /// <summary>
-    /// Navigate back to project overview page (app cards)
+    /// Navigate back to project overview page
     /// </summary>
     private void NavigateBack()
     {
-        // Always navigate back to the project's app cards page
-        Navigation.NavigateTo($"/project/{ProjectId}");
+        Navigation.NavigateTo($"/project/{ProjectId}", forceLoad: true);
     }
-
 
     /// <summary>
     /// Get workflow comment from memory
@@ -907,7 +1004,7 @@
     {
         try
         {
-            foreach (var workflow in completedWorkflows)
+            foreach (var workflow in allWorkflows)
             {
                 workflowComments[workflow.Id] = workflow.PurchaseComment ?? "";
             }
@@ -925,7 +1022,7 @@
     {
         try
         {
-            foreach (var workflow in completedWorkflows)
+            foreach (var workflow in allWorkflows)
             {
                 workflowCompletionStatus[workflow.Id] = workflow.PurchaseCompleted;
                 workflowCompletionDates[workflow.Id] = workflow.PurchaseCompletedDate;
@@ -942,7 +1039,10 @@
     /// </summary>
     private void UpdateWorkflowComment(Guid workflowId, string comment)
     {
-        workflowComments[workflowId] = comment ?? "";
+        if (!IsReadOnlyMode)
+        {
+            workflowComments[workflowId] = comment ?? "";
+        }
     }
 
     /// <summary>
@@ -958,7 +1058,10 @@
     /// </summary>
     private void UpdateWorkflowCompletionStatus(Guid workflowId, bool value)
     {
-        workflowCompletionStatus[workflowId] = value;
+        if (!IsReadOnlyMode)
+        {
+            workflowCompletionStatus[workflowId] = value;
+        }
     }
 
     /// <summary>
@@ -994,9 +1097,9 @@
     /// </summary>
     private async Task SaveWorkflowComment(Guid workflowId)
     {
-        if (ReadOnly) return;
+        if (IsReadOnlyMode) return;
 
-        var workflow = completedWorkflows.FirstOrDefault(w => w.Id == workflowId);
+        var workflow = allWorkflows.FirstOrDefault(w => w.Id == workflowId);
         if (workflow == null)
         {
             Snackbar.Add("Workflow nicht gefunden!", Severity.Error);
@@ -1008,15 +1111,12 @@
         {
             using var transaction = await DbContext.Database.BeginTransactionAsync();
 
-            // Update comment in PurchaseComment field
             workflow.PurchaseComment = workflowComments.TryGetValue(workflowId, out var comment)
                 ? comment?.Trim()
                 : null;
 
-            //  Auch in Description speichern für Installation!
             var existingDescription = workflow.Description ?? "";
 
-            // Remove old purchase comment if present
             if (existingDescription.Contains("PURCHASE_COMMENT:"))
             {
                 var startIndex = existingDescription.IndexOf("PURCHASE_COMMENT:");
@@ -1031,7 +1131,6 @@
                 }
             }
 
-            // Add new purchase comment
             if (!string.IsNullOrWhiteSpace(workflow.PurchaseComment))
             {
                 workflow.Description = existingDescription + $"PURCHASE_COMMENT:{workflow.PurchaseComment}ENDMEC:";
@@ -1041,12 +1140,10 @@
                 workflow.Description = existingDescription;
             }
 
-            // Update completion status
             var isCompleted = workflowCompletionStatus.TryGetValue(workflowId, out var completed) && completed;
             workflow.PurchaseCompleted = isCompleted;
             workflow.PurchaseCompletedDate = isCompleted ? DateTime.UtcNow : null;
 
-            // Update completion date in local dictionary
             workflowCompletionDates[workflowId] = workflow.PurchaseCompletedDate;
 
             workflow.LastChange = DateTime.UtcNow;
