@@ -22,17 +22,17 @@ namespace MECWeb.Services
     {
         private readonly ApplicationDbContext _dbContext;
         private readonly InstallationPdfGenerator _pdfGenerator;
-       
+
         private readonly ILogger<InstallationPdfService> _logger;
 
         public InstallationPdfService(
             ApplicationDbContext dbContext,
             InstallationPdfGenerator pdfGenerator,
-         
+
             ILogger<InstallationPdfService> logger)
         {
             _dbContext = dbContext;
-            _pdfGenerator = pdfGenerator; 
+            _pdfGenerator = pdfGenerator;
             _logger = logger;
         }
 
@@ -204,7 +204,7 @@ namespace MECWeb.Services
         {
             if (!pdfFiles.Any())
                 return [];
-            
+
             if (pdfFiles.Count == 1)
                 return pdfFiles[0];
 

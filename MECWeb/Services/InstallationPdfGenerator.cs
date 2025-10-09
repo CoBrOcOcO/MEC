@@ -54,14 +54,50 @@ namespace MECWeb.Services
                         column.Item().Element(c => CreateModernProjectSection(c, data));
                         column.Item().Element(c => CreateModernBdrHardwareSection(c, data));
 
-                        if (data.HardwareFields?.Any(f => !string.IsNullOrWhiteSpace(f.FieldValue)) == true)
+                        // Separate sections for Hardware Details and Additional Hardware
+                        var hardwareFields = data.HardwareFields?.Where(f => f.FieldType == "Hardware" && !string.IsNullOrWhiteSpace(f.FieldValue)).ToList();
+                        var additionalFields = data.HardwareFields?.Where(f => f.FieldType == "Additional" && !string.IsNullOrWhiteSpace(f.FieldValue)).ToList();
+
+                        if (hardwareFields?.Any() == true)
                         {
-                            column.Item().Element(c => CreateModernHardwareDetailsSection(c, data));
+                            column.Item().Element(c => CreateModernBdrHardwareDetailsSection(c, hardwareFields));
+                        }
+
+                        if (additionalFields?.Any() == true)
+                        {
+                            column.Item().Element(c => CreateModernBdrAdditionalHardwareSection(c, additionalFields));
+                        }
+
+                        // Allgemeine Beschreibung Hardware - nach Zusätzliche Hardware
+                        if (data.BdrHardware != null && !string.IsNullOrEmpty(data.BdrHardware.Description))
+                        {
+                            column.Item().Element(c => CreateModernBdrHardwareRemarksSection(c, data.BdrHardware.Description));
                         }
 
                         column.Item().Element(c => CreateModernSoftwareSection(c, data));
+
+                        // Allgemeine Beschreibung Software - nach Software-Konfiguration
+                        var softwareRemarks = ParseSoftwareRemarksFromDescription(
+                            data.Workflow?.Description ?? "",
+                            data.Workflow?.WorkflowType == WorkflowType.BDR);
+
+                        if (!string.IsNullOrEmpty(softwareRemarks))
+                        {
+                            column.Item().Element(c => CreateModernSoftwareRemarksSection(c, softwareRemarks));
+                        }
+
                         column.Item().Element(c => CreateModernNetworkSection(c, data));
-                        column.Item().Element(c => CreateModernCommentsSection(c, data));
+
+                        // Comments section
+                        var installationComment = ParseCommentFromDescription(
+                            data.Workflow?.Description ?? "", "INSTALLATION_COMMENT:");
+                        var purchaseComment = ParseCommentFromDescription(
+                            data.Workflow?.Description ?? "", "PURCHASE_COMMENT:");
+
+                        if (!string.IsNullOrEmpty(installationComment) || !string.IsNullOrEmpty(purchaseComment))
+                        {
+                            column.Item().Element(c => CreateModernCommentsSection(c, data));
+                        }
                     });
 
                     page.Footer().AlignCenter().DefaultTextStyle(t => t.FontSize(9).FontColor(Colors.Grey.Medium)).Text(x =>
@@ -105,9 +141,37 @@ namespace MECWeb.Services
                         column.Spacing(15);
                         column.Item().Element(c => CreateModernProjectSection(c, data, isBv: true));
                         column.Item().Element(c => CreateModernBvHardwareSection(c, data));
+
+                        // Allgemeine Beschreibung Hardware - nach Hardware-Konfiguration/Komponenten
+                        if (data.BvHardware != null && !string.IsNullOrEmpty(data.BvHardware.Description))
+                        {
+                            column.Item().Element(c => CreateModernBvHardwareRemarksSection(c, data.BvHardware.Description));
+                        }
+
                         column.Item().Element(c => CreateModernSoftwareSection(c, data));
+
+                        // Allgemeine Beschreibung Software - nach Software-Konfiguration
+                        var softwareRemarks = ParseSoftwareRemarksFromDescription(
+                            data.Workflow?.Description ?? "",
+                            data.Workflow?.WorkflowType == WorkflowType.BDR);
+
+                        if (!string.IsNullOrEmpty(softwareRemarks))
+                        {
+                            column.Item().Element(c => CreateModernSoftwareRemarksSection(c, softwareRemarks));
+                        }
+
                         column.Item().Element(c => CreateModernNetworkSection(c, data));
-                        column.Item().Element(c => CreateModernCommentsSection(c, data));
+
+                        // Comments section
+                        var installationComment = ParseCommentFromDescription(
+                            data.Workflow?.Description ?? "", "INSTALLATION_COMMENT:");
+                        var purchaseComment = ParseCommentFromDescription(
+                            data.Workflow?.Description ?? "", "PURCHASE_COMMENT:");
+
+                        if (!string.IsNullOrEmpty(installationComment) || !string.IsNullOrEmpty(purchaseComment))
+                        {
+                            column.Item().Element(c => CreateModernCommentsSection(c, data));
+                        }
                     });
 
                     page.Footer().AlignCenter().DefaultTextStyle(t => t.FontSize(9).FontColor(Colors.Grey.Medium)).Text(x =>
@@ -239,7 +303,7 @@ namespace MECWeb.Services
                 column.Item().BorderBottom(2).BorderColor("#00873C").PaddingBottom(5)
                     .Text("Hardware-Konfiguration").FontSize(13).Bold().FontColor("#00873C");
 
-                if (data.BdrHardware != null && !string.IsNullOrEmpty(data.BdrHardware.Name))
+                if (data.BdrHardware != null && !string.IsNullOrEmpty(data.BdrHardware.HardwareSpecs))
                 {
                     column.Item().PaddingTop(8).Table(table =>
                     {
@@ -252,22 +316,8 @@ namespace MECWeb.Services
                         table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
                             .Text("Rechner-Typ:").FontSize(9).Bold();
                         table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
-                            .Text(data.BdrHardware.Name).FontSize(9);
+                            .Text(data.BdrHardware.HardwareSpecs).FontSize(9);
                     });
-
-                    // Only show description if it has content
-                    if (!string.IsNullOrEmpty(data.BdrHardware.Description))
-                    {
-                        column.Item().PaddingTop(8).Element(descContainer =>
-                        {
-                            descContainer.Column(col =>
-                            {
-                                col.Item().Text("Allgemeine Beschreibung").FontSize(10).Bold().FontColor(Colors.Grey.Darken1);
-                                col.Item().PaddingTop(3).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
-                                    .Text(data.BdrHardware.Description).FontSize(9);
-                            });
-                        });
-                    }
                 }
                 else
                 {
@@ -278,9 +328,9 @@ namespace MECWeb.Services
         }
 
         /// <summary>
-        /// Create modern hardware details section for BDR
+        /// Create modern hardware details section for BDR (FieldType = "Hardware")
         /// </summary>
-        private void CreateModernHardwareDetailsSection(IContainer container, InstallationData data)
+        private void CreateModernBdrHardwareDetailsSection(IContainer container, List<DbHardwareField> hardwareFields)
         {
             container.Column(column =>
             {
@@ -298,12 +348,12 @@ namespace MECWeb.Services
                     table.Header(header =>
                     {
                         header.Cell().Background(Colors.Grey.Lighten3).Padding(8)
-                            .Text("Zusätzliche Hardware").FontSize(10).Bold();
+                            .Text("Hardware").FontSize(10).Bold();
                         header.Cell().Background(Colors.Grey.Lighten3).Padding(8)
                             .Text("Wert").FontSize(10).Bold();
                     });
 
-                    foreach (var field in data.HardwareFields!.Where(f => !string.IsNullOrWhiteSpace(f.FieldValue)))
+                    foreach (var field in hardwareFields)
                     {
                         table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
                             .Text(field.DisplayName ?? field.FieldName).FontSize(9);
@@ -311,6 +361,58 @@ namespace MECWeb.Services
                             .Text(field.FieldValue ?? "").FontSize(9);
                     }
                 });
+            });
+        }
+
+        /// <summary>
+        /// Create modern additional hardware section for BDR (FieldType = "Additional")
+        /// </summary>
+        private void CreateModernBdrAdditionalHardwareSection(IContainer container, List<DbHardwareField> additionalFields)
+        {
+            container.Column(column =>
+            {
+                column.Item().BorderBottom(2).BorderColor("#00873C").PaddingBottom(5)
+                    .Text("Zusatzhardware").FontSize(13).Bold().FontColor("#00873C");
+
+                column.Item().PaddingTop(8).Table(table =>
+                {
+                    table.ColumnsDefinition(columns =>
+                    {
+                        columns.RelativeColumn();
+                        columns.RelativeColumn();
+                    });
+
+                    table.Header(header =>
+                    {
+                        header.Cell().Background(Colors.Grey.Lighten3).Padding(8)
+                            .Text("Zusatzhardware").FontSize(10).Bold();
+                        header.Cell().Background(Colors.Grey.Lighten3).Padding(8)
+                            .Text("Wert").FontSize(10).Bold();
+                    });
+
+                    foreach (var field in additionalFields)
+                    {
+                        table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
+                            .Text(field.DisplayName ?? field.FieldName).FontSize(9);
+                        table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
+                            .Text(field.FieldValue ?? "").FontSize(9);
+                    }
+                });
+            });
+        }
+
+        /// <summary>
+        /// Create modern BDR hardware remarks section - shown after Zusatzhardware
+        /// </summary>
+        private void CreateModernBdrHardwareRemarksSection(IContainer container, string remarks)
+        {
+            container.Column(column =>
+            {
+                column.Item().BorderBottom(2).BorderColor("#00873C").PaddingBottom(5)
+                    .Text("Allgemeine Bemerkungen Hardware").FontSize(13).Bold().FontColor("#00873C");
+
+                column.Item().PaddingTop(8).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
+                    .Text(remarks).FontSize(9);
             });
         }
 
@@ -339,20 +441,6 @@ namespace MECWeb.Services
                         table.Cell().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
                             .Text(data.BvHardware.PcType).FontSize(9);
                     });
-
-                    // Only show description if it has content
-                    if (!string.IsNullOrEmpty(data.BvHardware.Description))
-                    {
-                        column.Item().PaddingTop(8).Element(descContainer =>
-                        {
-                            descContainer.Column(col =>
-                            {
-                                col.Item().Text("Allgemeine Beschreibung").FontSize(10).Bold().FontColor(Colors.Grey.Darken1);
-                                col.Item().PaddingTop(3).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
-                                    .Text(data.BvHardware.Description).FontSize(9);
-                            });
-                        });
-                    }
 
                     // Only show hardware components if there are any selected
                     if (data.BvHardwareComponents?.Any(c => c.IsSelected) == true)
@@ -383,7 +471,7 @@ namespace MECWeb.Services
                                         header.Cell().Background(Colors.Grey.Lighten3).Padding(8)
                                             .Text("Typ").FontSize(10).Bold();
                                         header.Cell().Background(Colors.Grey.Lighten3).Padding(8)
-                                            .Text("Kategorie").FontSize(10).Bold();
+                                            .Text("").FontSize(10).Bold();
                                     });
 
                                     foreach (var component in data.BvHardwareComponents.Where(c => c.IsSelected))
@@ -407,6 +495,21 @@ namespace MECWeb.Services
                     column.Item().PaddingTop(8).Text("Keine Hardware-Konfiguration gefunden.")
                         .Italic().FontColor(Colors.Grey.Medium);
                 }
+            });
+        }
+
+        /// <summary>
+        /// Create modern BV hardware remarks section
+        /// </summary>
+        private void CreateModernBvHardwareRemarksSection(IContainer container, string remarks)
+        {
+            container.Column(column =>
+            {
+                column.Item().BorderBottom(2).BorderColor("#00873C").PaddingBottom(5)
+                    .Text("Allgemeine Bemerkungen Hardware").FontSize(13).Bold().FontColor("#00873C");
+
+                column.Item().PaddingTop(8).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
+                    .Text(remarks).FontSize(9);
             });
         }
 
@@ -465,6 +568,21 @@ namespace MECWeb.Services
         }
 
         /// <summary>
+        /// Create modern software remarks section
+        /// </summary>
+        private void CreateModernSoftwareRemarksSection(IContainer container, string remarks)
+        {
+            container.Column(column =>
+            {
+                column.Item().BorderBottom(2).BorderColor("#00873C").PaddingBottom(5)
+                    .Text("Allgemeine Bemerkungen Software").FontSize(13).Bold().FontColor("#00873C");
+
+                column.Item().PaddingTop(8).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
+                    .Text(remarks).FontSize(9);
+            });
+        }
+
+        /// <summary>
         /// Create modern network section
         /// </summary>
         private void CreateModernNetworkSection(IContainer container, InstallationData data)
@@ -513,7 +631,7 @@ namespace MECWeb.Services
         }
 
         /// <summary>
-        /// Create modern comments section
+        /// Create modern comments section - only shown if there are comments
         /// </summary>
         private void CreateModernCommentsSection(IContainer container, InstallationData data)
         {
@@ -553,19 +671,6 @@ namespace MECWeb.Services
 
                         innerColumn.Item().PaddingTop(8).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
                             .Text(purchaseComment).FontSize(9);
-                    });
-                }
-
-                // If neither comment has content, show a message
-                if (string.IsNullOrEmpty(installationComment) && string.IsNullOrEmpty(purchaseComment))
-                {
-                    column.Item().ShowOnce().Column(innerColumn =>
-                    {
-                        innerColumn.Item().BorderBottom(2).BorderColor("#00873C").PaddingBottom(5)
-                            .Text("Kommentare & Hinweise").FontSize(13).Bold().FontColor("#00873C");
-
-                        innerColumn.Item().PaddingTop(8).Text("Keine Kommentare vorhanden.")
-                            .Italic().FontColor(Colors.Grey.Medium);
                     });
                 }
             });
@@ -665,6 +770,28 @@ namespace MECWeb.Services
             }
 
             return result;
+        }
+
+        private string ParseSoftwareRemarksFromDescription(string description, bool isBdr)
+        {
+            string prefix = isBdr ? "BDRSOFTWARE_REMARKS:" : "BVSOFTWARE_REMARKS:";
+
+            if (string.IsNullOrEmpty(description) || !description.Contains(prefix))
+                return "";
+
+            var startIndex = description.IndexOf(prefix) + prefix.Length;
+            var endIndex = description.IndexOf("ENDMEC:", startIndex);
+
+            if (endIndex > startIndex)
+            {
+                return description.Substring(startIndex, endIndex - startIndex);
+            }
+            else if (startIndex < description.Length)
+            {
+                return description.Substring(startIndex);
+            }
+
+            return "";
         }
 
         private string ParseCommentFromDescription(string description, string prefix)

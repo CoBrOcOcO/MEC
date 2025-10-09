@@ -10,16 +10,18 @@
 @inject IJSRuntime JSRuntime
 @layout ProjectMainLayout
 
+
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6">
     <MudStack Spacing="4">
-        <MudText Typo="Typo.h4" Color="Color.Secondary" Align="Align.Center"> Installation</MudText>
-        <!-- Project Header -->
+        <MudText Typo="Typo.h4" Color="Color.Secondary" Align="Align.Center">Installation</MudText>
+
+ <!-- Project Header -->
         @if (currentProject != null)
         {
             <MudPaper Class="pa-4" Elevation="2">
                 <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
                     <MudStack Spacing="1">
-                        <MudText Typo="Typo.h4" Color="Color.Primary">@currentProject.ProjectNumber </MudText>
+                        <MudText Typo="Typo.h4" Color="Color.Primary">@currentProject.ProjectNumber</MudText>
                         <MudText Typo="Typo.h4" Color="Color.Secondary">@currentProject.Name</MudText>
                         @if (!string.IsNullOrWhiteSpace(currentProject.Description))
                         {
@@ -27,16 +29,9 @@
                         }
                     </MudStack>
 
-                    <!-- Action Buttons -->
+ <!-- Action Buttons -->
                     <MudStack Row Spacing="3">
-                        <MudButton Color="Color.Primary"
-                                   Variant="Variant.Filled"
-                                   Size="Size.Medium"
-                                   StartIcon="@Icons.Material.Filled.ArrowBack"
-                                   OnClick="NavigateBack">
-                            Zurück
-                        </MudButton>
-
+                   
                         @if (!isProjectArchived)
                         {
                             <MudButton Color="Color.Secondary"
@@ -76,28 +71,28 @@
             </MudPaper>
         }
 
-        <!-- Loading -->
+ <!-- Loading -->
         @if (loading)
         {
             <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
         }
 
-        <!-- PROJECT STATUS OVERVIEW - IMMER ANZEIGEN -->
+ <!-- PROJECT STATUS OVERVIEW - IMMER ANZEIGEN -->
         @if (!loading)
         {
             <ProjectStatusOverview ProjectId="@ProjectId" IsLoading="@loading" />
         }
 
-        <!--  Prüfe ob Workflows beim Einkauf sind (zurückgeleitet) -->
+ <!--  Prüfe ob Workflows beim Einkauf sind (zurückgeleitet) -->
         @if (!loading && forwardedWorkflows.Any() && forwardedWorkflows.All(w => w.Status == WorkflowStatus.Completed))
         {
-            <!-- Projekt ist beim Einkauf - zeige Hinweismeldung -->
-            <MudAlert Severity="Severity.Warning" Class="mt-4">
-                <MudText Typo="Typo.body1">
-                    <strong>Dieses Projekt wurde zur Korrektur an den Einkauf zurückgeleitet.</strong>
-                </MudText>
-                <MudText Typo="Typo.body2" Class="mt-2">
-                    Die Installation ist derzeit nicht verfügbar. Das Projekt muss erst vom Einkauf erneut weitergeleitet werden.
+          
+
+ <!-- Project is back at purchase for corrections -->
+            <MudAlert Severity="Severity.Warning" Icon="@Icons.Material.Filled.Warning">
+                <MudText>
+                    <strong>Projekt zur Korrektur beim Einkauf</strong><br />
+                    Das Projekt muss erst vom Einkauf erneut weitergeleitet werden.
                 </MudText>
             </MudAlert>
         }
@@ -112,7 +107,7 @@
             var bdrWorkflows = forwardedWorkflows.Where(w => w.WorkflowType == WorkflowType.BDR).OrderBy(w => w.Name).ToList();
             var bvWorkflows = forwardedWorkflows.Where(w => w.WorkflowType == WorkflowType.BV).OrderBy(w => w.Name).ToList();
 
-            <!-- BDR Section Header -->
+ <!-- BDR Section Header -->
             @if (bdrWorkflows.Any())
             {
                 <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Class="mt-2">
@@ -121,7 +116,7 @@
                     <MudSpacer />
                 </MudStack>
 
-                <!-- BDR Installation Forms -->
+ <!-- BDR Installation Forms -->
                 @foreach (var workflow in bdrWorkflows)
                 {
                     var orderDetails = GetOrderDetailsForWorkflow(workflow);
@@ -129,7 +124,7 @@
                     <MudPaper Class="pa-4 mb-4" Elevation="2" Style="border-block-end: 4px solid var(--mud-palette-primary);">
                         <MudStack Spacing="3">
 
-                            <!-- Workflow Header mit PDF Button -->
+ <!-- Workflow Header mit PDF Button -->
                             <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
                                 <MudStack Spacing="2">
                                     <MudButton Color="Color.Primary"
@@ -165,7 +160,8 @@
                                                  ShowComments="false">
                             </WorkflowDetailsCard>
 
-                            <!-- Network Configuration Integration -->
+<!-- Network Configuration Integration -->
+
                             <MudPaper Elevation="1" Class="pa-4 mt-3" Style="background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%); border-left: 4px solid #4caf50; border-radius: 8px;">
                                 <MudStack Spacing="3">
                                     <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
@@ -241,8 +237,7 @@
                                     </MudStack>
                                 </MudStack>
                             </MudPaper>
-
-                            <!-- Comments Section für BDR -->
+ <!-- Comments Section für BDR -->
                             <MudPaper Elevation="1" Class="pa-4 mt-3" Style="background: linear-gradient(135deg, #fafafa 0%, #ffffff 100%); border-radius: 8px;">
                                 <MudStack Spacing="3">
                                     <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
@@ -305,7 +300,7 @@
                 }
             }
 
-            <!-- BV Section -->
+ <!-- BV Section -->
             @if (bvWorkflows.Any())
             {
                 <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Class="mt-6">
@@ -314,28 +309,28 @@
                     <MudSpacer />
                 </MudStack>
 
-                <!-- BV Installation Forms -->
+ <!-- BV Installation Forms -->
                 @foreach (var workflow in bvWorkflows)
                 {
                     var orderDetails = GetOrderDetailsForWorkflow(workflow);
                     var contactPerson = GetContactPersonForBvWorkflow(workflow);
 
-                    <MudPaper Class="pa-4 mb-4" Elevation="2" Style="border-left: 4px solid var(--mud-palette-secondary);">
+                    <MudPaper Class="pa-4 mb-4" Elevation="2" Style="border-block-end: 4px solid var(--mud-palette-secondary);">
                         <MudStack Spacing="3">
 
-                            <!-- Workflow Header mit PDF Button -->
+  <!-- Workflow Header mit PDF Button -->
                             <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-                                <!-- ALL PDF Button -->
-                                <MudButton Color="Color.Secondary"
-                                           Variant="Variant.Outlined"
-                                           StartIcon="@Icons.Material.Filled.PictureAsPdf"
-                                           OnClick="ExportAllBvToPdf"
-                                           Loading="@isExportingPdf"
-                                           Disabled="@isExportingPdf">
-                                    Alle BV als PDF
-                                </MudButton>
+                                <MudStack Spacing="2">
+                                    <MudButton Color="Color.Secondary"
+                                               Variant="Variant.Outlined"
+                                               StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                                               OnClick="ExportAllBvToPdf"
+                                               Loading="@isExportingPdf"
+                                               Disabled="@isExportingPdf">
+                                        Alle BV als PDF
+                                    </MudButton>
+                                </MudStack>
 
-                                <!-- Single PDF Button -->
                                 <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf"
                                                Color="Color.Secondary"
                                                Size="Size.Medium"
@@ -353,13 +348,14 @@
                                                  HardwareItems="@orderDetails.HardwareDetails"
                                                  AdditionalHardwareItems="@orderDetails.AdditionalHardware"
                                                  SoftwareItems="@orderDetails.Software"
-                                                 ContactPerson="@orderDetails.ContactPerson"
                                                  Notes="@orderDetails.Notes"
+                                                 ContactPerson="@contactPerson"
                                                  HardwareRemarks="@orderDetails.HardwareRemarks"
                                                  SoftwareRemarks="@orderDetails.SoftwareRemarks"
                                                  ShowComments="false">
                             </WorkflowDetailsCard>
-                            <!-- Network Configuration Integration -->
+
+ <!-- Network Configuration Integration -->
                             <MudPaper Elevation="1" Class="pa-4 mt-3" Style="background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%); border-left: 4px solid #4caf50; border-radius: 8px;">
                                 <MudStack Spacing="3">
                                     <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
@@ -436,7 +432,7 @@
                                 </MudStack>
                             </MudPaper>
 
-                            <!-- Comments Section für BV -->
+  <!-- Comments Section für BV -->
                             <MudPaper Elevation="1" Class="pa-4 mt-3" Style="background: linear-gradient(135deg, #fafafa 0%, #ffffff 100%); border-radius: 8px;">
                                 <MudStack Spacing="3">
                                     <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
@@ -499,7 +495,7 @@
                 }
             }
 
-            <!-- Summary -->
+ <!-- Summary -->
             <MudPaper Class="pa-4 mt-4 mb-4" Elevation="1" Style="background-color: var(--mud-palette-background-grey);">
                 <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
                     <MudStack Row AlignItems="AlignItems.Center" Spacing="4">
@@ -523,7 +519,7 @@
             </MudPaper>
         }
 
-        <!-- Back Button -->
+ <!-- Back Button -->
         <MudButton Variant="Variant.Text"
                    Size="Size.Small"
                    Color="Color.Primary"
@@ -541,42 +537,9 @@
     [Parameter] public Guid ProjectId { get; set; }
     [Parameter]
     [SupplyParameterFromQuery]
-    public string? ReturnPath { get; set; }
+    public string? ReturnUrl { get; set; }
 
-    // ==================== DATA STRUCTURES ====================
-
-    // Network configuration data for each workflow
-    public class NetworkConfiguration
-    {
-        public string MacAddress { get; set; } = string.Empty;
-        public string IpAddress { get; set; } = string.Empty;
-    }
-
-    // Order details structure for display
-    public class OrderDetails
-    {
-        public string MainHardware { get; set; } = string.Empty;
-        public List<string> HardwareDetails { get; set; } = new();
-        public List<string> AdditionalHardware { get; set; } = new();
-        public List<string> PcDetails { get; set; } = new();
-        public List<string> Software { get; set; } = new();
-        public string Notes { get; set; } = string.Empty;
-        public string ContactPerson { get; set; } = string.Empty;
-        public string HardwareRemarks { get; set; } = string.Empty;
-        public string SoftwareRemarks { get; set; } = string.Empty;
-    }
-
-    // Save status tracking for network configuration
-    public class SaveStatus
-    {
-        public bool IsSuccess { get; set; }
-        public DateTime SaveTime { get; set; }
-        public string ErrorMessage { get; set; } = "";
-    }
-
-    // ==================== COMPONENT STATE ====================
-
-    // Project and workflow data
+    // State variables
     private DbProject? currentProject;
     private List<DbWorkflow> forwardedWorkflows = new();
     private bool loading = true;
@@ -702,11 +665,7 @@
                 foreach (var hardware in bdrHardwareWithFields)
                 {
                     bdrHardwareCache[hardware.WorkflowId] = hardware;
-                    var fields = hardware.HardwareFields
-                        .OrderBy(f => f.DisplayOrder)
-                        .ThenBy(f => f.DisplayName)
-                        .ToList();
-                    bdrFieldsCache[hardware.WorkflowId] = fields;
+                    bdrFieldsCache[hardware.WorkflowId] = hardware.HardwareFields.OrderBy(f => f.DisplayOrder).ToList();
                 }
             }
 
@@ -718,23 +677,20 @@
 
             if (bvWorkflowIds.Any())
             {
-                var bvHardwareList = await context.BvHardwareComputer
+                var bvHardwareWithComponents = await context.BvHardwareComputer
+                    .Include(h => h.HardwareComponents.Where(c => c.IsActive))
                     .Where(h => bvWorkflowIds.Contains(h.WorkflowId))
                     .ToListAsync();
 
-                foreach (var hardware in bvHardwareList)
+                foreach (var hardware in bvHardwareWithComponents)
                 {
                     bvHardwareCache[hardware.WorkflowId] = hardware;
-                    var components = await context.BvHardwareComponent
-                        .Where(c => c.BvHardwareComputerId == hardware.Id && c.IsActive && c.IsSelected)
-                        .ToListAsync();
-                    bvComponentsCache[hardware.WorkflowId] = components;
+                    bvComponentsCache[hardware.WorkflowId] = hardware.HardwareComponents.ToList();
                 }
             }
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Fehler beim Laden der Hardware-Details: {ex.Message}", Severity.Warning);
             Console.WriteLine($"LoadDetailedData Error: {ex}");
         }
     }
@@ -826,6 +782,85 @@
         return "";
     }
 
+    // ==================== NETWORK CONFIGURATION - SEGMENTED INPUT ====================
+
+    // Get MAC address segment (0-5)
+    private string GetMacSegment(Guid workflowId, int segmentIndex)
+    {
+        if (!networkConfigurations.TryGetValue(workflowId, out var config))
+            return "";
+
+        var segments = config.MacAddress.Split(':');
+        return segmentIndex < segments.Length ? segments[segmentIndex] : "";
+    }
+
+    // Update MAC address segment
+    private void UpdateMacSegment(Guid workflowId, int segmentIndex, string value)
+    {
+        if (!networkConfigurations.ContainsKey(workflowId))
+            networkConfigurations[workflowId] = new NetworkConfiguration();
+
+        // Only allow hexadecimal characters
+        value = new string(value.Where(c => "0123456789ABCDEFabcdef".Contains(c)).ToArray()).ToUpper();
+        if (value.Length > 2) value = value.Substring(0, 2);
+
+        var config = networkConfigurations[workflowId];
+        var segments = config.MacAddress.Split(':').ToList();
+
+        while (segments.Count < 6) segments.Add("");
+
+        segments[segmentIndex] = value;
+        config.MacAddress = string.Join(":", segments);
+
+        // Auto-focus next field if current is complete
+        if (value.Length == 2 && segmentIndex < 5)
+        {
+            _ = JSRuntime.InvokeVoidAsync("focusElement", $"mac-{workflowId}-{segmentIndex + 1}");
+        }
+    }
+
+    // Get IP address segment (0-3)
+    private string GetIpSegment(Guid workflowId, int segmentIndex)
+    {
+        if (!networkConfigurations.TryGetValue(workflowId, out var config))
+            return "";
+
+        var segments = config.IpAddress.Split('.');
+        return segmentIndex < segments.Length ? segments[segmentIndex] : "";
+    }
+
+    // Update IP address segment
+    private void UpdateIpSegment(Guid workflowId, int segmentIndex, string value)
+    {
+        if (!networkConfigurations.ContainsKey(workflowId))
+            networkConfigurations[workflowId] = new NetworkConfiguration();
+
+        // Only allow numeric characters
+        value = new string(value.Where(char.IsDigit).ToArray());
+
+        // Validate IP segment (0-255)
+        if (int.TryParse(value, out int numValue))
+        {
+            if (numValue > 255) value = "255";
+        }
+
+        if (value.Length > 3) value = value.Substring(0, 3);
+
+        var config = networkConfigurations[workflowId];
+        var segments = config.IpAddress.Split('.').ToList();
+
+        while (segments.Count < 4) segments.Add("");
+
+        segments[segmentIndex] = value;
+        config.IpAddress = string.Join(".", segments);
+
+        // Auto-focus next field if current is complete (3 digits or value is 255)
+        if ((value.Length == 3 || (int.TryParse(value, out int v) && v >= 100)) && segmentIndex < 3)
+        {
+            _ = JSRuntime.InvokeVoidAsync("focusElement", $"ip-{workflowId}-{segmentIndex + 1}");
+        }
+    }
+
     // ==================== NETWORK CONFIGURATION ====================
 
     // Save network configuration for individual workflow
@@ -846,10 +881,10 @@
             using var context = await DbContextFactory.CreateDbContextAsync();
             using var transaction = await context.Database.BeginTransactionAsync();
 
-            var workflow = forwardedWorkflows.FirstOrDefault(w => w.Id == workflowId);
+            var workflow = await context.Workflow.FindAsync(workflowId);
             if (workflow == null)
             {
-                throw new Exception("Projekt nicht gefunden");
+                throw new Exception("Workflow nicht gefunden");
             }
 
             if (workflow.Status == WorkflowStatus.Archived)
@@ -963,19 +998,6 @@
         installationComments[workflowId] = comment ?? "";
     }
 
-    // Update network configuration in memory (not saved yet)
-    private void UpdateNetworkConfig(Guid workflowId, string macAddress, string ipAddress)
-    {
-        if (!networkConfigurations.ContainsKey(workflowId))
-        {
-            networkConfigurations[workflowId] = new NetworkConfiguration();
-        }
-
-        var config = networkConfigurations[workflowId];
-        config.MacAddress = macAddress ?? "";
-        config.IpAddress = ipAddress ?? "";
-    }
-
     // Save installation notes for individual workflow
     private async Task SaveInstallationNotes(Guid workflowId)
     {
@@ -991,7 +1013,7 @@
             using var context = await DbContextFactory.CreateDbContextAsync();
             using var transaction = await context.Database.BeginTransactionAsync();
 
-            var workflow = forwardedWorkflows.FirstOrDefault(w => w.Id == workflowId);
+            var workflow = await context.Workflow.FindAsync(workflowId);
             if (workflow == null)
             {
                 throw new Exception("Workflow nicht gefunden");
@@ -1092,8 +1114,13 @@
             using var context = await DbContextFactory.CreateDbContextAsync();
             using var transaction = await context.Database.BeginTransactionAsync();
 
+            var workflowIds = forwardedWorkflows.Select(w => w.Id).ToList();
+            var workflowsToUpdate = await context.Workflow
+                .Where(w => workflowIds.Contains(w.Id))
+                .ToListAsync();
+
             // Set workflows back to Completed status (at purchase)
-            foreach (var workflow in forwardedWorkflows)
+            foreach (var workflow in workflowsToUpdate)
             {
                 workflow.Status = WorkflowStatus.Completed;
                 workflow.LastChange = DateTime.UtcNow;
@@ -1160,8 +1187,13 @@
             using var context = await DbContextFactory.CreateDbContextAsync();
             using var transaction = await context.Database.BeginTransactionAsync();
 
+            var workflowIds = forwardedWorkflows.Select(w => w.Id).ToList();
+            var workflowsToUpdate = await context.Workflow
+                .Where(w => workflowIds.Contains(w.Id))
+                .ToListAsync();
+
             // Archive all workflows
-            foreach (var workflow in forwardedWorkflows)
+            foreach (var workflow in workflowsToUpdate)
             {
                 workflow.Status = WorkflowStatus.Archived;
                 workflow.LastChange = DateTime.UtcNow;
@@ -1192,7 +1224,9 @@
         bool? result = await DialogService.ShowMessageBox(
             "Projekt zur Bearbeitung öffnen",
             "Möchten Sie das Projekt wieder zur Bearbeitung öffnen?",
-            yesText: "Ja", noText: "Abbrechen");
+            "Öffnen",
+            "Abbrechen"
+        );
 
         if (result != true) return;
 
@@ -1202,8 +1236,13 @@
             using var context = await DbContextFactory.CreateDbContextAsync();
             using var transaction = await context.Database.BeginTransactionAsync();
 
+            var workflowIds = forwardedWorkflows.Select(w => w.Id).ToList();
+            var workflowsToUpdate = await context.Workflow
+                .Where(w => workflowIds.Contains(w.Id))
+                .ToListAsync();
+
             // Reopen workflows from Archived to ForwardedToInstallation
-            foreach (var workflow in forwardedWorkflows)
+            foreach (var workflow in workflowsToUpdate)
             {
                 workflow.Status = WorkflowStatus.ForwardedToInstallation;
                 workflow.LastChange = DateTime.UtcNow;
@@ -1212,12 +1251,16 @@
             await context.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            Snackbar.Add("Projekt wurde zur Bearbeitung geöffnet!", Severity.Success);
+            Snackbar.Add("Projekt erfolgreich zur Bearbeitung geöffnet!", Severity.Success);
+
+            await Task.Delay(1000);
             await LoadProjectDetails();
+            StateHasChanged();
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Fehler beim Öffnen: {ex.Message}", Severity.Error);
+            Console.WriteLine($"ReopenForEditing Error: {ex}");
         }
         finally
         {
@@ -1227,21 +1270,27 @@
 
     // ==================== PDF EXPORT ====================
 
-    // Export all BDR workflows as PDF
+    // Export all BDR workflows to PDF
     private async Task ExportAllBdrToPdf()
     {
-        if (isExportingPdf) return;
         isExportingPdf = true;
-
         try
         {
-            var downloadUrl = $"/api/pdf/download-project/{ProjectId}/BDR";
-            await JSRuntime.InvokeVoidAsync("window.open", downloadUrl, "_blank");
-            Snackbar.Add("BDR PDFs werden generiert...", Severity.Info);
+            var result = await PdfService.GenerateAllBdrPdfsAsync(ProjectId);
+
+            if (result.IsSuccess && result.PdfData != null)
+            {
+                await JSRuntime.InvokeVoidAsync("downloadFile", result.FileName, Convert.ToBase64String(result.PdfData));
+                Snackbar.Add("PDF erfolgreich erstellt!", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add($"Fehler: {result.ErrorMessage}", Severity.Error);
+            }
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Fehler: {ex.Message}", Severity.Error);
+            Snackbar.Add($"Fehler beim Erstellen des PDFs: {ex.Message}", Severity.Error);
         }
         finally
         {
@@ -1249,42 +1298,27 @@
         }
     }
 
-    // Export all BV workflows as PDF
-    private async Task ExportAllBvToPdf()
-    {
-        if (isExportingPdf) return;
-        isExportingPdf = true;
-
-        try
-        {
-            var downloadUrl = $"/api/pdf/download-project/{ProjectId}/BV";
-            await JSRuntime.InvokeVoidAsync("window.open", downloadUrl, "_blank");
-            Snackbar.Add("BV PDFs werden generiert...", Severity.Info);
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Fehler: {ex.Message}", Severity.Error);
-        }
-        finally
-        {
-            isExportingPdf = false;
-        }
-    }
-
-    // Export single BDR workflow as PDF
+    // Export single BDR workflow to PDF
     private async Task ExportSingleBdrToPdf(Guid workflowId)
     {
         exportingWorkflowIds.Add(workflowId);
-
         try
         {
-            var downloadUrl = $"/api/pdf/download/{workflowId}/BDR";
-            await JSRuntime.InvokeVoidAsync("window.open", downloadUrl, "_blank");
-            Snackbar.Add("BDR PDF wird generiert...", Severity.Info);
+            var result = await PdfService.GenerateBdrPdfAsync(workflowId);
+
+            if (result.IsSuccess && result.PdfData != null)
+            {
+                await JSRuntime.InvokeVoidAsync("downloadFile", result.FileName, Convert.ToBase64String(result.PdfData));
+                Snackbar.Add("PDF erfolgreich erstellt!", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add($"Fehler: {result.ErrorMessage}", Severity.Error);
+            }
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Fehler: {ex.Message}", Severity.Error);
+            Snackbar.Add($"Fehler beim Erstellen des PDFs: {ex.Message}", Severity.Error);
         }
         finally
         {
@@ -1292,20 +1326,55 @@
         }
     }
 
-    // Export single BV workflow as PDF
-    private async Task ExportSingleBvToPdf(Guid workflowId)
+    // Export all BV workflows to PDF
+    private async Task ExportAllBvToPdf()
     {
-        exportingWorkflowIds.Add(workflowId);
-
+        isExportingPdf = true;
         try
         {
-            var downloadUrl = $"/api/pdf/download/{workflowId}/BV";
-            await JSRuntime.InvokeVoidAsync("window.open", downloadUrl, "_blank");
-            Snackbar.Add("BV PDF wird generiert...", Severity.Info);
+            var result = await PdfService.GenerateAllBvPdfsAsync(ProjectId);
+
+            if (result.IsSuccess && result.PdfData != null)
+            {
+                await JSRuntime.InvokeVoidAsync("downloadFile", result.FileName, Convert.ToBase64String(result.PdfData));
+                Snackbar.Add("PDF erfolgreich erstellt!", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add($"Fehler: {result.ErrorMessage}", Severity.Error);
+            }
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Fehler: {ex.Message}", Severity.Error);
+            Snackbar.Add($"Fehler beim Erstellen des PDFs: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isExportingPdf = false;
+        }
+    }
+
+    // Export single BV workflow to PDF
+    private async Task ExportSingleBvToPdf(Guid workflowId)
+    {
+        exportingWorkflowIds.Add(workflowId);
+        try
+        {
+            var result = await PdfService.GenerateBvPdfAsync(workflowId);
+
+            if (result.IsSuccess && result.PdfData != null)
+            {
+                await JSRuntime.InvokeVoidAsync("downloadFile", result.FileName, Convert.ToBase64String(result.PdfData));
+                Snackbar.Add("PDF erfolgreich erstellt!", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add($"Fehler: {result.ErrorMessage}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Fehler beim Erstellen des PDFs: {ex.Message}", Severity.Error);
         }
         finally
         {
@@ -1316,45 +1385,51 @@
     // ==================== DATA PROCESSING ====================
 
     // Get formatted order details for display
-    private OrderDetails GetOrderDetailsForWorkflow(DbWorkflow workflow)
+    private (string MainHardware, List<string> HardwareDetails, List<string> AdditionalHardware, List<string> Software, string Notes, string HardwareRemarks, string SoftwareRemarks) GetOrderDetailsForWorkflow(DbWorkflow workflow)
     {
-        var orderData = new OrderDetails();
+        var mainHardware = "";
+        var hardwareDetails = new List<string>();
+        var additionalHardware = new List<string>();
+        var software = new List<string>();
+        var notes = "";
+        var hardwareRemarks = "";
+        var softwareRemarks = "";
 
         try
         {
             if (workflow.WorkflowType == WorkflowType.BDR)
             {
-                ProcessBdrHardware(workflow, orderData);
+                ProcessBdrHardware(workflow, ref mainHardware, ref hardwareDetails, ref additionalHardware, ref hardwareRemarks);
             }
             else
             {
-                ProcessBvHardware(workflow, orderData);
+                ProcessBvHardware(workflow, ref mainHardware, ref hardwareDetails, ref additionalHardware, ref hardwareRemarks);
             }
 
-            ProcessWorkflowSoftware(workflow, orderData);
+            ProcessWorkflowSoftware(workflow, ref software, ref softwareRemarks);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"GetOrderDetailsForWorkflow Error: {ex.Message}");
-            orderData.Notes = $"Fehler beim Laden der Details: {ex.Message}";
+            notes = $"Fehler beim Laden der Details: {ex.Message}";
         }
 
-        return orderData;
+        return (mainHardware, hardwareDetails, additionalHardware, software, notes, hardwareRemarks, softwareRemarks);
     }
 
     // Process BDR hardware data for display
-    private void ProcessBdrHardware(DbWorkflow workflow, OrderDetails orderData)
+    private void ProcessBdrHardware(DbWorkflow workflow, ref string mainHardware, ref List<string> hardwareDetails, ref List<string> additionalHardware, ref string hardwareRemarks)
     {
         if (bdrHardwareCache.TryGetValue(workflow.Id, out var bdrHardware) && bdrHardware != null)
         {
             if (!string.IsNullOrEmpty(bdrHardware.HardwareSpecs))
             {
-                orderData.MainHardware = bdrHardware.HardwareSpecs;
+                mainHardware = bdrHardware.HardwareSpecs;
             }
 
             if (!string.IsNullOrEmpty(bdrHardware.Description))
             {
-                orderData.HardwareRemarks = bdrHardware.Description;
+                hardwareRemarks = bdrHardware.Description;
             }
 
             if (bdrFieldsCache.TryGetValue(workflow.Id, out var fields))
@@ -1363,10 +1438,10 @@
                 foreach (var field in hardwareFields)
                 {
                     var displayName = !string.IsNullOrEmpty(field.DisplayName) ? field.DisplayName : field.FieldName;
-                    var value = field.FieldValue?.Trim() ?? string.Empty;
+                    var value = field.FieldValue?.Trim() ?? "";
                     if (!string.IsNullOrEmpty(value))
                     {
-                        orderData.HardwareDetails.Add($"{displayName}: {value}");
+                        hardwareDetails.Add($"{displayName}: {value}");
                     }
                 }
 
@@ -1374,10 +1449,10 @@
                 foreach (var field in additionalFields)
                 {
                     var displayName = !string.IsNullOrEmpty(field.DisplayName) ? field.DisplayName : field.FieldName;
-                    var value = field.FieldValue?.Trim() ?? string.Empty;
+                    var value = field.FieldValue?.Trim() ?? "";
                     if (!string.IsNullOrEmpty(value))
                     {
-                        orderData.AdditionalHardware.Add($"{displayName}: {value}");
+                        additionalHardware.Add($"{displayName}: {value}");
                     }
                 }
             }
@@ -1385,136 +1460,105 @@
     }
 
     // Process BV hardware data for display
-    private void ProcessBvHardware(DbWorkflow workflow, OrderDetails orderData)
+    private void ProcessBvHardware(DbWorkflow workflow, ref string mainHardware, ref List<string> hardwareDetails, ref List<string> additionalHardware, ref string hardwareRemarks)
     {
         if (bvHardwareCache.TryGetValue(workflow.Id, out var bvHardware) && bvHardware != null)
         {
             if (!string.IsNullOrEmpty(bvHardware.PcType))
             {
-                orderData.MainHardware = bvHardware.PcType;
-            }
-            if (!string.IsNullOrEmpty(bvHardware.ContactPerson))
-            {
-                orderData.ContactPerson = bvHardware.ContactPerson;
-            }
-            if (!string.IsNullOrEmpty(bvHardware.PcTypeDetails))
-            {
-                var parts = bvHardware.PcTypeDetails.Split('|');
-
-                if (parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1]))
-                {
-                    var requirements = parts[1].Split(';', StringSplitOptions.RemoveEmptyEntries);
-                    foreach (var req in requirements)
-                    {
-                        orderData.HardwareDetails.Add(req.Trim());
-                    }
-                }
-
-                if (parts.Length > 2 && !string.IsNullOrWhiteSpace(parts[2]))
-                {
-                    orderData.HardwareRemarks = parts[2].Trim();
-                }
+                mainHardware = bvHardware.PcType;
             }
 
-            if (bvComponentsCache.TryGetValue(workflow.Id, out var components) && components.Any())
+            if (!string.IsNullOrEmpty(bvHardware.Description))
             {
-                foreach (var component in components)
+                hardwareRemarks = bvHardware.Description;
+            }
+
+            if (bvComponentsCache.TryGetValue(workflow.Id, out var components))
+            {
+                var selectedComponents = components.Where(c => c.IsSelected).ToList();
+                foreach (var component in selectedComponents)
                 {
-                    var componentText = component.ComponentName ?? "Unbekannte Komponente";
-                    var details = new List<string>();
+                    var componentName = component.ComponentName ?? "";
+                    var quantity = component.Quantity ?? "1";
+                    var componentType = component.ComponentType ?? "";
 
-                    if (!string.IsNullOrEmpty(component.Quantity) && component.Quantity != "1")
+                    if (!string.IsNullOrEmpty(componentName))
                     {
-                        details.Add($"{component.Quantity}x");
-                    }
-
-                    if (!string.IsNullOrEmpty(component.ComponentType))
-                    {
-                        details.Add(component.ComponentType);
-                    }
-
-                    if (details.Any())
-                    {
-                        orderData.HardwareDetails.Add($"{componentText} ({string.Join(", ", details)})");
-                    }
-                    else
-                    {
-                        orderData.HardwareDetails.Add(componentText);
+                        var detail = $"{componentName} ({quantity}x)";
+                        if (!string.IsNullOrEmpty(componentType))
+                        {
+                            detail += $" - {componentType}";
+                        }
+                        hardwareDetails.Add(detail);
                     }
                 }
             }
         }
     }
 
-    // Process software data from encoded workflow description
-    private void ProcessWorkflowSoftware(DbWorkflow workflow, OrderDetails orderData)
+    // Process software data for display
+    private void ProcessWorkflowSoftware(DbWorkflow workflow, ref List<string> items, ref string softwareRemarks)
     {
-        var description = workflow.Description ?? "";
-        string softwarePrefix = workflow.WorkflowType == WorkflowType.BDR ? "BDRSOFTWARE:" : "BVSOFTWARE:";
-        string remarksPrefix = workflow.WorkflowType == WorkflowType.BDR ? "BDRSOFTWARE_REMARKS:" : "BVSOFTWARE_REMARKS:";
+        bool isBdr = workflow.WorkflowType == WorkflowType.BDR;
+        string softwarePrefix = isBdr ? "BDRSOFTWARE:" : "BVSOFTWARE:";
 
-        if (description.Contains(softwarePrefix))
+        if (!string.IsNullOrEmpty(workflow.Description) && workflow.Description.Contains(softwarePrefix))
         {
-            var startIndex = description.IndexOf(softwarePrefix) + softwarePrefix.Length;
-            var endIndex = description.IndexOf("ENDMEC:", startIndex);
+            var startIndex = workflow.Description.IndexOf(softwarePrefix) + softwarePrefix.Length;
+            var endIndex = workflow.Description.IndexOf("ENDMEC:", startIndex);
 
             string softwareData = endIndex > startIndex
-                ? description.Substring(startIndex, endIndex - startIndex)
-                : description.Substring(startIndex);
+                ? workflow.Description.Substring(startIndex, endIndex - startIndex)
+                : workflow.Description.Substring(startIndex);
 
-            var softwareItems = ParseSoftwareData(softwareData, workflow.WorkflowType == WorkflowType.BDR);
-            var uniqueSoftware = softwareItems.Distinct().ToList();
-            orderData.Software.AddRange(uniqueSoftware);
-        }
-
-        if (description.Contains(remarksPrefix))
-        {
-            var startIndex = description.IndexOf(remarksPrefix) + remarksPrefix.Length;
-            var endIndex = description.IndexOf("ENDMEC:", startIndex);
-
-            orderData.SoftwareRemarks = endIndex > startIndex
-                ? description.Substring(startIndex, endIndex - startIndex)
-                : description.Substring(startIndex);
-        }
-    }
-
-    // Parse encoded software data string into list
-    private List<string> ParseSoftwareData(string softwareData, bool isBdr)
-    {
-        var items = new List<string>();
-        if (string.IsNullOrEmpty(softwareData)) return items;
-
-        var entries = softwareData.Split(';');
-        foreach (var entry in entries)
-        {
-            if (!string.IsNullOrEmpty(entry))
+            var entries = softwareData.Split(';');
+            foreach (var entry in entries)
             {
-                var parts = entry.Split('|');
-                var softwareType = parts.Length > 0 ? parts[0].Replace("PIPE", "|").Replace("SEMICOLON", ";") : "";
-                var note = parts.Length > 1 ? parts[1].Replace("PIPE", "|").Replace("SEMICOLON", ";") : "";
-                var licenseStr = parts.Length > 2 ? parts[2] : "false";
-                var licenseRequired = isBdr && licenseStr.Equals("true", StringComparison.OrdinalIgnoreCase);
-
-                if (!string.IsNullOrWhiteSpace(softwareType))
+                if (!string.IsNullOrEmpty(entry))
                 {
-                    var softwareEntry = softwareType;
+                    var parts = entry.Split('|');
+                    var softwareType = parts.Length > 0 ? parts[0].Replace("PIPE", "|").Replace("SEMICOLON", ";") : "";
+                    var note = parts.Length > 1 ? parts[1].Replace("PIPE", "|").Replace("SEMICOLON", ";") : "";
+                    var licenseStr = parts.Length > 2 ? parts[2] : "false";
+                    var licenseRequired = isBdr && licenseStr.Equals("true", StringComparison.OrdinalIgnoreCase);
 
-                    if (!string.IsNullOrEmpty(note))
+                    if (!string.IsNullOrWhiteSpace(softwareType))
                     {
-                        softwareEntry += $" (Version: {note})";
-                    }
+                        var softwareEntry = softwareType;
 
-                    if (isBdr && licenseRequired)
-                    {
-                        softwareEntry += " [Lizenz erforderlich]";
-                    }
+                        if (!string.IsNullOrEmpty(note))
+                        {
+                            softwareEntry += $" (Version: {note})";
+                        }
 
-                    items.Add(softwareEntry);
+                        if (isBdr && licenseRequired)
+                        {
+                            softwareEntry += " [Lizenz erforderlich]";
+                        }
+
+                        items.Add(softwareEntry);
+                    }
                 }
             }
         }
 
-        return items;
+        // Extract software remarks
+        string remarksPrefix = isBdr ? "BDRSOFTWARE_REMARKS:" : "BVSOFTWARE_REMARKS:";
+        if (!string.IsNullOrEmpty(workflow.Description) && workflow.Description.Contains(remarksPrefix))
+        {
+            var startIndex = workflow.Description.IndexOf(remarksPrefix) + remarksPrefix.Length;
+            var endIndex = workflow.Description.IndexOf("ENDMEC:", startIndex);
+
+            if (endIndex > startIndex)
+            {
+                softwareRemarks = workflow.Description.Substring(startIndex, endIndex - startIndex);
+            }
+            else if (startIndex < workflow.Description.Length)
+            {
+                softwareRemarks = workflow.Description.Substring(startIndex);
+            }
+        }
     }
 
     // Get contact person for BV workflow
@@ -1548,5 +1592,20 @@
     private void NavigateBack()
     {
         Navigation.NavigateTo($"/project/{ProjectId}", forceLoad: true);
+    }
+
+    // ==================== HELPER CLASSES ====================
+
+    private class SaveStatus
+    {
+        public bool IsSuccess { get; set; }
+        public DateTime SaveTime { get; set; }
+        public string ErrorMessage { get; set; } = "";
+    }
+
+    private class NetworkConfiguration
+    {
+        public string MacAddress { get; set; } = "";
+        public string IpAddress { get; set; } = "";
     }
 }
