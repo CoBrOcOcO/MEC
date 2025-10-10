@@ -77,12 +77,13 @@
             <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
         }
 
- <!-- PROJECT STATUS OVERVIEW - IMMER ANZEIGEN -->
+        <!-- PROJECT STATUS OVERVIEW  -->
         @if (!loading)
         {
-            <ProjectStatusOverview ProjectId="@ProjectId" IsLoading="@loading" />
+            <ProjectStatusOverview ProjectId="@ProjectId"
+                                   IsLoading="@loading"
+                                   @ref="statusOverview" />
         }
-
  <!--  Prüfe ob Workflows beim Einkauf sind (zurückgeleitet) -->
         @if (!loading && forwardedWorkflows.Any() && forwardedWorkflows.All(w => w.Status == WorkflowStatus.Completed))
         {
@@ -568,6 +569,9 @@
     // Check if project is archived (read-only mode)
     private bool isProjectArchived => forwardedWorkflows.All(w => w.Status == WorkflowStatus.Archived);
     private bool isReopening = false;
+
+    // Status overview reference
+    private ProjectStatusOverview? statusOverview;
 
     // ==================== LIFECYCLE METHODS ====================
 
@@ -1084,26 +1088,24 @@
         bool? result = await DialogService.ShowMessageBox(
             title: "Zur Korrektur freigeben",
             markupMessage: new MarkupString($@"
-            <div style='line-height: 1.6;'>
-                <div style='margin-bottom: 16px;'>
-                    Möchten Sie das Projekt zur Korrektur freigeben?
-                </div>
-
-                <div style='margin-bottom: 8px; font-weight: 600; color: #1976d2;'>
-                    Projekt:
-                </div>
-                <div style='margin-bottom: 16px; font-weight: 500;'>
-                    {currentProject?.ProjectNumber} - {currentProject?.Name}
-                </div>
-
-                <div style='color: #ff9800; font-weight: 500; display: flex; align-items: center; gap: 8px;'>
-                    <span style='font-size: 18px;'>📝</span>
-                    <span>Das Projekt geht zurück zum Einkauf.</span>
-                </div>
-            </div>
-        "),
-            "Freigeben",
-            "Abbrechen"
+    <div style='line-height: 1.6;'>
+        <div style='margin-bottom: 16px;'>
+            Möchten Sie das Projekt zur Korrektur freigeben?
+        </div>
+        <div style='margin-bottom: 8px; font-weight: 600; color: #1976d2;'>
+            Projekt:
+        </div>
+        <div style='margin-bottom: 16px; font-weight: 500;'>
+            {currentProject?.ProjectNumber} - {currentProject?.Name}
+        </div>
+        <div style='color: #ff9800; font-weight: 500; display: flex; align-items: center; gap: 8px;'>
+            <span style='font-size: 18px;'>📝</span>
+            <span>Das Projekt geht zurück zum Einkauf.</span>
+        </div>
+    </div>
+"),
+            yesText: "Freigeben",
+            noText: "Abbrechen"
         );
 
         if (result != true) return;
@@ -1122,12 +1124,27 @@
             // Set workflows back to Completed status (at purchase)
             foreach (var workflow in workflowsToUpdate)
             {
+                // Reset status back to Completed (at purchase)
                 workflow.Status = WorkflowStatus.Completed;
+
+                // Set correction flag specifically for Purchase phase
+                workflow.HasPendingCorrection = true;
+                workflow.CorrectionPhase = "Purchase";
+                workflow.CorrectionNote = "Von Installation zur Korrektur freigegeben";
+                workflow.CorrectionRequestedAt = DateTime.UtcNow;
+                workflow.CorrectionRequestedBy = "Installation";
+
                 workflow.LastChange = DateTime.UtcNow;
             }
 
             await context.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            // Refresh status overview
+            if (statusOverview != null)
+            {
+                await statusOverview.RefreshAsync();
+            }
 
             Snackbar.Add("Projekt erfolgreich zur Korrektur freigegeben!", Severity.Success);
 
@@ -1144,7 +1161,6 @@
             isReleasingForCorrection = false;
         }
     }
-
     // Complete installation and archive project
     private async Task CompleteInstallation()
     {
@@ -1202,6 +1218,13 @@
             await context.SaveChangesAsync();
             await transaction.CommitAsync();
 
+            //  Refresh status overview
+            if (statusOverview != null)
+            {
+                await statusOverview.RefreshAsync();
+            }
+
+
             Snackbar.Add("Installation erfolgreich abgeschlossen!", Severity.Success);
 
             await Task.Delay(1500);
@@ -1250,6 +1273,13 @@
 
             await context.SaveChangesAsync();
             await transaction.CommitAsync();
+           
+            //  Refresh status overview
+          
+            if (statusOverview != null)
+            {
+                await statusOverview.RefreshAsync();
+            }
 
             Snackbar.Add("Projekt erfolgreich zur Bearbeitung geöffnet!", Severity.Success);
 

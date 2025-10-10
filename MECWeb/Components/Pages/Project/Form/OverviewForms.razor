@@ -656,10 +656,24 @@
             foreach (var workflow in workflowsToUpdate)
             {
                 workflow.Status = WorkflowStatus.Completed;
+
+                //  flags when forwarding
+                workflow.HasPendingCorrection = false;
+                workflow.CorrectionPhase = null;
+                workflow.CorrectionNote = null;
+                workflow.CorrectionRequestedAt = null;
+                workflow.CorrectionRequestedBy = null;
+
                 workflow.LastChange = DateTime.UtcNow;
             }
 
             await context.SaveChangesAsync();
+
+            // Refresh status overview component
+            if (statusOverview != null)
+            {
+                await statusOverview.RefreshAsync();
+            }
 
             Snackbar.Add("Alle Formulare erfolgreich an Einkauf weitergeleitet!", Severity.Success);
 

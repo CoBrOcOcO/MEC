@@ -72,12 +72,10 @@
                 </MudAlert>
             }
         }
-
-        <!-- Status Overview -->
-        @if (currentProject != null)
-        {
-            <ProjectStatusOverview ProjectId="@ProjectId"
-                                   IsLoading="@loading" />
+        <!-- PROJECT STATUS OVERVIEW -->
+        <ProjectStatusOverview ProjectId="@ProjectId"
+                               IsLoading="@loading"
+                               @ref="statusOverview" />
         }
 
         <!-- Loading -->
@@ -442,6 +440,8 @@
         cts?.Dispose();
     }
 
+    // Status overview reference
+    private ProjectStatusOverview? statusOverview;
     // ==================== AUTO-REFRESH SYSTEM ====================
 
     // Start timer to check for new workflows every second (only if not read-only)
@@ -660,22 +660,22 @@
         bool? result = await DialogService.ShowMessageBox(
             title: "Zur Korrektur freigeben",
             markupMessage: new MarkupString($@"
-            <div style='line-height: 1.6;'>
-                <div style='margin-bottom: 16px;'>
-                    Möchten Sie das Projekt zur Korrektur freigeben?
-                </div>
-                <div style='margin-bottom: 8px; font-weight: 600; color: #1976d2;'>
-                    Projekt:
-                </div>
-                <div style='margin-bottom: 16px; font-weight: 500;'>
-                    {currentProject?.ProjectNumber} - {currentProject?.Name}
-                </div>
-                <div style='color: #ff9800; font-weight: 500; display: flex; align-items: center; gap: 8px;'>
-                    <span style='font-size: 18px;'>📝</span>
-                    <span>Die Abteilungen können das Projekt wieder bearbeiten.</span>
-                </div>
-            </div>
-        "),
+    <div style='line-height: 1.6;'>
+        <div style='margin-bottom: 16px;'>
+            Möchten Sie das Projekt zur Korrektur freigeben?
+        </div>
+        <div style='margin-bottom: 8px; font-weight: 600; color: #1976d2;'>
+            Projekt:
+        </div>
+        <div style='margin-bottom: 16px; font-weight: 500;'>
+            {currentProject?.ProjectNumber} - {currentProject?.Name}
+        </div>
+        <div style='color: #ff9800; font-weight: 500; display: flex; align-items: center; gap: 8px;'>
+            <span style='font-size: 18px;'>📝</span>
+            <span>Die Abteilungen können das Projekt wieder bearbeiten.</span>
+        </div>
+    </div>
+"),
             yesText: "Freigeben",
             noText: "Abbrechen"
         );
@@ -688,7 +688,6 @@
             using var context = await DbContextFactory.CreateDbContextAsync();
             using var transaction = await context.Database.BeginTransactionAsync();
 
-            
             var workflowIds = allWorkflows.Select(w => w.Id).ToList();
             var workflowsToUpdate = await context.Workflow
                 .Where(w => workflowIds.Contains(w.Id))
@@ -696,12 +695,27 @@
 
             foreach (var workflow in workflowsToUpdate)
             {
-                workflow.Status = WorkflowStatus.SoftwareCompleted;
+                // Reset status to HardwareInProgress (earliest editable state)
+                workflow.Status = WorkflowStatus.HardwareInProgress;
+
+                // Set correction flags for BOTH phases - use comma-separated string
+                workflow.HasPendingCorrection = true;
+                workflow.CorrectionPhase = "Hardware,Software";
+                workflow.CorrectionNote = "Vom Einkauf zur Korrektur freigegeben";
+                workflow.CorrectionRequestedAt = DateTime.UtcNow;
+                workflow.CorrectionRequestedBy = "Einkauf";
+
                 workflow.LastChange = DateTime.UtcNow;
             }
 
             await context.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            // Refresh status overview
+            if (statusOverview != null)
+            {
+                await statusOverview.RefreshAsync();
+            }
 
             Snackbar.Add("Projekt erfolgreich zur Korrektur freigegeben!", Severity.Success);
 
@@ -718,7 +732,6 @@
             isReleasingForCorrection = false;
         }
     }
-
     // Forward all workflows to Installation
     private async Task ForwardToInstallation()
     {
@@ -743,7 +756,6 @@
             using var context = await DbContextFactory.CreateDbContextAsync();
             using var transaction = await context.Database.BeginTransactionAsync();
 
-            
             var workflowIds = allWorkflows.Select(w => w.Id).ToList();
             var workflowsToUpdate = await context.Workflow
                 .Where(w => workflowIds.Contains(w.Id))
@@ -752,11 +764,25 @@
             foreach (var workflow in workflowsToUpdate)
             {
                 workflow.Status = WorkflowStatus.ForwardedToInstallation;
+
+                //   flags when forwarding
+                workflow.HasPendingCorrection = false;
+                workflow.CorrectionPhase = null;
+                workflow.CorrectionNote = null;
+                workflow.CorrectionRequestedAt = null;
+                workflow.CorrectionRequestedBy = null;
+
                 workflow.LastChange = DateTime.UtcNow;
             }
 
             await context.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            // Refresh status overview
+            if (statusOverview != null)
+            {
+                await statusOverview.RefreshAsync();
+            }
 
             Snackbar.Add("Projekt erfolgreich an Installation weitergeleitet!", Severity.Success);
 
