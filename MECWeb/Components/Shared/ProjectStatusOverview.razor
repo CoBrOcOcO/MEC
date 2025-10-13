@@ -92,65 +92,28 @@
                 </MudStack>
             </MudStack>
 
-            <!-- Progress Bar -->
-            <MudProgressLinear Color="Color.Success"
-                               Value="@_animatedProgress"
-                               Size="Size.Large"
-                               Rounded="true"
-                               Class="my-2"
-                               Style="height: 12px;" />
+            <!-- Progress Indicator -->
+            <MudProgressLinear Color="Color.Success" Value="@GetOverallProgress()" Size="Size.Small" Class="my-2" />
 
-            <!-- Overall Progress Information -->
-            <MudDivider />
+            <!-- Summary Stats -->
             <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-                <MudStack Row Spacing="3">
-                    <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text" Icon="@Icons.Material.Filled.Computer">
-                        @workflows.Count(w => w.WorkflowType == WorkflowType.BDR) BDR
-                    </MudChip>
-                    <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Text" Icon="@Icons.Material.Filled.CameraAlt">
-                        @workflows.Count(w => w.WorkflowType == WorkflowType.BV) BV
-                    </MudChip>
-                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Text" Icon="@Icons.Material.Filled.CheckCircle">
-                        @workflows.Count Gesamt
-                    </MudChip>
-                </MudStack>
-                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled" Style="font-weight: 600;">
-                    @GetCompletionPercentage()% abgeschlossen
-                </MudChip>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    Gesamtfortschritt: @GetOverallProgress().ToString("F0")%
+                </MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    @workflows.Count Workflow@(workflows.Count != 1 ? "s" : "") insgesamt
+                </MudText>
             </MudStack>
-        </MudStack>
-    </MudPaper>
-}
-else if (IsLoading)
-{
-    <!-- Loading State -->
-    <MudPaper Class="pa-4 mb-4" Elevation="2" Style="background-color: var(--mud-palette-background-grey);">
-        <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
-            <MudProgressCircular Color="Color.Primary" Size="Size.Small" Indeterminate="true" />
-            <MudText Typo="Typo.body2" Color="Color.Secondary">Projekt-Status wird geladen...</MudText>
-        </MudStack>
-    </MudPaper>
-}
-else
-{
-    <!-- No Workflows State -->
-    <MudPaper Class="pa-4 mb-4" Elevation="2" Style="background-color: var(--mud-palette-background-grey);">
-        <MudStack AlignItems="AlignItems.Center" Spacing="2">
-            <MudIcon Icon="@Icons.Material.Filled.Info" Color="Color.Secondary" />
-            <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
-                Noch keine Formulare für dieses Projekt erstellt.
-            </MudText>
         </MudStack>
     </MudPaper>
 }
 
 @code {
     [Parameter] public Guid ProjectId { get; set; }
-    [Parameter] public bool IsLoading { get; set; } = false;
+    [Parameter] public bool IsLoading { get; set; }
 
     private List<DbWorkflow> workflows = new();
-    private double _animatedProgress = 0;
-    private System.Threading.Timer? _progressTimer;
+    private System.Timers.Timer? _progressTimer;
 
     protected override async Task OnInitializedAsync()
     {
@@ -196,17 +159,16 @@ else
             w.CorrectionPhase.Contains("Hardware", StringComparison.OrdinalIgnoreCase)))
             return Color.Warning;
 
-        // Dunkelgrün: Hardware was forwarded (Status >= Completed)
+        // Dark green: Hardware was forwarded (Status >= Completed)
         if (workflows.All(w => w.Status >= WorkflowStatus.Completed))
             return Color.Dark;
 
-        // Hellgrün: Hardware completed, ready for forwarding to Software
-        // Alle Workflows haben mindestens SoftwareInProgress erreicht ABER noch nicht beim Einkauf
+        // light Green: Hardware completed, ready for forwarding to Software
         if (workflows.All(w => w.Status >= WorkflowStatus.SoftwareInProgress) &&
             workflows.All(w => w.Status < WorkflowStatus.Completed))
             return Color.Success;
 
-        // Orange: Hardware in progress - mindestens ein Workflow ist bei HardwareInProgress oder höher, aber nicht alle fertig
+        // Orange: Hardware in progress
         if (workflows.Any(w => w.Status >= WorkflowStatus.HardwareInProgress))
             return Color.Warning;
 
@@ -236,11 +198,11 @@ else
             w.CorrectionPhase.Contains("Hardware", StringComparison.OrdinalIgnoreCase));
         if (correctionsCount > 0) return $"Korrektur ({correctionsCount})";
 
-        // Dunkelgrün: All forwarded
+        // Dark Green: All forwarded
         if (workflows.All(w => w.Status >= WorkflowStatus.Completed))
             return "Weitergeleitet";
 
-        // Hellgrün: All completed, ready for forwarding
+        // Light Green: All completed, ready for forwarding
         if (workflows.All(w => w.Status >= WorkflowStatus.SoftwareInProgress && w.Status < WorkflowStatus.Completed))
             return "Abgeschlossen";
 
@@ -264,20 +226,19 @@ else
             w.CorrectionPhase.Contains("Software", StringComparison.OrdinalIgnoreCase)))
             return Color.Warning;
 
-        // Dunkelgrün: Software was forwarded (Status >= Completed)
+        // Dark Green: Software was forwarded (Status >= Completed)
         if (workflows.All(w => w.Status >= WorkflowStatus.Completed))
             return Color.Dark;
 
-        // Hellgrün: Software completed, ready for forwarding to Purchase
-        // Alle Workflows haben SoftwareCompleted erreicht ABER sind noch nicht beim Einkauf
+        // light Green: Software completed, ready for forwarding to Purchase
         if (workflows.All(w => w.Status == WorkflowStatus.SoftwareCompleted))
             return Color.Success;
 
-        // Orange: Software in progress - mindestens ein Workflow ist bei SoftwareInProgress oder höher
+        // Orange: Software in progress
         if (workflows.Any(w => w.Status >= WorkflowStatus.SoftwareInProgress))
             return Color.Warning;
 
-        // Grau: Not started (Status < SoftwareInProgress)
+        // Grau: Not started
         return Color.Default;
     }
 
@@ -303,11 +264,11 @@ else
             w.CorrectionPhase.Contains("Software", StringComparison.OrdinalIgnoreCase));
         if (correctionsCount > 0) return $"Korrektur ({correctionsCount})";
 
-        // Dunkelgrün: All forwarded
+        // Dark Green: All forwarded
         if (workflows.All(w => w.Status >= WorkflowStatus.Completed))
             return "Weitergeleitet";
 
-        // Hellgrün: All completed, ready for forwarding
+        // light Green: All completed, ready for forwarding
         if (workflows.All(w => w.Status == WorkflowStatus.SoftwareCompleted))
             return "Abgeschlossen";
 
@@ -320,32 +281,30 @@ else
 
     // ==================== PURCHASE STATUS ====================
 
-    // Get purchase status color based on workflow states
     private Color GetPurchaseStatusColor()
     {
         if (!workflows.Any()) return Color.Default;
 
-        // Check for pending corrections in Purchase phase
-        if (workflows.Any(w => w.HasPendingCorrection &&
-            !string.IsNullOrEmpty(w.CorrectionPhase) &&
-            w.CorrectionPhase.Contains("Purchase", StringComparison.OrdinalIgnoreCase)))
-            return Color.Warning;
-
-        // Dunkelgrün: Purchase was forwarded to installation (Status >= ForwardedToInstallation)
+        // Dark Green: Purchase was forwarded to installation (Status >= ForwardedToInstallation)
         if (workflows.All(w => w.Status >= WorkflowStatus.ForwardedToInstallation))
             return Color.Dark;
 
-        // Hellgrün: All purchase completed, ready for forwarding to Installation
-        // Alle beim Einkauf (Completed) UND alle als PurchaseCompleted markiert
-        if (workflows.All(w => w.Status == WorkflowStatus.Completed) &&
-            workflows.All(w => w.PurchaseCompleted))
-            return Color.Success;
-
-        // Orange: At purchase, in progress - beim Einkauf aber noch nicht alle erledigt
+        // Check if workflows are at purchase (Status = Completed)
         if (workflows.Any(w => w.Status == WorkflowStatus.Completed))
-            return Color.Warning;
+        {
+            // Orange: Has pending corrections (released for correction from purchase)
+            if (workflows.Any(w => w.HasPendingCorrection))
+                return Color.Warning;
 
-        // Grau: Not at purchase yet (Status < Completed)
+            // light Green: All purchase completed, ready for forwarding to Installation
+            if (workflows.All(w => w.Status == WorkflowStatus.Completed && w.PurchaseCompleted))
+                return Color.Success;
+
+            // Orange: At purchase, but not all completed yet
+            return Color.Warning;
+        }
+
+        // Grey: Not at purchase yet (Status < Completed)
         return Color.Default;
     }
 
@@ -366,16 +325,14 @@ else
         if (!workflows.Any()) return "Ausstehend";
 
         // Check for corrections
-        var correctionsCount = workflows.Count(w => w.HasPendingCorrection &&
-            !string.IsNullOrEmpty(w.CorrectionPhase) &&
-            w.CorrectionPhase.Contains("Purchase", StringComparison.OrdinalIgnoreCase));
-        if (correctionsCount > 0) return $"Korrektur ({correctionsCount})";
+        if (workflows.Any(w => w.HasPendingCorrection && w.Status == WorkflowStatus.Completed))
+            return "Korrektur";
 
-        // Dunkelgrün: All forwarded to installation
+        // Dark Green All forwarded to installation
         if (workflows.All(w => w.Status >= WorkflowStatus.ForwardedToInstallation))
             return "Weitergeleitet";
 
-        // Hellgrün: All purchase completed, ready for forwarding
+        // Light Green: All purchase completed, ready for forwarding
         if (workflows.All(w => w.Status == WorkflowStatus.Completed && w.PurchaseCompleted))
             return "Abgeschlossen";
 
@@ -402,7 +359,7 @@ else
             w.CorrectionPhase.Contains("Installation", StringComparison.OrdinalIgnoreCase)))
             return Color.Warning;
 
-        // Dunkelgrün: Installation archived (Status = Archived)
+        // Dark Green: Installation archived (Status = Archived)
         if (workflows.All(w => w.Status == WorkflowStatus.Archived))
             return Color.Dark;
 
@@ -410,7 +367,7 @@ else
         if (workflows.Any(w => w.Status == WorkflowStatus.ForwardedToInstallation))
             return Color.Warning;
 
-        // Grau: Not at installation yet (Status < ForwardedToInstallation)
+        // Grey: Not at installation yet
         return Color.Default;
     }
 
@@ -436,7 +393,7 @@ else
             w.CorrectionPhase.Contains("Installation", StringComparison.OrdinalIgnoreCase));
         if (correctionsCount > 0) return $"Korrektur ({correctionsCount})";
 
-        // Dunkelgrün: All archived
+        // Dark Green: All archived
         if (workflows.All(w => w.Status == WorkflowStatus.Archived))
             return "Abgeschlossen";
 
@@ -449,63 +406,32 @@ else
 
     // ==================== PROGRESS CALCULATION ====================
 
-    // Calculate overall completion percentage
-    private int GetCompletionPercentage()
+    // Calculate overall project progress percentage
+    private double GetOverallProgress()
     {
         if (!workflows.Any()) return 0;
 
-        var totalSteps = workflows.Count * 7;
-        var completedSteps = 0;
-
+        // Calculate progress based on workflow status
+        double totalProgress = 0;
         foreach (var workflow in workflows)
         {
-            if (workflow.Status >= WorkflowStatus.HardwareInProgress) completedSteps++;
-            if (workflow.Status >= WorkflowStatus.SoftwareInProgress) completedSteps++;
-            if (workflow.Status >= WorkflowStatus.SoftwareInProgress) completedSteps++;
-            if (workflow.Status >= WorkflowStatus.SoftwareCompleted) completedSteps++;
-            if (workflow.Status >= WorkflowStatus.Completed) completedSteps++;
-            if (workflow.Status >= WorkflowStatus.ForwardedToInstallation) completedSteps++;
-            if (workflow.Status >= WorkflowStatus.Archived) completedSteps++;
-        }
-
-        return (int)Math.Round((double)completedSteps / totalSteps * 100);
-    }
-
-    // Animate progress bar to target percentage
-    private Task AnimateProgress(int targetPercentage)
-    {
-        _progressTimer?.Dispose();
-
-        double startValue = _animatedProgress;
-        const int animationDurationMs = 1000;
-        const int updateIntervalMs = 16;
-        int steps = animationDurationMs / updateIntervalMs;
-        double increment = (targetPercentage - startValue) / steps;
-
-        _progressTimer = new System.Threading.Timer(async _ =>
-        {
-            _animatedProgress = Math.Min(_animatedProgress + increment, targetPercentage);
-            await InvokeAsync(StateHasChanged);
-
-            if (Math.Abs(_animatedProgress - targetPercentage) < 0.1)
+            totalProgress += workflow.Status switch
             {
-                _animatedProgress = targetPercentage;
-                _progressTimer?.Dispose();
-                await InvokeAsync(StateHasChanged);
-            }
-        }, null, 0, updateIntervalMs);
-
-        return Task.CompletedTask;
-    }
-
-    protected override async Task OnParametersSetAsync()
-    {
-        if (ProjectId != Guid.Empty)
-        {
-            await LoadWorkflows();
-            await AnimateProgress(GetCompletionPercentage());
+                WorkflowStatus.Created => 0,
+                WorkflowStatus.HardwareInProgress => 15,
+                WorkflowStatus.SoftwareInProgress => 40,
+                WorkflowStatus.SoftwareCompleted => 60,
+                WorkflowStatus.Completed => 75,
+                WorkflowStatus.ForwardedToInstallation => 90,
+                WorkflowStatus.Archived => 100,
+                _ => 0
+            };
         }
+
+        return totalProgress / workflows.Count;
     }
+
+    // ==================== LIFECYCLE ====================
 
     public void Dispose()
     {

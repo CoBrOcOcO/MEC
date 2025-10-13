@@ -76,7 +76,7 @@
         <ProjectStatusOverview ProjectId="@ProjectId"
                                IsLoading="@loading"
                                @ref="statusOverview" />
-        }
+        
 
         <!-- Loading -->
         @if (loading)
@@ -278,6 +278,7 @@
                                               Lines="3" />
                             }
                             else
+
                             {
                                 <MudText Typo="Typo.body2" Color="Color.Tertiary" Style="font-style: italic;">
                                     Kein Kommentar vorhanden
@@ -421,7 +422,7 @@
 
     // Cancellation token for async operations
     private CancellationTokenSource? cts;
-
+    private bool _disposed = false;
     // ==================== LIFECYCLE METHODS ====================
 
     // Component initialization - load data and start auto-refresh
@@ -435,6 +436,7 @@
     // Cleanup - stop timer and cancel operations
     public void Dispose()
     {
+        _disposed = true;
         StopAutoRefresh();
         cts?.Cancel();
         cts?.Dispose();
@@ -468,13 +470,19 @@
     }
 
     // Check if workflow count changed (new workflows from Forms page)
+    // Check if workflow count changed (new workflows from Forms page)
     private async Task CheckForNewWorkflows()
     {
-        if (isCheckingForUpdates || IsReadOnlyMode) return;
+        // Early exit if disposed or readonly
+        if (_disposed || isCheckingForUpdates || IsReadOnlyMode)
+            return;
 
         isCheckingForUpdates = true;
         try
         {
+            // Check disposed again before creating context
+            if (_disposed) return;
+
             using var context = await DbContextFactory.CreateDbContextAsync();
 
             var currentCount = await context.Workflow
@@ -486,10 +494,12 @@
                 .CountAsync();
 
             // Reload if count changed
-            if (currentCount != lastWorkflowCount && lastWorkflowCount > 0)
+            if (currentCount != lastWorkflowCount && lastWorkflowCount > 0 && !_disposed)
             {
                 await InvokeAsync(async () =>
                 {
+                    if (_disposed) return;
+
                     await LoadProjectDetails();
                     StateHasChanged();
                     Snackbar.Add($"Neue Workflows vom Formular-Bereich erkannt! ({currentCount} Workflows)", Severity.Info);
@@ -498,9 +508,17 @@
 
             lastWorkflowCount = currentCount;
         }
+        catch (ObjectDisposedException)
+        {
+            // Silently ignore - component is being disposed
+            return;
+        }
         catch (Exception ex)
         {
-            Console.WriteLine($"CheckForNewWorkflows Error: {ex.Message}");
+            if (!_disposed) // Only log if not disposed
+            {
+                Console.WriteLine($"CheckForNewWorkflows Error: {ex.Message}");
+            }
         }
         finally
         {
@@ -695,8 +713,12 @@
 
             foreach (var workflow in workflowsToUpdate)
             {
-                // Reset status to HardwareInProgress (earliest editable state)
-                workflow.Status = WorkflowStatus.HardwareInProgress;
+                // Keep status at SoftwareCompleted so workflow stays visible in Forms
+                workflow.Status = WorkflowStatus.SoftwareCompleted;
+
+                // Reset purchase completion flags
+                workflow.PurchaseCompleted = false;
+                workflow.PurchaseCompletedDate = null;
 
                 // Set correction flags for BOTH phases - use comma-separated string
                 workflow.HasPendingCorrection = true;
@@ -716,11 +738,13 @@
             {
                 await statusOverview.RefreshAsync();
             }
+       
 
             Snackbar.Add("Projekt erfolgreich zur Korrektur freigegeben!", Severity.Success);
 
-            await Task.Delay(1500);
-            Navigation.NavigateTo($"/project/{ProjectId}");
+            await Task.Delay(1000);
+            await LoadProjectDetails();
+            StateHasChanged();
         }
         catch (Exception ex)
         {
@@ -905,7 +929,7 @@
             using var context = await DbContextFactory.CreateDbContextAsync();
             using var transaction = await context.Database.BeginTransactionAsync();
 
-            // KORREKTUR: Workflow im neuen Context laden
+            //  Workflow im neuen Context laden
             var workflow = await context.Workflow.FindAsync(workflowId);
             if (workflow == null)
             {
@@ -954,6 +978,13 @@
 
             await context.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            // Refresh status overview after save
+            if (statusOverview != null)
+            {
+                await statusOverview.RefreshAsync();
+            }
+
 
             var statusText = isCompleted ? " und als erledigt markiert" : "";
             Snackbar.Add($"Kommentar für '{workflowInMemory.Name}' gespeichert{statusText}!", Severity.Success);

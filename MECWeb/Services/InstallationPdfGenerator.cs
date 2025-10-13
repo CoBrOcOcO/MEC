@@ -68,7 +68,7 @@ namespace MECWeb.Services
                             column.Item().Element(c => CreateModernBdrAdditionalHardwareSection(c, additionalFields));
                         }
 
-                        // Allgemeine Beschreibung Hardware - nach Zusätzliche Hardware
+                        // General Description Hardware - according to Additional Hardware
                         if (data.BdrHardware != null && !string.IsNullOrEmpty(data.BdrHardware.Description))
                         {
                             column.Item().Element(c => CreateModernBdrHardwareRemarksSection(c, data.BdrHardware.Description));
@@ -76,7 +76,7 @@ namespace MECWeb.Services
 
                         column.Item().Element(c => CreateModernSoftwareSection(c, data));
 
-                        // Allgemeine Beschreibung Software - nach Software-Konfiguration
+                        // General software description - according to software configuration
                         var softwareRemarks = ParseSoftwareRemarksFromDescription(
                             data.Workflow?.Description ?? "",
                             data.Workflow?.WorkflowType == WorkflowType.BDR);
@@ -88,16 +88,8 @@ namespace MECWeb.Services
 
                         column.Item().Element(c => CreateModernNetworkSection(c, data));
 
-                        // Comments section
-                        var installationComment = ParseCommentFromDescription(
-                            data.Workflow?.Description ?? "", "INSTALLATION_COMMENT:");
-                        var purchaseComment = ParseCommentFromDescription(
-                            data.Workflow?.Description ?? "", "PURCHASE_COMMENT:");
-
-                        if (!string.IsNullOrEmpty(installationComment) || !string.IsNullOrEmpty(purchaseComment))
-                        {
-                            column.Item().Element(c => CreateModernCommentsSection(c, data));
-                        }
+                        // Comments section - always shown (Installation is always displayed)
+                        column.Item().Element(c => CreateModernCommentsSection(c, data));
                     });
 
                     page.Footer().AlignCenter().DefaultTextStyle(t => t.FontSize(9).FontColor(Colors.Grey.Medium)).Text(x =>
@@ -142,7 +134,7 @@ namespace MECWeb.Services
                         column.Item().Element(c => CreateModernProjectSection(c, data, isBv: true));
                         column.Item().Element(c => CreateModernBvHardwareSection(c, data));
 
-                        // Allgemeine Beschreibung Hardware - nach Hardware-Konfiguration/Komponenten
+                        // General hardware description - according to hardware configuration/components
                         if (data.BvHardware != null && !string.IsNullOrEmpty(data.BvHardware.Description))
                         {
                             column.Item().Element(c => CreateModernBvHardwareRemarksSection(c, data.BvHardware.Description));
@@ -150,7 +142,7 @@ namespace MECWeb.Services
 
                         column.Item().Element(c => CreateModernSoftwareSection(c, data));
 
-                        // Allgemeine Beschreibung Software - nach Software-Konfiguration
+                        // General software description - according to software configuration
                         var softwareRemarks = ParseSoftwareRemarksFromDescription(
                             data.Workflow?.Description ?? "",
                             data.Workflow?.WorkflowType == WorkflowType.BDR);
@@ -162,16 +154,8 @@ namespace MECWeb.Services
 
                         column.Item().Element(c => CreateModernNetworkSection(c, data));
 
-                        // Comments section
-                        var installationComment = ParseCommentFromDescription(
-                            data.Workflow?.Description ?? "", "INSTALLATION_COMMENT:");
-                        var purchaseComment = ParseCommentFromDescription(
-                            data.Workflow?.Description ?? "", "PURCHASE_COMMENT:");
-
-                        if (!string.IsNullOrEmpty(installationComment) || !string.IsNullOrEmpty(purchaseComment))
-                        {
-                            column.Item().Element(c => CreateModernCommentsSection(c, data));
-                        }
+                        // Comments section - always shown (Installation is always displayed)
+                        column.Item().Element(c => CreateModernCommentsSection(c, data));
                     });
 
                     page.Footer().AlignCenter().DefaultTextStyle(t => t.FontSize(9).FontColor(Colors.Grey.Medium)).Text(x =>
@@ -631,7 +615,8 @@ namespace MECWeb.Services
         }
 
         /// <summary>
-        /// Create modern comments section - only shown if there are comments
+        /// Create modern comments section - Purchase first, then Installation
+        /// Installation section is ALWAYS shown (even without comment text)
         /// </summary>
         private void CreateModernCommentsSection(IContainer container, InstallationData data)
         {
@@ -642,28 +627,9 @@ namespace MECWeb.Services
                 var purchaseComment = ParseCommentFromDescription(
                     data.Workflow?.Description ?? "", "PURCHASE_COMMENT:");
 
-                // Only show installation comments section if there is content
-                if (!string.IsNullOrEmpty(installationComment))
-                {
-                    column.Item().ShowOnce().Column(innerColumn =>
-                    {
-                        innerColumn.Item().BorderBottom(2).BorderColor("#00873C").PaddingBottom(5)
-                            .Text("Installation Kommentare & Hinweise").FontSize(13).Bold().FontColor("#00873C");
-
-                        innerColumn.Item().PaddingTop(8).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
-                            .Text(installationComment).FontSize(9);
-                    });
-                }
-
-                // Only show purchase comments section if there is content
+                // 1. PURCHASE SECTION - Only show if there is content
                 if (!string.IsNullOrEmpty(purchaseComment))
                 {
-                    // Add spacing if installation comments were shown
-                    if (!string.IsNullOrEmpty(installationComment))
-                    {
-                        column.Item().PaddingTop(15);
-                    }
-
                     column.Item().ShowOnce().Column(innerColumn =>
                     {
                         innerColumn.Item().BorderBottom(2).BorderColor("#00873C").PaddingBottom(5)
@@ -673,6 +639,24 @@ namespace MECWeb.Services
                             .Text(purchaseComment).FontSize(9);
                     });
                 }
+
+                // 2. INSTALLATION SECTION - ALWAYS show (even without comment text)
+                // Add spacing if purchase comments were shown
+                if (!string.IsNullOrEmpty(purchaseComment))
+                {
+                    column.Item().PaddingTop(15);
+                }
+
+                column.Item().ShowOnce().Column(innerColumn =>
+                {
+                    // Always show header
+                    innerColumn.Item().BorderBottom(2).BorderColor("#00873C").PaddingBottom(5)
+                        .Text("Installation").FontSize(13).Bold().FontColor("#00873C");
+
+                    // Show content box (empty if no comment text)
+                    innerColumn.Item().PaddingTop(8).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
+                        .Text(installationComment ?? "").FontSize(9);
+                });
             });
         }
 
