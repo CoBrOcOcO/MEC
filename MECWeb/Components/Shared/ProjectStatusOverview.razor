@@ -153,34 +153,28 @@
     {
         if (!workflows.Any()) return Color.Default;
 
-        // Check for pending corrections affecting Hardware
-        if (workflows.Any(w => w.HasPendingCorrection &&
-            !string.IsNullOrEmpty(w.CorrectionPhase) &&
-            w.CorrectionPhase.Contains("Hardware", StringComparison.OrdinalIgnoreCase)))
-            return Color.Warning;
-
-        // Dark green: Hardware was forwarded (Status >= Completed)
+        // Dark Green: All forwarded to purchase or beyond (Status >= Completed)
         if (workflows.All(w => w.Status >= WorkflowStatus.Completed))
             return Color.Dark;
 
-        // light Green: Hardware completed, ready for forwarding to Software
-        if (workflows.All(w => w.Status >= WorkflowStatus.SoftwareInProgress) &&
-            workflows.All(w => w.Status < WorkflowStatus.Completed))
+        // Light Green: All hardware completed, ready for software (Status >= SoftwareInProgress but < Completed)
+        if (workflows.All(w => w.Status >= WorkflowStatus.SoftwareInProgress))
             return Color.Success;
 
-        // Orange: Hardware in progress
-        if (workflows.Any(w => w.Status >= WorkflowStatus.HardwareInProgress))
+        // Orange: At least one workflow exists (Status >= Created) and not all completed
+        if (workflows.Any(w => w.Status >= WorkflowStatus.Created))
             return Color.Warning;
 
-        // Grau: Not started
+        // Grey: No workflows
         return Color.Default;
     }
 
     // Get hardware status style for dark green
     private string GetHardwareStatusStyle()
     {
-        if (!workflows.Any()) return "";
+        if (!workflows.Any()) return "box-shadow: 0 2px 8px rgba(0,0,0,0.1);";
 
+        // Dark green style only when all forwarded
         if (workflows.All(w => w.Status >= WorkflowStatus.Completed))
             return "background-color: #2e7d32 !important; box-shadow: 0 2px 8px rgba(46, 125, 50, 0.3);";
 
@@ -192,25 +186,21 @@
     {
         if (!workflows.Any()) return "Ausstehend";
 
-        // Check for corrections
-        var correctionsCount = workflows.Count(w => w.HasPendingCorrection &&
-            !string.IsNullOrEmpty(w.CorrectionPhase) &&
-            w.CorrectionPhase.Contains("Hardware", StringComparison.OrdinalIgnoreCase));
-        if (correctionsCount > 0) return $"Korrektur ({correctionsCount})";
-
         // Dark Green: All forwarded
         if (workflows.All(w => w.Status >= WorkflowStatus.Completed))
             return "Weitergeleitet";
 
-        // Light Green: All completed, ready for forwarding
-        if (workflows.All(w => w.Status >= WorkflowStatus.SoftwareInProgress && w.Status < WorkflowStatus.Completed))
+        // Light Green: All completed
+        if (workflows.All(w => w.Status >= WorkflowStatus.SoftwareInProgress))
             return "Abgeschlossen";
 
-        // Orange: In progress
+        // Orange: In progress - show count
         var completed = workflows.Count(w => w.Status >= WorkflowStatus.SoftwareInProgress);
-        if (completed > 0) return $"{completed}/{workflows.Count}";
+        if (completed > 0)
+            return $"{completed}/{workflows.Count}";
 
-        return "Ausstehend";
+        // Orange but none completed yet
+        return "Läuft";
     }
 
     // ==================== SOFTWARE STATUS ====================
@@ -220,33 +210,29 @@
     {
         if (!workflows.Any()) return Color.Default;
 
-        // Check for pending corrections affecting Software
-        if (workflows.Any(w => w.HasPendingCorrection &&
-            !string.IsNullOrEmpty(w.CorrectionPhase) &&
-            w.CorrectionPhase.Contains("Software", StringComparison.OrdinalIgnoreCase)))
-            return Color.Warning;
-
-        // Dark Green: Software was forwarded (Status >= Completed)
+        // Dark Green: All forwarded to purchase (Status >= Completed)
         if (workflows.All(w => w.Status >= WorkflowStatus.Completed))
             return Color.Dark;
 
-        // light Green: Software completed, ready for forwarding to Purchase
+        // Light Green: All software completed, ready for purchase (Status == SoftwareCompleted)
         if (workflows.All(w => w.Status == WorkflowStatus.SoftwareCompleted))
             return Color.Success;
 
-        // Orange: Software in progress
-        if (workflows.Any(w => w.Status >= WorkflowStatus.SoftwareInProgress))
+        // Orange: At least one at software stage (Status >= SoftwareInProgress) and not all completed
+        if (workflows.Any(w => w.Status >= WorkflowStatus.SoftwareInProgress) &&
+            workflows.Any(w => w.Status < WorkflowStatus.SoftwareCompleted))
             return Color.Warning;
 
-        // Grau: Not started
+        // Grey: Not at software stage yet (all workflows Status < SoftwareInProgress)
         return Color.Default;
     }
 
     // Get software status style for dark green
     private string GetSoftwareStatusStyle()
     {
-        if (!workflows.Any()) return "";
+        if (!workflows.Any()) return "box-shadow: 0 2px 8px rgba(0,0,0,0.1);";
 
+        // Dark green style only when all forwarded
         if (workflows.All(w => w.Status >= WorkflowStatus.Completed))
             return "background-color: #2e7d32 !important; box-shadow: 0 2px 8px rgba(46, 125, 50, 0.3);";
 
@@ -258,61 +244,54 @@
     {
         if (!workflows.Any()) return "Ausstehend";
 
-        // Check for corrections
-        var correctionsCount = workflows.Count(w => w.HasPendingCorrection &&
-            !string.IsNullOrEmpty(w.CorrectionPhase) &&
-            w.CorrectionPhase.Contains("Software", StringComparison.OrdinalIgnoreCase));
-        if (correctionsCount > 0) return $"Korrektur ({correctionsCount})";
-
         // Dark Green: All forwarded
         if (workflows.All(w => w.Status >= WorkflowStatus.Completed))
             return "Weitergeleitet";
 
-        // light Green: All completed, ready for forwarding
+        // Light Green: All completed
         if (workflows.All(w => w.Status == WorkflowStatus.SoftwareCompleted))
             return "Abgeschlossen";
 
-        // Orange: In progress
+        // Orange: In progress - show count
         var completed = workflows.Count(w => w.Status >= WorkflowStatus.SoftwareCompleted);
-        if (completed > 0) return $"{completed}/{workflows.Count}";
+        if (completed > 0)
+            return $"{completed}/{workflows.Count}";
 
+        // Grey: Not started
         return "Ausstehend";
     }
 
     // ==================== PURCHASE STATUS ====================
 
+    // Get purchase status color based on workflow states
     private Color GetPurchaseStatusColor()
     {
         if (!workflows.Any()) return Color.Default;
 
-        // Dark Green: Purchase was forwarded to installation (Status >= ForwardedToInstallation)
+        // Dark Green: All forwarded to installation (Status >= ForwardedToInstallation)
         if (workflows.All(w => w.Status >= WorkflowStatus.ForwardedToInstallation))
             return Color.Dark;
 
-        // Check if workflows are at purchase (Status = Completed)
+        // Light Green: All purchase completed, ready for installation
+        if (workflows.Any(w => w.Status == WorkflowStatus.Completed) &&
+            workflows.All(w => w.Status >= WorkflowStatus.Completed) &&
+            workflows.All(w => w.PurchaseCompleted))
+            return Color.Success;
+
+        // Orange: At least one at purchase (Status == Completed)
         if (workflows.Any(w => w.Status == WorkflowStatus.Completed))
-        {
-            // Orange: Has pending corrections (released for correction from purchase)
-            if (workflows.Any(w => w.HasPendingCorrection))
-                return Color.Warning;
-
-            // light Green: All purchase completed, ready for forwarding to Installation
-            if (workflows.All(w => w.Status == WorkflowStatus.Completed && w.PurchaseCompleted))
-                return Color.Success;
-
-            // Orange: At purchase, but not all completed yet
             return Color.Warning;
-        }
 
-        // Grey: Not at purchase yet (Status < Completed)
+        // Grey: Not at purchase yet
         return Color.Default;
     }
 
     // Get purchase status style for dark green
     private string GetPurchaseStatusStyle()
     {
-        if (!workflows.Any()) return "";
+        if (!workflows.Any()) return "box-shadow: 0 2px 8px rgba(0,0,0,0.1);";
 
+        // Dark green style only when all forwarded to installation
         if (workflows.All(w => w.Status >= WorkflowStatus.ForwardedToInstallation))
             return "background-color: #2e7d32 !important; box-shadow: 0 2px 8px rgba(46, 125, 50, 0.3);";
 
@@ -324,19 +303,17 @@
     {
         if (!workflows.Any()) return "Ausstehend";
 
-        // Check for corrections
-        if (workflows.Any(w => w.HasPendingCorrection && w.Status == WorkflowStatus.Completed))
-            return "Korrektur";
-
-        // Dark Green All forwarded to installation
+        // Dark Green: All forwarded to installation
         if (workflows.All(w => w.Status >= WorkflowStatus.ForwardedToInstallation))
             return "Weitergeleitet";
 
-        // Light Green: All purchase completed, ready for forwarding
-        if (workflows.All(w => w.Status == WorkflowStatus.Completed && w.PurchaseCompleted))
+        // Light Green: All purchase completed
+        if (workflows.Any(w => w.Status == WorkflowStatus.Completed) &&
+            workflows.All(w => w.Status >= WorkflowStatus.Completed) &&
+            workflows.All(w => w.PurchaseCompleted))
             return "Abgeschlossen";
 
-        // Orange: At purchase, in progress
+        // Orange: At purchase - show count
         if (workflows.Any(w => w.Status == WorkflowStatus.Completed))
         {
             var completed = workflows.Count(w => w.PurchaseCompleted);
@@ -353,17 +330,11 @@
     {
         if (!workflows.Any()) return Color.Default;
 
-        // Check for pending corrections in Installation phase
-        if (workflows.Any(w => w.HasPendingCorrection &&
-            !string.IsNullOrEmpty(w.CorrectionPhase) &&
-            w.CorrectionPhase.Contains("Installation", StringComparison.OrdinalIgnoreCase)))
-            return Color.Warning;
-
-        // Dark Green: Installation archived (Status = Archived)
+        // Dark Green: All archived (Status == Archived)
         if (workflows.All(w => w.Status == WorkflowStatus.Archived))
             return Color.Dark;
 
-        // Orange: At installation, in progress (Status = ForwardedToInstallation)
+        // Orange: At installation (Status == ForwardedToInstallation)
         if (workflows.Any(w => w.Status == WorkflowStatus.ForwardedToInstallation))
             return Color.Warning;
 
@@ -374,8 +345,9 @@
     // Get installation status style for dark green
     private string GetInstallationStatusStyle()
     {
-        if (!workflows.Any()) return "";
+        if (!workflows.Any()) return "box-shadow: 0 2px 8px rgba(0,0,0,0.1);";
 
+        // Dark green style only when all archived
         if (workflows.All(w => w.Status == WorkflowStatus.Archived))
             return "background-color: #2e7d32 !important; box-shadow: 0 2px 8px rgba(46, 125, 50, 0.3);";
 
@@ -387,19 +359,14 @@
     {
         if (!workflows.Any()) return "Ausstehend";
 
-        // Check for corrections
-        var correctionsCount = workflows.Count(w => w.HasPendingCorrection &&
-            !string.IsNullOrEmpty(w.CorrectionPhase) &&
-            w.CorrectionPhase.Contains("Installation", StringComparison.OrdinalIgnoreCase));
-        if (correctionsCount > 0) return $"Korrektur ({correctionsCount})";
-
         // Dark Green: All archived
         if (workflows.All(w => w.Status == WorkflowStatus.Archived))
             return "Abgeschlossen";
 
-        // Orange: At installation
+        // Orange: At installation - show count
         var atInstallation = workflows.Count(w => w.Status >= WorkflowStatus.ForwardedToInstallation);
-        if (atInstallation > 0) return $"{atInstallation}/{workflows.Count}";
+        if (atInstallation > 0)
+            return $"{atInstallation}/{workflows.Count}";
 
         return "Ausstehend";
     }

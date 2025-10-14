@@ -423,6 +423,10 @@
     // Cancellation token for async operations
     private CancellationTokenSource? cts;
     private bool _disposed = false;
+
+    // Status overview reference
+    private ProjectStatusOverview? statusOverview;
+
     // ==================== LIFECYCLE METHODS ====================
 
     // Component initialization - load data and start auto-refresh
@@ -442,8 +446,6 @@
         cts?.Dispose();
     }
 
-    // Status overview reference
-    private ProjectStatusOverview? statusOverview;
     // ==================== AUTO-REFRESH SYSTEM ====================
 
     // Start timer to check for new workflows every second (only if not read-only)
@@ -469,7 +471,6 @@
         }
     }
 
-    // Check if workflow count changed (new workflows from Forms page)
     // Check if workflow count changed (new workflows from Forms page)
     private async Task CheckForNewWorkflows()
     {
@@ -515,7 +516,7 @@
         }
         catch (Exception ex)
         {
-            if (!_disposed) // Only log if not disposed
+            if (!_disposed)
             {
                 Console.WriteLine($"CheckForNewWorkflows Error: {ex.Message}");
             }
@@ -738,7 +739,6 @@
             {
                 await statusOverview.RefreshAsync();
             }
-       
 
             Snackbar.Add("Projekt erfolgreich zur Korrektur freigegeben!", Severity.Success);
 
@@ -756,6 +756,7 @@
             isReleasingForCorrection = false;
         }
     }
+
     // Forward all workflows to Installation
     private async Task ForwardToInstallation()
     {
@@ -789,7 +790,7 @@
             {
                 workflow.Status = WorkflowStatus.ForwardedToInstallation;
 
-                //   flags when forwarding
+                // Clear correction flags when forwarding
                 workflow.HasPendingCorrection = false;
                 workflow.CorrectionPhase = null;
                 workflow.CorrectionNote = null;
@@ -824,6 +825,7 @@
             isForwarding = false;
         }
     }
+
     // ==================== COMMENT MANAGEMENT ====================
 
     // Get workflow comment from memory
@@ -929,7 +931,7 @@
             using var context = await DbContextFactory.CreateDbContextAsync();
             using var transaction = await context.Database.BeginTransactionAsync();
 
-            //  Workflow im neuen Context laden
+            // Load workflow in new context
             var workflow = await context.Workflow.FindAsync(workflowId);
             if (workflow == null)
             {
@@ -984,7 +986,6 @@
             {
                 await statusOverview.RefreshAsync();
             }
-
 
             var statusText = isCompleted ? " und als erledigt markiert" : "";
             Snackbar.Add($"Kommentar für '{workflowInMemory.Name}' gespeichert{statusText}!", Severity.Success);
@@ -1175,7 +1176,6 @@
     }
 
     // Parse encoded software data string into list
-
     private List<string> ParseSoftwareData(string softwareData, bool isBdr)
     {
         var items = new List<string>();
